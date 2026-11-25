@@ -361,7 +361,7 @@ function evaluationLabel(evaluation) {
 function winPercent(score) {
   if (!score) return 50;
   if (score.type === 'mate') return score.white > 0 ? 100 : 0;
-  return 100 / (1 + Math.exp(-.00368208 * Math.max(-1300, Math.min(1300, score.white))));
+  return 100 / (1 + Math.exp(-.00368208 * Math.max(-1000, Math.min(1000, score.white))));
 }
 
 function canvasContext(canvas) {
@@ -786,7 +786,7 @@ function renderRatingEstimates(path){
    card.append(element('small','Precisão média por lance: '+estimate.accuracy.toFixed(1).replace('.',',')+'%','muted'));
   }else{
    card.append(element('strong','—','rating-performance'));
-   const reasons={short:'Partida curta demais para estimar.','time-control':'Ritmo não informado no PGN.',bullet:'Precisão isolada não estima bem rating bullet.',classical:'Sem curva de referência para partidas clássicas.'};
+   const reasons={short:'Partida curta demais para estimar.','time-control':'Ritmo não informado no PGN.',bullet:'Precisão isolada não estima bem rating bullet.',classical:'Sem curva de referência para partidas clássicas.','outside-range':'Precisão fora da faixa de referência; uma partida não permite estimar com segurança.'};
    card.append(element('small',reasons[estimate.reason]||'Dados insuficientes para estimar.','muted'));
   }
   target.append(card);

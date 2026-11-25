@@ -65,6 +65,7 @@ export function estimatePerformance(path,side,headers={}){
  if(timeClass==='bullet')return{available:false,reason:'bullet',moves:moves.length};
  if(timeClass==='classical')return{available:false,reason:'classical',moves:moves.length};
  const accuracy=mean(moves.map(n=>n.accuracy)),table=CURVES[timeClass];
+ if(accuracy<table[0][2]||accuracy>table.at(-1)[2])return{available:false,reason:'outside-range',moves:moves.length,accuracy:Math.round(accuracy*10)/10};
  const c=invert(table,2,accuracy),lo=invert(table,3,accuracy),hi=invert(table,1,accuracy);
  const round=x=>Math.round(x/50)*50;
  return{available:true,rating:round(c.value),low:round(Math.min(lo.value,c.value)),high:round(Math.max(hi.value,c.value)),
