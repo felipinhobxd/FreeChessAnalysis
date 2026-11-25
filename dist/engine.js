@@ -4,7 +4,7 @@ const FALLBACK_LITE = 'https://chessanalysis.dev/engine/sf19.0.1/stockfish-19-li
 
 function engineBuilds(mode) {
   const lite = { name: 'Lite', file: 'stockfish-19-lite-single', threads: 1, timeout: 20000 };
-  if (mode === 'lite') return [lite];
+  if (mode !== 'full') return [lite];
   const threads = globalThis.crossOriginIsolated ? Math.max(1, Math.min(8, Math.floor((navigator.hardwareConcurrency || 2) / 2))) : 1;
   const full = { name: 'Completo', file: 'stockfish-19-single', threads: 1, timeout: 55000 };
   return threads > 1 ? [{ ...full, file: 'stockfish-19', threads }, full, lite] : [full, lite];
