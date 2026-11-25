@@ -1,25 +1,53 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
   <meta name="theme-color" content="#232620">
-  <meta name="description" content="Analise partidas de xadrez com Stockfish 19 no seu navegador.">
+  <meta name="description" content="Analyze chess games with Stockfish 19 in your browser.">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <title>Livro de Lances — Análise de xadrez</title>
+  <title>Move by Move — Chess Analysis</title>
   <link rel="stylesheet" href="./style.css">
   <script type="module" src="./app.js"></script>
 </head>
 <body>
+<div class="language-gate" id="language-gate" role="dialog" aria-modal="true" aria-labelledby="language-title">
+  <section class="language-card">
+    <div class="language-brand"><img src="/favicon.svg" alt=""><span>MOVE BY MOVE</span></div>
+    <p class="language-eyebrow">CHESS ANALYSIS</p>
+    <h1 id="language-title">Welcome to Move by Move</h1>
+    <p class="language-description">Choose your interface language before getting started. You can change it at any time.</p>
+    <label for="language-select">Choose your language</label>
+    <select id="language-select">
+      <option value="en">English</option>
+      <option value="pt-BR">Português (Brasil)</option>
+      <option value="es">Español</option>
+      <option value="fr">Français</option>
+      <option value="de">Deutsch</option>
+      <option value="it">Italiano</option>
+      <option value="nl">Nederlands</option>
+      <option value="ru">Русский</option>
+      <option value="zh-CN">中文（简体）</option>
+      <option value="ja">日本語</option>
+      <option value="ko">한국어</option>
+      <option value="tr">Türkçe</option>
+      <option value="ar">العربية</option>
+      <option value="hi">हिन्दी</option>
+    </select>
+    <button class="language-continue" id="language-enter" type="button">Continue to analysis</button>
+    <p class="language-note">You can change your language from the top navigation at any time.</p>
+  </section>
+</div>
+<div id="app-content" hidden>
   <header class="masthead">
-    <a class="brand" href="./" aria-label="Livro de Lances, início"><img src="/favicon.svg" alt=""><span>Livro de<br><b>Lances</b></span></a>
+    <a class="brand" href="./" aria-label="Move by Move, home"><img src="/favicon.svg" alt=""><span>Move by<br><b>Move</b></span></a>
     <nav aria-label="Navegação principal">
       <button class="nav-button active" id="nav-today" type="button"><i data-icon="workspace" aria-hidden="true"></i> Análise</button>
       <button class="nav-button" id="nav-puzzles" type="button"><i data-icon="puzzle" aria-hidden="true"></i> Puzzles</button>
       <button class="nav-button" id="nav-library" type="button"><i data-icon="archive" aria-hidden="true"></i> Arquivo</button>
     </nav>
-    <div class="rail-bottom"><button class="nav-button" id="settings-btn" title="Configurações"><i data-icon="settings" aria-hidden="true"></i> Ajustes</button>
+    <div class="rail-bottom"><button class="nav-button" id="language-open" type="button" title="Change language">Language</button><button class="nav-button" id="settings-btn" title="Configurações"><i data-icon="settings" aria-hidden="true"></i> Ajustes</button>
     <a class="nav-button credits" href="/notices" title="Créditos e licenças"><i data-icon="info" aria-hidden="true"></i> Créditos</a></div>
   </header>
   <main class="shell">
@@ -140,5 +168,6 @@
   <dialog id="share"><form method="dialog"><div class="dialog-head"><h2>Compartilhar ou exportar</h2><button class="icon-button" aria-label="Fechar"><i data-icon="close" aria-hidden="true"></i></button></div></form><div class="dialog-body share-actions"><button id="copy-link" class="secondary">Copiar link da partida</button><button id="copy-fen" class="secondary">Copiar FEN atual</button><button id="copy-pgn" class="secondary">Copiar PGN</button><button id="download-pgn" class="secondary">Baixar PGN</button><button id="save-game" class="secondary">Salvar no arquivo local</button></div></dialog>
   <dialog id="promotion"><form method="dialog"><div class="dialog-head"><h2>Promover peão</h2><button class="icon-button" aria-label="Fechar"><i data-icon="close" aria-hidden="true"></i></button></div></form><div id="promotions" class="dialog-body"></div></dialog>
   <div id="toast" role="status" hidden></div>
+</div>
 </body>
 </html>

@@ -59,23 +59,25 @@ export function icon(name) {
 }
 
 const SOUND_FILES = Object.freeze({
-  move: 'move-self',
-  opponent: 'move-opponent',
-  capture: 'capture',
-  check: 'move-check',
-  castle: 'castle',
-  promotion: 'promote',
-  premove: 'premove',
-  illegal: 'illegal',
-  start: 'game-start',
-  end: 'game-end',
-  mate: 'game-end',
-  win: 'game-end',
-  lose: 'game-end',
-  drawOffer: 'drawoffer',
-  tenSeconds: 'tenseconds',
+  move: 'move.mp3',
+  opponent: 'cone-move.mp3',
+  capture: 'brick-take.mp3',
+  check: 'hit.mp3',
+  castle: 'brick-castle.mp3',
+  promotion: 'snap.mp3',
+  premove: 'move.mp3',
+  illegal: 'hit.mp3',
+  start: 'snap.mp3',
+  end: 'checkmate.mp3',
+  mate: 'checkmate.mp3',
+  win: 'checkmate.mp3',
+  lose: 'checkmate.mp3',
+  drawOffer: 'snap.mp3',
+  tenSeconds: 'hit.mp3',
+  enPassant: 'en-passant.mp3',
 });
 
+const SOUND_BASE = '/sounds/sharechess/';
 const soundPlayers = new Map();
 let outputVolume = 0.65;
 let soundEnabled = true;
@@ -84,8 +86,8 @@ function soundPlayer(name) {
   const file = SOUND_FILES[name];
   if (!file) return null;
   if (!soundPlayers.has(file)) {
-    const player = new Audio(`/sounds/chesscom-default/${file}.mp3`);
-    player.preload = 'auto';
+    const player = new Audio(SOUND_BASE + file);
+    player.preload = 'none';
     player.volume = outputVolume;
     soundPlayers.set(file, player);
   }
@@ -122,7 +124,6 @@ export function boardSound(name, enabled, volume = 65) {
     playback?.catch(() => {});
   } catch { /* Audio is optional and must never interrupt a move. */ }
 }
-
 export function mateCelebration(layer) {
   const colors = ['#b7ed80', '#f7cb76', '#f0f5cb', '#72d7c2'];
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;

@@ -1,168 +1,176 @@
-<div align="center">
-  <img src="dist/favicon.svg" alt="" width="72" height="72" />
-  <h1>Livro de Lances</h1>
-  <p><strong>Análise de xadrez no navegador, com Stockfish 19.</strong></p>
-  <p>Revise partidas, entenda decisões críticas e transforme erros em oportunidades de treino.</p>
-  <p>
-    <img src="https://img.shields.io/badge/Node.js-24.x-3c873a?logo=node.js&logoColor=white" alt="Node.js 24.x" />
-    <img src="https://img.shields.io/badge/Engine-Stockfish%2019-779556" alt="Stockfish 19" />
-    <img src="https://img.shields.io/badge/Idioma-Portugu%C3%AAs%20(BR)-426b50" alt="Português do Brasil" />
-    <img src="https://img.shields.io/badge/Deploy-Vercel-black?logo=vercel" alt="Compatível com Vercel" />
-  </p>
-  <p><a href="https://github.com/felipinhobxd/FreeChessAnalysis">Repositório</a> · <a href="https://github.com/felipinhobxd/FreeChessAnalysis/issues">Problemas e sugestões</a></p>
-</div>
+# Move by Move
 
----
+**Move by Move** is a browser-based chess analysis workspace powered by Stockfish 19. Import a game, explore engine variations, review critical decisions, and turn mistakes into interactive training positions.
 
-## Visão geral
+[![Live demo](https://img.shields.io/badge/Live%20demo-Open%20Move%20by%20Move-78945b?style=for-the-badge)](https://freechessanalysis.vercel.app/analysis)
+[![Stockfish](https://img.shields.io/badge/Engine-Stockfish%2019-779556)](https://github.com/official-stockfish/Stockfish)
+[![Node.js](https://img.shields.io/badge/Node.js-24.x-3c873a?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Languages](https://img.shields.io/badge/Languages-14-426b50)](#internationalization)
 
-**Livro de Lances (FreeChessAnalysis)** é um analisador de xadrez em português. Ele permite importar partidas ou posições, acompanhar avaliações do Stockfish, revisar os lances e praticar a partir de erros encontrados.
+## Try the live application
 
-A aplicação é estática e executa a análise no navegador. Não exige conta, servidor próprio, banco de dados ou chaves de API para as funções principais.
+Open the [Move by Move live demo](https://freechessanalysis.vercel.app/analysis) to start analyzing in your browser. No account or installation is required.
 
-## Recursos
+The interface begins with a language selector. Choose from 14 languages before entering the analysis workspace, and change the selection later from the navigation rail.
 
-| Área | O que você pode fazer |
+## Product overview
+
+Move by Move is designed for focused post-game analysis. The chess rules, board interaction, and Stockfish analysis run in the browser. Games can be imported, reviewed move by move, edited into side variations, and converted into training puzzles.
+
+### Core capabilities
+
+| Area | Capabilities |
 | --- | --- |
-| **Importação** | Colar ou carregar arquivos PGN, analisar posições FEN e buscar partidas públicas pelo nome de usuário no Chess.com ou Lichess. |
-| **Análise ao vivo** | Consultar avaliação do Stockfish 19, linhas de continuação e múltiplas variantes. Ajustar profundidade e quantidade de linhas. |
-| **Revisão da partida** | Avaliar os lances, consultar classificações, comparar a jogada realizada com a melhor continuação, estimar o rating de cada jogador e analisar variantes editadas sem alterar a linha original. |
-| **Treino** | Resolver puzzles gerados a partir de imprecisões, erros e erros graves encontrados na revisão, com navegação livre pelo histórico e exibição do último lance do adversário. Cada desafio começa com três vidas. |
-| **Tabuleiro** | Mover peças por seleção ou arrastar e soltar com destinos legais destacados, desenhar setas vermelhas por padrão e setas em L para movimentos de cavalo, navegar pelo histórico com animações, girar o tabuleiro e abrir o modo de tela cheia. |
-| **Exportação** | Copiar PGN ou FEN, baixar a partida em PGN, criar um link compartilhável ou salvar a partida no arquivo local. |
-| **Personalização** | Usar Cburnett como conjunto padrão ou escolher outros temas, configurar o motor, ajustar parâmetros de análise, ativar ou silenciar sons, controlar o volume e escolher a velocidade das animações. Os efeitos usam os sons padrão do Chess.com para movimentos, capturas, xeque, roque, promoção e fim de partida. |
+| Game import | Load PGN files or text, inspect FEN positions, and retrieve public games from Chess.com or Lichess by username. |
+| Engine analysis | Stockfish 19 Lite by default, optional Full profile, configurable search depth, and multi-variation analysis. |
+| Game review | Move classifications, evaluation graph, key moments, player accuracy estimates, and clearly labeled estimated performance ratings. |
+| Variations | Explore candidate lines, edit a continuation, and analyze the resulting position without replacing the original game line. |
+| Training | Generate puzzles from inaccuracies, mistakes, and blunders. Review the previous opponent move and navigate the game history before solving. |
+| Board interaction | Drag and drop, legal-move highlights, move navigation, board flipping, fullscreen mode, and colored arrow annotations. |
+| Export and archive | Copy PGN or FEN, download PGN, create a shareable game link, and store games locally in the browser. |
+| Personalization | Piece sets, engine settings, sound controls, animation speed, board coordinates, and 14 interface languages. |
 
-As classificações e os percentuais de precisão são estimativas calculadas a partir das avaliações do motor. Não representam uma classificação oficial do Chess.com, Lichess ou de outra plataforma.
+> **Rating estimates are approximate.** They are heuristics derived from Stockfish evaluations and move-quality signals. They are not official FIDE, Chess.com, or Lichess ratings.
 
-## Começar a usar
+## Getting started
 
-### Requisitos
+### Requirements
 
 - Node.js **24.x**.
-- Navegador moderno com suporte a módulos JavaScript, WebAssembly e Web Workers.
-- Conexão com a internet para carregar o Stockfish na primeira análise e consultar partidas públicas.
+- A modern browser with ES modules, WebAssembly, and Web Worker support.
+- An internet connection for loading Stockfish and retrieving public games.
 
-### Executar localmente
+### Run locally
 
-Clone o repositório e entre na pasta:
+Clone the repository and enter the project directory:
 
-```bash
+~~~bash
 git clone https://github.com/felipinhobxd/FreeChessAnalysis.git
 cd FreeChessAnalysis
-```
+~~~
 
-Inicie o servidor local:
+Start the local development server:
 
-```bash
+~~~bash
 npm start
-```
+~~~
 
-Abra [http://127.0.0.1:8787/analysis](http://127.0.0.1:8787/analysis).
+Open [http://127.0.0.1:8787/analysis](http://127.0.0.1:8787/analysis).
 
-Não é necessário executar `npm install`: o projeto não declara dependências npm. No Windows, também é possível iniciar o servidor e abrir o navegador com:
+The project has no required npm dependencies to install. The static application is served directly from the **dist/** directory.
 
-```text
-abrir-no-windows.bat
-```
+### Validate the project
 
-### Verificar o projeto
-
-```bash
+~~~bash
 npm run build
-```
+~~~
 
-O comando executa verificações de sintaxe nos módulos JavaScript da aplicação e no servidor local. Ele não recompila os arquivos de `dist/`: essa pasta contém os arquivos estáticos publicados.
+The validation command checks JavaScript syntax for the application modules and local server. It does not bundle or regenerate the static files in **dist/**.
 
-## Publicar na Vercel
+## Engine profiles
 
-O repositório já inclui `vercel.json` com as configurações de build, publicação, rota de análise e cabeçalhos necessários ao isolamento de origem.
+The application loads the chess engine on demand:
 
-1. Importe **felipinhobxd/FreeChessAnalysis** na Vercel.
-2. Defina a raiz do projeto como `./`.
-3. Escolha o preset **Other**.
-4. Configure **Build Command** como `npm run build`.
-5. Configure **Output Directory** como `dist`.
-6. Deixe o comando de instalação vazio. Não há variáveis de ambiente obrigatórias.
+- **Lite** is the default profile and is intended for everyday analysis with a smaller download.
+- **Full** is available in **Settings → Stockfish mode** for deeper analysis. It downloads approximately 95 MB on first use.
 
-A rota principal também está disponível em `/analysis`.
+The application is configured with the cross-origin isolation headers needed for supported multithreaded Stockfish builds.
 
-### Sobre o Stockfish
+## Import and analysis workflow
 
-O motor é carregado sob demanda pelo navegador. O **Stockfish 19 Lite é o modo padrão**, oferecendo inicialização mais leve para as análises do dia a dia. O modo **Completo** continua disponível em **Ajustes → Modo do Stockfish** para quem deseja mais força de análise e aceita baixar aproximadamente **95 MB** na primeira utilização. Em navegadores e implantações compatíveis com isolamento de origem, a compilação completa pode usar várias threads.
+1. Open **Import** and choose PGN, FEN, Chess.com, or Lichess.
+2. Paste a game or position, upload a PGN file, or enter a public username.
+3. Open **Lines** to inspect Stockfish evaluations and candidate continuations.
+4. Run **Review** to classify moves and inspect turning points in the game.
+5. Select any move in the history to inspect its evaluation and recommended continuation.
+6. Open **Puzzles** to practice positions identified during the review.
 
-Os cabeçalhos `Cross-Origin-Opener-Policy` e `Cross-Origin-Embedder-Policy` configurados em `vercel.json` ajudam a habilitar os recursos necessários à execução multithread. Preferências salvas no formato antigo são migradas uma vez para o novo padrão Lite.
+### Board controls
 
-## Como usar
-
-1. Abra a aba **Importar**.
-2. Escolha uma origem: **PGN**, **FEN**, **Chess.com** ou **Lichess**.
-3. Cole o conteúdo, carregue um arquivo PGN ou informe o nome de usuário para buscar partidas públicas.
-4. Inicie a análise. A aba **Variantes** mostra as continuações calculadas pelo Stockfish.
-5. Abra **Revisão** e selecione **Revisar** para analisar os lances da partida.
-6. Selecione um lance no histórico para consultar sua classificação, a avaliação antes e depois da jogada e a linha recomendada.
-7. Use **Puzzles** para praticar posições identificadas durante a revisão.
-
-### Controles do tabuleiro
-
-| Controle | Ação |
+| Input | Action |
 | --- | --- |
-| **← / →** | Voltar ou avançar um lance |
-| **Home / End** | Ir ao início ou ao fim da linha |
-| **Espaço** | Iniciar ou pausar a reprodução automática |
-| **F** | Girar o tabuleiro |
-| **G** | Ativar ou sair da tela cheia |
-| **Botão direito + arraste** | Desenhar uma seta entre duas casas |
-| **Clique direito** | Marcar ou desmarcar uma casa com um círculo |
-| **Shift / Ctrl / Alt + botão direito** | Desenhar em azul / verde / amarelo (vermelho é a cor padrão) |
-| **Clique esquerdo** | Limpar as marcações do tabuleiro |
-| **Clique ou arraste** | Selecionar e movimentar peças |
+| **Left / Right arrow** | Previous / next move |
+| **Home / End** | First / last move |
+| **Space** | Start or pause autoplay |
+| **F** | Flip the board |
+| **G** | Toggle fullscreen |
+| **Right-click + drag** | Draw an arrow between squares |
+| **Right-click** | Toggle a circle on a square |
+| **Shift / Ctrl / Alt + right-click** | Blue / green / yellow arrow (red is the default) |
+| **Left-click** | Clear board annotations |
+| **Click or drag a piece** | Select and move a piece |
 
-Os atalhos de teclado são aplicados quando o foco não está em campos de texto, seletores ou outros controles interativos.
+Keyboard shortcuts are disabled while focus is inside text fields, selects, and other interactive controls.
 
-## Dados e privacidade
+## Internationalization
 
-- A lógica do tabuleiro, a revisão e a análise do Stockfish são executadas no navegador.
-- A aplicação não possui backend próprio nem banco de dados.
-- A busca por partidas públicas consulta diretamente as APIs do Chess.com e do Lichess.
-- Preferências e partidas salvas ficam no armazenamento local do navegador (`localStorage`). O arquivo local mantém até 50 partidas.
-- O link compartilhável codifica a partida ou posição no fragmento da URL. Compartilhe o link apenas quando desejar disponibilizar esse conteúdo.
-- Os arquivos do Stockfish são obtidos sob demanda de CDNs externos; por isso, a primeira inicialização do motor depende de conexão com a internet.
+The language selection screen is displayed before the analysis workspace on first visit. The selected language is saved locally and can be changed at any time from the navigation rail.
 
-## Estrutura do projeto
+Available interface languages:
 
-```text
+- English
+- Brazilian Portuguese
+- Spanish
+- French
+- German
+- Italian
+- Dutch
+- Russian
+- Simplified Chinese
+- Japanese
+- Korean
+- Turkish
+- Arabic
+- Hindi
+
+## Privacy and local data
+
+- Board interaction, move validation, game review, and Stockfish analysis run in the browser.
+- The application does not require an account, application backend, or database for its core features.
+- Public game lookup communicates directly with Chess.com and Lichess APIs.
+- Preferences, language selection, and locally archived games are stored in browser localStorage.
+- The local archive keeps up to 50 games.
+- Shareable links encode the selected game or position in the URL fragment. Share them only when you intend to make that game data available to the recipient.
+- Stockfish assets are downloaded from external CDNs when needed.
+
+## Project structure
+
+~~~text
 .
 ├── dist/
-│   ├── index.html       # Interface principal
-│   ├── style.css        # Estilos da aplicação
-│   ├── app.js           # Fluxos da interface e análise
-│   ├── board-ui.js      # Ícones, sons e efeitos do tabuleiro
-│   ├── coach.js         # Explicações e lógica de treino
-│   ├── engine.js        # Integração com Stockfish
-│   ├── pieces/          # Conjuntos de peças e licenças
-│   └── notices.html     # Créditos e licenças
-├── serve.mjs            # Servidor para desenvolvimento local
-├── abrir-no-windows.bat # Inicializador para Windows
-├── package.json         # Scripts e versão do Node.js
-└── vercel.json          # Configuração de publicação
-```
+│   ├── index.html          # Application shell and language entry screen
+│   ├── style.css           # Application styles
+│   ├── app.js              # Application state and interaction flows
+│   ├── i18n.js             # Language catalog and translation runtime
+│   ├── board-ui.js         # Board icons, audio, and visual effects
+│   ├── coach.js            # Move explanations and training logic
+│   ├── engine.js           # Stockfish integration
+│   ├── pieces/             # Piece sets and associated licenses
+│   ├── sounds/sharechess/  # Curated CC0 board sound effects
+│   └── notices.html        # Third-party credits and license notices
+├── serve.mjs               # Local development server
+├── package.json            # Project metadata and scripts
+└── vercel.json             # Hosting configuration
+~~~
 
-## Créditos e licenças
+## Audio credits
 
-O projeto reúne recursos próprios e componentes de terceiros:
+The board audio uses a curated subset of sound effects from [ShareChess](https://github.com/sharechess/sharechess), selected from its [official credits list](https://github.com/sharechess/sharechess/blob/main/public/CREDITS.md).
 
-- **Ateliê:** conjunto padrão de peças, marca e pictogramas desenvolvidos para o Livro de Lances.
-- **Cburnett:** peças de Colin M. L. Burnett, disponibilizadas pelo [Lichess](https://github.com/lichess-org/lila/tree/master/public/piece/cburnett), sob GPL versão 2 ou posterior. A licença acompanha os arquivos em `dist/pieces/classicas/`.
-- **Chessnut:** peças de Alexis Luengas, sob [Apache License 2.0](https://github.com/LexLuengas/chessnut-pieces).
-- **Stockfish.js 19.0.1:** motor de xadrez distribuído sob [GNU GPLv3](https://www.gnu.org/licenses/gpl-3.0.html).
-- **chess.js 1.4.0:** biblioteca de regras e movimentação, sob [BSD 2-Clause](https://github.com/jhlywa/chess.js).
+Every recording included in this project is identified as **CC0 1.0** in the upstream credits. Files with CC BY or CC BY-NC terms were excluded. Individual authors, source links, event mappings, and license details are documented in [the audio credits](dist/sounds/sharechess/README.md).
 
-- **Sons do tabuleiro:** efeitos padrão do Chess.com integrados com autorização, em MP3 e com carregamento sob demanda. Mapeamento e atribuição em `dist/sounds/chesscom-default/README.md`.
+## Third-party components
 
-Consulte também a página de [créditos e licenças da aplicação](dist/notices.html) e os arquivos de licença distribuídos com os respectivos recursos.
+- [Stockfish.js 19.0.1](https://github.com/nmrugg/stockfish.js): GNU GPLv3.
+- [chess.js 1.4.0](https://github.com/jhlywa/chess.js): BSD 2-Clause.
+- [Cburnett chess pieces](https://github.com/lichess-org/lila/tree/master/public/piece/cburnett): GPLv2 or later.
+- [Chessnut pieces](https://github.com/LexLuengas/chessnut-pieces): Apache License 2.0.
+- ShareChess audio recordings: individually licensed CC0 1.0, with attribution information retained in this repository.
+
+See [Credits and Licenses](dist/notices.html) for more information.
 
 ---
 
 <div align="center">
-  <sub>Feito para estudar melhor cada lance. ♟</sub>
+  <sub>Built for clearer analysis, better decisions, and stronger chess.</sub>
 </div>

@@ -1,8 +1,28 @@
 import { Engine } from './engine.js';
 import { acceptedMove, inspectMove, isTrainingMove } from './coach.js';
 import { icon, unlockSound, boardSound, setBoardVolume, mateCelebration } from './board-ui.js';
+import { initLanguage, setLanguage, getLanguage } from './i18n.js';
 
 const $ = id => document.getElementById(id);
+const languageState = initLanguage();
+function configureLanguageGate() {
+  const languageSelect = $('language-select');
+  languageSelect.value = getLanguage();
+  $('language-enter').addEventListener('click', () => {
+    setLanguage(languageSelect.value);
+    $('language-gate').hidden = true;
+    $('app-content').hidden = false;
+    render();
+  });
+  $('language-open').addEventListener('click', () => {
+    languageSelect.value = getLanguage();
+    $('language-gate').hidden = false;
+    $('app-content').hidden = true;
+  });
+  $('language-gate').hidden = languageState.saved;
+  $('app-content').hidden = !languageState.saved;
+}
+configureLanguageGate();
 const element = (tag, text, className) => {
   const node = document.createElement(tag);
   if (text !== undefined) node.textContent = text;
@@ -1255,10 +1275,11 @@ function animateBoardMove(step, reversed, ghost) {
 function playMoveSound(step, node) {
   if (node.terminal?.type === 'cp') { playSound('end'); return; }
   const position = new Chess(node.fen);
-  if (step.flags?.includes('k') || step.flags?.includes('q')) playSound('castle');
+  if (step.flags?.includes('e')) playSound('enPassant');
+  else if (step.flags?.includes('k') || step.flags?.includes('q')) playSound('castle');
   else if (step.promotion) playSound('promotion');
-  else if (position.isCheck()) playSound('check');
   else if (step.captured) playSound('capture');
+  else if (position.isCheck()) playSound('check');
   else {
     const playerColor = activeChallenge()?.node?.move?.color ?? (flipped ? 'b' : 'w');
     playSound(step.color === playerColor ? 'move' : 'opponent');
@@ -1774,6 +1795,7 @@ function bindEvents() {
   for (const [id, name] of Object.entries({ first: 'first', prev: 'prev', play: 'play', next: 'next', last: 'last', flip: 'flip', export: 'share', 'mate-icon': 'mate' })) {
     $(id).replaceChildren(icon(name));
   }
+
   document.addEventListener('pointerdown', () => unlockSound(setting('sound-enabled')), { passive: true });
   document.addEventListener('keydown', () => unlockSound(setting('sound-enabled')));
   document.addEventListener('fullscreenchange', syncBoardTools);
