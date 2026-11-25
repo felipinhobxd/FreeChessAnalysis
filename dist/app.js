@@ -1134,6 +1134,8 @@ function goTo(node, continuation = false) {
   }
 
   hideMate();
+  boardMarks = [];
+  activeBoardMark = null;
   cancelBoardAnimations();
   const captureGhost = step && movedForward && step.captured ? snapshotCapturedPiece(step) : null;
   cursor = node;
@@ -1636,6 +1638,10 @@ function bindEvents() {
     if (control.checked) playSound('select');
   };
   $('board').addEventListener('click', event => {
+    if (event.button === 0 && boardMarks.length) {
+      boardMarks = [];
+      renderScore();
+    }
     const square = event.target.closest('[data-square]')?.dataset.square;
     if (square) selectSquare(square);
   });
