@@ -3,8 +3,8 @@
 // Accuracy and rating are separate models. CAPS2 is proprietary; the runtime
 // score below is an explicitly provisional fit shape until the included
 // calibration pipeline is run against a large, player-disjoint Chess.com sample.
-// Rating curves are independently derived from ~16,000 publicly reviewed
-// Chess.com player-games (Ginzoh/chess-review, rating-samples* and rating-table).
+// Rating curves are independently derived from ~16,000 player-game observations from publicly reviewed
+// Chess.com games (Ginzoh/chess-review, rating-samples* and rating-table).
 const RATING_CURVES = {
   blitz: [
     [100,48.78,62.24,73.49],[300,58.52,66.28,75.81],[500,58.73,68.70,77.31],
@@ -160,7 +160,7 @@ export function estimatePerformance(path, side, headers = {}) {
     accuracy,
     moves: moves.length,
     typicalAbsoluteError: TYPICAL_ABSOLUTE_ERROR[timeClass],
-    dataSourceGames: 16000
+    dataSourcePlayerGameSamples: 16000
   };
 }
 

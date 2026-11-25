@@ -18,11 +18,7 @@ Install the local research dependency once:
 npm install
 ~~~
 
-Install Stockfish 19 locally and point the environment variable at its executable. Use the full Stockfish 19 build, with one thread:
-
-~~~powershell
-$env:STOCKFISH_PATH = "C:\Tools\Stockfish\stockfish-windows-x86-64-avx2.exe"
-~~~
+The calibration runner uses the Stockfish.js 19.0.1 Lite single-threaded build used by the application's default engine profile. It fixes the hash to the same 24 MB setting and uses a deterministic single engine process:
 
 Collect a broad sample. The default command aims for 5,000 reviewed games and samples public player accounts across multiple Chess.com country directories and leaderboards:
 
@@ -42,7 +38,7 @@ Analyze the collected games with the same Stockfish.js 19.0.1 Lite single-thread
 npm run calibration:analyze
 ~~~
 
-The analysis is cached after every ten games, so the command can be restarted. Increase depth only when you intend to recalibrate the production app at that same depth.
+The analysis is cached after every ten games, so the command can be restarted. Scores are normalized to White's point of view before the mover's expected-score loss is computed, including checkmate scores. Increase depth only when you intend to recalibrate the production app at that same depth.
 
 Fit and validate:
 

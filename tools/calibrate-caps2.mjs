@@ -246,7 +246,7 @@ class UciEngine {
     if (!/^Stockfish 19(?:\b|$)/i.test(this.idName)) {
       throw new Error('Expected the app-matching Stockfish 19 Lite build, received: ' + (this.idName || 'unknown engine'));
     }
-    this.send('setoption name Hash value 128');
+    this.send('setoption name Hash value 24');
     this.send('setoption name MultiPV value 1');
     const initialized = this.waitFor(line => line === 'readyok', 60000);
     this.send('isready');
@@ -292,9 +292,8 @@ async function analyze() {
   catch { throw new Error('Install local calibration tools first with: npm install'); }
   const depth = Math.max(8, Math.min(30, numberArg('depth', 14)));
   const limit = Math.max(0, numberArg('limit', 0));
-  const binary = 'npm stockfish@19.0.1 lite-single';
   const existing = await exists(ANALYSIS_FILE) ? await readJson(ANALYSIS_FILE) : null;
-  const results = new Map((existing?.engine === 'Stockfish 19' && existing.depth === depth ? existing.games : []).map(game => [game.url, game]));
+  const results = new Map((existing?.engine === ENGINE_LABEL && existing.depth === depth ? existing.games : []).map(game => [game.url, game]));
   const engine = new UciEngine();
   const identity = await engine.boot();
   const pending = sample.games.filter(game => !results.has(game.url));
@@ -317,7 +316,7 @@ async function analyze() {
         for (let ply = 0; ply <= history.length; ply++) {
           const legalMoves = board.moves({ verbose: true });
           const terminal = board.isCheckmate() ? 'mate' : board.isDraw() ? 'draw' : null;
-          positions.push({ legalMoves: legalMoves.length, terminal });
+          positions.push({ legalMoves: legalMoves.length, terminal, sideToMove: board.turn() });
           if (ply < history.length) {
             const move = history[ply];
             const applied = board.move({ from: move.from, to: move.to, promotion: move.promotion });
@@ -327,11 +326,11 @@ async function analyze() {
         }
         for (let ply = 0; ply < positions.length; ply++) {
           const position = positions[ply];
-          if (position.terminal === 'mate') position.score = { type: 'mate', value: -1 };
+          if (position.terminal === 'mate') position.score = { type: 'mate', value: position.sideToMove === 'w' ? -1 : 1 };
           else if (position.terminal === 'draw') position.score = { type: 'cp', value: 0 };
           else {
             const line = await engine.search(rootFen, moves.slice(0, ply), depth);
-            position.score = { type: line.type, value: line.value };
+            position.score = { type: line.type, value: position.sideToMove === 'w' ? line.value : -line.value };
           }
         }
         const scoredMoves = history.map((move, ply) => ({
@@ -364,9 +363,11 @@ function sigmoid(score, k) {
   return 100 / (1 + Math.exp(-k * Math.max(-1000, Math.min(1000, score.value))));
 }
 function scoreMove(move, params) {
-  const before = sigmoid(move.before, params.winK);
-  const afterForMover = 100 - sigmoid(move.after, params.winK);
-  const loss = Math.max(0, before - afterForMover);
+  const beforeWhite = sigmoid(move.before, params.winK);
+  const afterWhite = sigmoid(move.after, params.winK);
+  const before = move.color === 'w' ? beforeWhite : 100 - beforeWhite;
+  const after = move.color === 'w' ? afterWhite : 100 - afterWhite;
+  const loss = Math.max(0, before - after);
   const raw = 103.1668100711649 * Math.exp(-params.decay * loss) - 3.166924740191411 + 1;
   return Math.max(params.floor || 0, Math.min(100, raw + (params.offset || 0)));
 }

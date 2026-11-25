@@ -40,7 +40,7 @@ References: [Chess.com accuracy methodology](https://support.chess.com/en/articl
 | Export and archive | Copy PGN or FEN, download PGN, create a shareable game link, and store games locally in the browser. |
 | Personalization | Piece sets, engine settings, sound controls, animation speed, board coordinates, and 14 interface languages. |
 
-> **Performance estimates are not player ratings.** When a PGN includes a time control and the game is long enough, the report compares average move accuracy with a public Lichess dataset. It displays a broad Lichess-equivalent performance band, not a Chess.com, FIDE, or verified Lichess rating. A single game is noisy; the actual rating supplied in the PGN is shown separately.
+> **Performance estimates are not player ratings.** When a PGN includes a known Blitz or Rapid time control and enough moves, the report compares average move accuracy with public Chess.com rating-conditioned curves derived from approximately 16,000 player-game observations. It shows a median performance estimate and a broad reference interval. The measured median absolute error for a single game in the source project was about 711 rating points in Blitz and 519 in Rapid, so this is not the player's actual rating. Bullet and unsupported time controls are not estimated. The PGN's recorded rating is shown separately.
 
 ## Getting started
 
