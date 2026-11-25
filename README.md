@@ -28,9 +28,9 @@ A aplicação é estática e executa a análise no navegador. Não exige conta, 
 | **Análise ao vivo** | Consultar avaliação do Stockfish 19, linhas de continuação e múltiplas variantes. Ajustar profundidade e quantidade de linhas. |
 | **Revisão da partida** | Avaliar os lances, consultar classificações, comparar a jogada realizada com a melhor continuação e visualizar a evolução da avaliação com marcadores clicáveis e uma lista de momentos importantes. |
 | **Treino** | Resolver puzzles gerados a partir de imprecisões, erros e erros graves encontrados na revisão. Cada desafio começa com três vidas. |
-| **Tabuleiro** | Mover peças por seleção ou arrastar e soltar, navegar pelo histórico com animações de movimento, captura e roque, girar o tabuleiro e abrir o modo de tela cheia. |
+| **Tabuleiro** | Mover peças por seleção ou arrastar e soltar com destinos legais destacados, desenhar setas e círculos com o botão direito, navegar pelo histórico com animações, girar o tabuleiro e abrir o modo de tela cheia. |
 | **Exportação** | Copiar PGN ou FEN, baixar a partida em PGN, criar um link compartilhável ou salvar a partida no arquivo local. |
-| **Personalização** | Escolher conjuntos de peças, configurar o motor, ajustar parâmetros de análise, ativar ou silenciar sons, controlar o volume, escolher a velocidade das animações e ativar ou desativar a celebração de xeque-mate. |
+| **Personalização** | Usar Cburnett como conjunto padrão ou escolher outros temas, configurar o motor, ajustar parâmetros de análise, ativar ou silenciar sons, controlar o volume e escolher a velocidade das animações. |
 
 As classificações e os percentuais de precisão são estimativas calculadas a partir das avaliações do motor. Não representam uma classificação oficial do Chess.com, Lichess ou de outra plataforma.
 
@@ -111,6 +111,10 @@ Você também pode selecionar o modo Lite em **Ajustes → Modo do Stockfish**. 
 | **Espaço** | Iniciar ou pausar a reprodução automática |
 | **F** | Girar o tabuleiro |
 | **G** | Ativar ou sair da tela cheia |
+| **Botão direito + arraste** | Desenhar uma seta entre duas casas |
+| **Clique direito** | Marcar ou desmarcar uma casa com um círculo |
+| **Shift / Ctrl / Alt + botão direito** | Desenhar em azul / vermelho / amarelo (verde é a cor padrão) |
+| **Clique esquerdo** | Limpar as marcações do tabuleiro |
 | **Clique ou arraste** | Selecionar e movimentar peças |
 
 Os atalhos de teclado são aplicados quando o foco não está em campos de texto, seletores ou outros controles interativos.
