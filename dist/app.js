@@ -273,7 +273,7 @@ function renderPieces() {
       button.type = 'button';
       button.classList.toggle('dark', (row + column) % 2 === 1);
       button.classList.toggle('occupied', Boolean(piece));
-      button.classList.toggle('last', !puzzle && (position.move?.from === square || position.move?.to === square));
+      button.classList.toggle('last', position.move?.from === square || position.move?.to === square);
       button.classList.toggle('selected', square === selected);
       button.classList.toggle('legal', legal.has(square));
       button.classList.toggle('check', piece?.type === 'k' && piece.color === board.turn() && board.isCheck());
@@ -782,7 +782,8 @@ function estimatePlayerPerformance(path, side) {
   const performance = Math.max(.12, Math.min(1,
     weightedQuality * .63 + consistency * .14 + tacticalQuality * .15 + complexPositionQuality * .08
   ));
-  const rating = Math.max(600, Math.min(2400, Math.round((600 + 1800 * performance ** 2.25) / 50) * 50));
+  // A single game is weak evidence, so use a conservative curve and cap the point estimate.
+  const rating = Math.max(700, Math.min(2200, Math.round((700 + 1500 * performance ** 3.2) / 50) * 50));
   const depth = Math.round(records.reduce((sum, item) => sum + (item.node.depth || 0), 0) / records.length);
   const uncertainty = Math.max(180, Math.min(380, Math.round((390 - records.length * 4 - depth * 3) / 50) * 50));
   return { moves: records.length, rating, low: Math.max(600, rating - uncertainty), high: Math.min(2400, rating + uncertainty), depth };
