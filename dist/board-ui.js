@@ -62,28 +62,18 @@ export function icon(name) {
 
 const SOUND_FILES = Object.freeze({
   move: 'move.mp3',
-  opponent: 'cone-move.mp3',
   capture: 'brick-take.mp3',
   check: 'hit.mp3',
   castle: 'brick-castle.mp3',
   promotion: 'snap.mp3',
-  premove: 'move.mp3',
   illegal: 'hit.mp3',
   start: 'snap.mp3',
-  end: 'checkmate.mp3',
-  mate: 'checkmate.mp3',
+  draw: 'snap.mp3',
   win: 'checkmate.mp3',
-  lose: 'checkmate.mp3',
-  drawOffer: 'snap.mp3',
-  tenSeconds: 'hit.mp3',
   enPassant: 'en-passant.mp3',
 });
 
-const SOUND_BASE = '/sounds/sharechess/';
-const SOUND_GAINS = Object.freeze({
-  capture: 0.18,
-  enPassant: 0.3,
-});
+const SOUND_BASE = new URL('./sounds/sharechess/', import.meta.url);
 const soundPlayers = new Map();
 let outputVolume = 0.65;
 let soundEnabled = true;
@@ -92,10 +82,9 @@ function soundPlayer(name) {
   const file = SOUND_FILES[name];
   if (!file) return null;
   if (!soundPlayers.has(file)) {
-    const player = new Audio(SOUND_BASE + file);
-    player.preload = 'none';
-    player._boardSoundGain = SOUND_GAINS[name] ?? 1;
-    player.volume = outputVolume * player._boardSoundGain;
+    const player = new Audio(new URL(file, SOUND_BASE).href);
+    player.preload = 'auto';
+    player.volume = outputVolume;
     soundPlayers.set(file, player);
   }
   return soundPlayers.get(file);
@@ -110,7 +99,7 @@ function stopSoundPlayers() {
 
 export function setBoardVolume(volume) {
   outputVolume = Math.max(0, Math.min(1, Number(volume) || 0));
-  for (const player of soundPlayers.values()) player.volume = outputVolume * (player._boardSoundGain ?? 1);
+  for (const player of soundPlayers.values()) player.volume = outputVolume;
 }
 
 export function unlockSound(enabled) {
@@ -125,13 +114,24 @@ export function boardSound(name, enabled, volume = 65) {
   try {
     const player = soundPlayer(name);
     if (!player) return;
-    player._boardSoundGain = SOUND_GAINS[name] ?? 1;
-    player.volume = outputVolume * player._boardSoundGain;
-    try { player.currentTime = 0; } catch { /* Wait for the first audio frame. */ }
-    const playback = player.play();
-    playback?.catch(() => {});
+    stopSoundPlayers();
+    player.volume = outputVolume;
+    player.play()?.catch(() => {});
   } catch { /* Audio is optional and must never interrupt a move. */ }
 }
+
+export function moveSound(step, result) {
+  if (result === '1-0' || result === '0-1') return 'win';
+  if (result === '1/2-1/2') return 'draw';
+  if (step.san?.endsWith('#')) return 'win';
+  if (step.flags?.includes('e')) return 'enPassant';
+  if (step.flags?.includes('k') || step.flags?.includes('q')) return 'castle';
+  if (step.promotion) return 'promotion';
+  if (step.san?.endsWith('+')) return 'check';
+  if (step.captured) return 'capture';
+  return 'move';
+}
+
 export function mateCelebration(layer) {
   const colors = ['#b7ed80', '#f7cb76', '#f0f5cb', '#72d7c2'];
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;

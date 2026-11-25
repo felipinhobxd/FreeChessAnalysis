@@ -5,6 +5,7 @@ import { missedOpportunity, aspectEvidence, aspectGrade } from '../dist/review-e
 import { estimatePerformance, phaseForPosition, gameTimeClass } from '../dist/review-metrics.js';
 import { decisionProfile, predictBand } from '../dist/decision-profile.js';
 import { performanceModel } from '../dist/performance-model.js';
+import { moveSound } from '../dist/board-ui.js';
 
 const cp = (white, pv = [], depth = 16) => ({type:'cp', white, pv, depth});
 const mate = (white, pv = [], depth = 16) => ({type:'mate', white, value:white, pv, depth});
@@ -69,7 +70,7 @@ test('performance uses signed decisions and abstains on short or unsupported gam
   assert.deepEqual(decisionProfile(decisions(1)),decisionProfile(decisions(-1)));
   assert.equal(decisionProfile(decisions(1).slice(0,11)),null);
   assert.equal(estimatePerformance([{}],'w',{TimeControl:'600+0'}).reason,'short');
-  assert.equal(estimatePerformance([{}],'b',{TimeControl:'60+0'}).reason,'time-control');
+  assert.equal(estimatePerformance([{}],'b',{TimeControl:'60+0'}).reason,'bullet');
   assert.equal(gameTimeClass({TimeControl:'300+5'}),'blitz');
   assert.equal(gameTimeClass({TimeControl:'900+10'}),'rapid');
   const band=predictBand(performanceModel.center,performanceModel);
@@ -105,4 +106,37 @@ test('aspect evidence separates opening and endgame decision groups', () => {
   const ending = position('8/7k/8/8/8/6K1/P7/8 w - - 0 53','a4',cp(160,['a2a4']),cp(160));
   ending.classification = 'good';
   assert.equal(aspectEvidence(ending,'endgame',Chess).has('Final'),true);
+});
+
+test('Chess.com game rating uses the PGN as an anchor and ignores play in decided games', () => {
+  const headers = { Site: 'Chess.com', TimeControl: '600', WhiteElo: '400', BlackElo: '486' };
+  const before = cp(30);
+  const good = [{}, ...Array.from({ length: 40 }, (_, i) => ({
+    move: { color: i % 2 ? 'b' : 'w' },
+    coach: { before, after: before },
+  }))];
+  const strong = estimatePerformance(good, 'w', headers);
+  const forced = good.map((node, i) => i && i % 4 === 1 ? { ...node, forced: true } : node);
+  const decided = [{}, ...good.slice(1).map(node => ({ ...node, coach: { before: cp(2400), after: cp(2400) } }))];
+  const bad = [{}, ...good.slice(1).map(node => node.move.color === 'b' ? node : ({
+    ...node, coach: { before, after: cp(-600) },
+  }))];
+  assert.ok(strong.available && strong.rating > 400 && strong.rating < 800);
+  assert.ok(estimatePerformance(forced, 'w', headers).rating <= strong.rating);
+  assert.ok(estimatePerformance(bad, 'w', headers).rating < 400);
+  assert.equal(estimatePerformance(decided, 'w', headers).reason, 'short');
+  assert.equal(estimatePerformance(good, 'w', { ...headers, WhiteElo: '?' }).reason, 'rating');
+  assert.equal(estimatePerformance(good, 'w', { ...headers, Site: '?' }).reason, 'pool');
+});
+
+test('board sound effects cover moves, special moves and results', () => {
+  assert.equal(moveSound({ san: 'e4' }), 'move');
+  assert.equal(moveSound({ san: 'Nxe4', captured: 'p' }), 'capture');
+  assert.equal(moveSound({ san: 'Bxf7+', captured: 'p' }), 'check');
+  assert.equal(moveSound({ san: 'O-O', flags: 'k' }), 'castle');
+  assert.equal(moveSound({ san: 'g8=Q+', promotion: 'q' }), 'promotion');
+  assert.equal(moveSound({ san: 'exd6', flags: 'e' }), 'enPassant');
+  assert.equal(moveSound({ san: 'Qh7#' }), 'win');
+  assert.equal(moveSound({ san: 'e4' }, '1-0'), 'win');
+  assert.equal(moveSound({ san: 'e4' }, '1/2-1/2'), 'draw');
 });

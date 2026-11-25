@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 const root = resolve(fileURLToPath(new URL('./dist/', import.meta.url)));
 const deployment = JSON.parse(readFileSync(new URL('./vercel.json', import.meta.url), 'utf-8'));
 const port = Number(process.argv[2]) || 8787;
-const types = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.wasm': 'application/wasm', '.png': 'image/png', '.svg': 'image/svg+xml', '.txt': 'text/plain; charset=utf-8' };
+const types = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.wasm': 'application/wasm', '.png': 'image/png', '.svg': 'image/svg+xml', '.mp3': 'audio/mpeg', '.txt': 'text/plain; charset=utf-8' };
 createServer((request, response) => {
   try {
     const path = decodeURI(new URL(request.url, 'http://127.0.0.1').pathname);

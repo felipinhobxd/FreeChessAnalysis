@@ -2,6 +2,7 @@ import {decisionProfile,sideDecisions,predictBand} from './decision-profile.js';
 import {performanceModel as rapid} from './performance-model.js';
 import {performanceModel as blitz} from './blitz-model.js';
 import { calibrationModel } from './caps2-model.js';
+import { chessComGameRating, ratingEvidence, recordedRating, sourcePool } from './game-rating.js';
 const ACCURACY_STORAGE_KEY = 'move-by-move/caps2-model';
 const DEFAULT_ACCURACY_MODEL = calibrationModel;
 const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
@@ -81,6 +82,7 @@ export function aggregateGameAccuracy(path, side) {
 }
 
 export function gameTimeClass(headers = {}) {
+  const pool = sourcePool(headers);
   const raw = String(headers.TimeControl || '').trim();
   const match = /^(\d+)(?:\+(\d+))?$/.exec(raw);
   if (!match) return null;
@@ -88,22 +90,38 @@ export function gameTimeClass(headers = {}) {
   const increment = Number(match[2] || 0);
   const estimated = base + increment * 40;
   if (estimated < 180) return 'bullet';
-  if (estimated < 600) return 'blitz';
-  if (estimated <= 1500) return 'rapid';
+  if (estimated < (pool === 'lichess' ? 480 : 600)) return 'blitz';
+  if (pool === 'chesscom' || estimated < 1500) return 'rapid';
   return 'classical';
 }
 
-export function estimatePerformance(path,side,headers={}) {
-  const timeClass=gameTimeClass(headers);
-  if(!['blitz','rapid'].includes(timeClass))return {available:false,reason:'time-control'};
-  if(path.slice(1).some(n=>!n.coach))return {available:false,reason:'pending'};
-  if(path.length<31)return {available:false,reason:'short'};
-  const decisions=sideDecisions(path,side);
-  const features=decisionProfile(decisions);
-  if(!features)return {available:false,reason:'short'};
-  const model=timeClass==='rapid'?rapid:blitz;
-  const band=predictBand(features,model);
-  return band?{available:true,...band,timeClass,moves:decisions.length,validation:model.validation}:{available:false,reason:'outside-range'};
+export function estimatePerformance(path, side, headers = {}) {
+  const timeClass = gameTimeClass(headers);
+  if (!timeClass) return { available: false, reason: 'time-control' };
+  if (!['blitz', 'rapid'].includes(timeClass)) return { available: false, reason: timeClass };
+  if (path.slice(1).some(node => !node.coach)) return { available: false, reason: 'pending' };
+  if (path.length < 25) return { available: false, reason: 'short' };
+  const pool = sourcePool(headers);
+  const actual = recordedRating(headers[side === 'w' ? 'WhiteElo' : 'BlackElo']);
+  if (!pool) return { available: false, reason: 'pool' };
+  if (pool === 'chesscom') {
+    if (!actual) return { available: false, reason: 'rating' };
+    const moves = path.slice(3).filter(node => node.move?.color === side);
+    const evidence = ratingEvidence(moves.map(node => ({ ...node.coach, forced: node.forced })), side === 'w' ? 1 : -1);
+    if (!evidence) return { available: false, reason: 'short' };
+    const band = chessComGameRating(evidence, actual, timeClass);
+    return band
+      ? { available: true, ...band, pool, actual, timeClass, moves: evidence.moves }
+      : { available: false, reason: 'outside-range' };
+  }
+  const decisions = sideDecisions(path, side);
+  const features = decisionProfile(decisions);
+  if (!features) return { available: false, reason: 'short' };
+  const model = timeClass === 'rapid' ? rapid : blitz;
+  const band = predictBand(features, model);
+  return band
+    ? { available: true, ...band, pool, actual, timeClass, moves: decisions.length, validation: model.validation }
+    : { available: false, reason: 'outside-range' };
 }
 
 export function phaseForPosition(fen, ply) {

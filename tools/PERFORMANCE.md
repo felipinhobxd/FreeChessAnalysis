@@ -1,5 +1,28 @@
 # Desempenho equivalente
 
+## Rating de partida no Chess.com
+
+O modelo usa partidas públicas de xadrez padrão do Published Data API. O alvo da referência é a qualidade de jogo observada por faixa do rating registrado. O rating oficial do Game Review é um rótulo diferente e não está presente nesse conjunto. A lógica pública do Chess.com compara as jogadas ao desempenho esperado no nível do jogador.
+
+A qualidade do lance vem da perda de chance calculada com Stockfish 19 Lite. A função dá menos peso a posições decididas, mantém o peso integral em perdas que alteram o rumo da partida e descarta lances forçados e o primeiro par de meios-lances. O ajuste em relação ao PGN usa a mediana e o intervalo interquartil da qualidade observada no mesmo ritmo. A evidência de cada partida limita o tamanho do ajuste. A faixa indicativa é uma estimativa de incerteza, sem cobertura probabilística validada para o Game Review oficial.
+
+Para ajustar uma nova amostra, use o conjunto JSON produzido pelo pipeline de precisão. O último argumento do ajuste é opcional e mantém uma partida inteira e seus jogadores fora do treino.
+
+```sh
+npm run calibration:collect
+npm run calibration:analyze -- --depth 10
+node tools/fit-game-rating.mjs .calibration/caps2-analysis.json 187950475324
+npm run build
+```
+
+A referência foi ajustada em 608 partidas públicas analisadas com Stockfish 19 Lite na profundidade 10. Em validação de cinco grupos sem jogadores em comum entre treino e teste, 1.031 lados receberam estimativa. O ajuste médio foi de −7 pontos no total e −14 pontos nos 403 lados abaixo de 800. Nessa faixa, 1 de 403 estimativas ficou mais de 300 pontos acima do PGN. A partida de referência e seus jogadores foram excluídos do ajuste. Ela mede a tendência de inflar ou reduzir o rating de base. Uma comparação sistemática com o rating oficial de partida exigiria uma amostra de resultados do Game Review em vários níveis.
+
+- [Explicação oficial do Game Rating](https://support.chess.com/en/articles/10773754-how-is-game-rating-calculated-in-game-review)
+- [Chess.com Published Data API](https://www.chess.com/terms/chess-com-published-data-api)
+- [Partidas públicas de referência publicadas em Ginzoh/chess-review](https://github.com/Ginzoh/chess-review/tree/main/scripts/data)
+
+## Modelo do Lichess
+
 O alvo é o rating informado na partida pública do Lichess. Usamos o rating como referência para estimar um intervalo por jogador a partir das decisões de uma partida. O relatório mantém esse intervalo, o rating do PGN e a precisão em campos próprios.
 
 ## Reprodução

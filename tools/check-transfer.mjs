@@ -39,7 +39,7 @@ try{
     }
     ids.push(url);
     for(const side of ['w','b']){
-      const p=estimatePerformance(nodes,side,{TimeControl:tc});
+      const p=estimatePerformance(nodes,side,{Site:'lichess.org',TimeControl:tc});
       if(p.available)scores.push(p.rating-(side==='w'?wr:br));
     }
   }

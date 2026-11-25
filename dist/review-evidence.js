@@ -7,7 +7,7 @@ function inspectLine(Chess,fen,pv,side){
  for(const u of (pv||[]).slice(0,12)){let m;try{m=board.move(decode(u))}catch{break}if(!m)break;
   if(m.captured){material+=(m.color===side?1:-1)*(values[m.captured]||0);if(m.color===side&&(values[m.captured]||0)>=3)capturedMajor=true}
   if(m.promotion){material+=(m.color===side?1:-1)*Math.max(0,(values[m.promotion]||0)-1);if(m.color===side)promotes=true}
-  if(m.san.includes('+'))givesCheck=true;moves.push(m);if(board.isCheckmate()){mate=true;break}
+  if(m.color===side&&m.san.includes('+'))givesCheck=true;moves.push(m);if(board.isCheckmate()){mate=m.color===side;break}
  }
  return{moves,material,capturedMajor,givesCheck,promotes,mate};
 }
@@ -29,7 +29,7 @@ export function missedOpportunity(Chess,before,node){
  if(winningMate(best,sign)&&!winningMate(coach.after,sign)&&depth>=12&&(candidate.mate||(lost>=1200&&afterDepth>=10)))
   return{...base,kind:'mate',distance:Math.abs(Number(best.value||0)),reason:'A continuação principal levava a um mate forçado que foi perdido.'};
  const actual=inspectLine(Chess,node.fen,coach.after.pv||[],side);
- const forcing=candidate.capturedMajor||candidate.givesCheck||candidate.promotes||candidate.mate;
+ const forcing=candidate.givesCheck||candidate.promotes||candidate.mate;
  const netGain=candidate.material-Math.max(0,actual.material);
  const materialOpportunity=candidate.material>=2.5&&(candidate.capturedMajor||candidate.promotes)&&netGain>=2;
  if(depth>=10&&afterDepth>=8&&beforeScore>=125&&lost>=150&&playedScore<=bestScore-125&&

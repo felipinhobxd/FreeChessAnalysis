@@ -412,3 +412,79 @@ body.focus-board{overflow:hidden}.board-column:fullscreen,body.focus-board .boar
   .aspect-notes{grid-template-columns:1fr}.aspect-grade{gap:3px}.aspect-grade small{font-size:10px}
   .variant-comparison{grid-template-columns:1fr}.variant-comparison small{grid-column:auto}
 }
+
+/* Game review */
+#report { --review-card: #282e2a; --review-edge: #434c44; }
+.chart-wrap,
+.review-overview {
+  background: var(--review-card);
+  border: 1px solid var(--review-edge);
+  border-radius: 12px;
+  padding: 12px;
+}
+.chart-label { margin: 0 0 8px; }
+.chart-stage {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid #515a52;
+  border-radius: 8px;
+  background: #343c37;
+}
+#chart { height: 126px; margin: 0; }
+#chart:focus-visible { outline-offset: -3px; }
+.chart-markers { position: absolute; inset: 0; pointer-events: none; }
+.chart-marker {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  translate: -50% -50%;
+  border-radius: 50%;
+  pointer-events: auto;
+}
+.chart-marker .badge { width: 18px; height: 18px; box-shadow: 0 0 0 1.5px #222b25; }
+.chart-marker:is(:hover, :focus-visible, [aria-current="step"]) { z-index: 1; }
+.chart-marker:is(:hover, :focus-visible, [aria-current="step"]) .badge { box-shadow: 0 0 0 2px #f2f6df, 0 1px 6px #131b16; }
+.chart-foot { margin-top: 5px; }
+.chart-key { margin-top: 6px; }
+.chart-key[open] .chart-legend { margin-block: 8px 2px; }
+.chart-key-item .badge { width: 15px; height: 15px; min-width: 15px; }
+.review-overview { margin-block: 10px 13px; }
+.review-overview h4 { margin: 0 0 6px; font-size: 13px; }
+#class-table { table-layout: fixed; }
+#class-table thead th:first-child { width: 44%; }
+#class-table thead th { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+#class-table th[scope="row"] { text-align: left; font-weight: 600; }
+#class-table :is(th, td) { padding: 6px 4px; }
+#class-table .review-totals :is(th, td) { border-color: #465148; }
+.review-totals strong {
+  display: inline-flex;
+  justify-content: center;
+  min-width: 3.25em;
+  padding: 4px 6px;
+  border-radius: 5px;
+  background: #3c4940;
+  color: #f0f5ea;
+  font-size: 15px;
+}
+.review-totals .game-rating-value { color: #dfefbd; }
+.rating-reference td { color: var(--muted); font-size: 11px; }
+.rating-method { margin-inline-start: 2px; color: var(--accent); text-decoration: none; }
+#class-breakdown :is(th, td) { border: 0; font-size: 11px; }
+#class-breakdown td { color: var(--badge); font-weight: 700; }
+#class-breakdown td[data-count="0"] { color: var(--muted); font-weight: 500; }
+#class-breakdown .badge { width: 16px; height: 16px; margin-inline-end: 5px; }
+#class-breakdown .class-chance-lost { --badge: #f2a5a0; --glyph: #4b2024; }
+.chart-marker[data-category="chance-lost"] .badge,
+.chart-key-item.class-chance-lost .badge { background: #f2a5a0; color: #4b2024; }
+.rating-details { margin-top: 6px; padding-top: 7px; border-top: 1px solid var(--soft-line); color: var(--muted); font-size: 11px; }
+.rating-details summary { cursor: pointer; }
+.rating-details > a { display: inline-block; margin-top: 7px; color: var(--accent); }
+.rating-details .rating-estimates { gap: 6px; margin-top: 6px; }
+.rating-details .rating-estimate { min-height: 0; padding: 7px; border-radius: 6px; }
+@media (max-width: 600px) {
+  #chart { height: 110px; }
+  .rating-details .rating-estimates { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

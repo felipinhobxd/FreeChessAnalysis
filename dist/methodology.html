@@ -17,12 +17,16 @@
   <dl>
     <dt>Rating informado</dt><dd>Vem dos dados da partida (PGN ou importação). Representa o rating registrado na origem.</dd>
     <dt>Precisão</dt><dd>Resume quanto os lances preservaram a avaliação do motor, na escala de 0 a 100%.</dd>
-    <dt>Desempenho equivalente</dt><dd>Estimativa central e intervalo de referência do Lichess associados ao perfil de decisões de cada lado. A tela também mostra o erro histórico no conjunto de teste. A incerteza é alta para uma única partida. As escalas de Chess.com, Lichess e FIDE são diferentes.</dd>
+    <dt>Rating da partida</dt><dd>Estimativa de desempenho naquela partida, com uma faixa indicativa. O rating do PGN aparece em uma linha separada.</dd>
   </dl>
-  <h2>Dados e modelo</h2>
+  <h2>Partidas do Chess.com</h2>
+  <p>A estimativa parte do rating registrado de cada jogador no mesmo ritmo. O Stockfish 19 avalia as posições antes e depois de cada decisão. Os dois primeiros meios-lances e as jogadas forçadas ficam de fora. Posições já decididas recebem menos peso, e perdas que viram a partida recebem peso integral. Comparamos essa qualidade à mediana observada para aquele nível e ritmo.</p>
+  <p>O ajuste é limitado e cresce com a quantidade de decisões úteis. Duas ou mais perdas decisivas reduzem a estimativa. Partidas sem rating válido ou com pouca evidência ficam sem estimativa. A faixa é indicativa e cresce quando há pouca evidência. As estimativas usam a escala do Chess.com e uma aproximação própria do princípio descrito na ajuda oficial. A fórmula exata e os ratings do Game Review não estão disponíveis entre os dados públicos usados na calibração.</p>
+  <p>A referência usa 608 partidas públicas avaliadas com Stockfish 19 Lite. Na validação sem jogadores em comum entre treino e teste, o ajuste médio em relação ao PGN foi de −7 pontos. Entre 403 resultados abaixo de 800, um superou o rating do PGN em mais de 300 pontos. Esses números descrevem o tamanho do ajuste, e o rating oficial de cada partida permanece fora da amostra.</p>
+  <h2>Partidas do Lichess</h2>
   <p>Usamos 3.600 partidas de blitz e 3.600 de rápidas com ratings e avaliações já publicados pelo Lichess em novembro de 2025. A seleção começa no início do arquivo e exige pelo menos 30 meios-lances com anotações. O modelo usa perda de centipawns, qualidade e regularidade das decisões e desempenho sob pressão. Capturas, xeques, promoções e mudanças bruscas na avaliação são sinais aproximados de pressão.</p>
   <p>O treino, a calibração da faixa e o teste usam grupos diferentes de jogadores. Partidas que cruzam grupos foram excluídas. Os ritmos foram ajustados separadamente. A faixa só aparece após a revisão completa e com pelo menos 12 decisões por jogador em uma partida de 30 meios-lances ou mais, em ritmo compatível e dentro do perfil observado no treino.</p>
-  <h2>Validação por jogador</h2>
+  <h2>Validação do modelo do Lichess</h2>
   <div class="table-wrap"><table>
     <caption>Pontos de rating do Lichess. Viés é a previsão menos o rating registrado.</caption>
     <thead><tr><th scope="col">Ritmo</th><th scope="col">Estimativas</th><th scope="col">MAE</th><th scope="col">RMSE</th><th scope="col">Viés</th><th scope="col">Cobertura</th></tr></thead>
@@ -37,7 +41,7 @@
     <li><a href="https://database.lichess.org/">Base pública do Lichess e licença CC0</a></li>
     <li><a href="https://stockfishchess.org/blog/2020/stockfish-12/">Stockfish e avaliações de posição</a></li>
     <li><a href="https://github.com/CSSLab/maia-chess">Maia Chess e modelagem de decisões humanas</a></li>
-    <li><a href="https://www.chess.com/analysis">Chess.com Game Review</a> · <a href="https://www.chessigma.com/">Chessigma</a></li>
+    <li><a href="https://support.chess.com/en/articles/10773754-how-is-game-rating-calculated-in-game-review">Metodologia pública do Game Rating no Chess.com</a> · <a href="https://www.chessigma.com/">Chessigma</a></li>
     <li><a href="https://github.com/felipinhobxd/FreeChessAnalysis/blob/main/tools/PERFORMANCE.md">Reprodução dos resultados no GitHub</a></li>
   </ul>
 </main>

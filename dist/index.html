@@ -124,29 +124,41 @@
           <div class="section-head"><div><h3>Revisão da partida</h3><p class="muted" id="report-status" role="status">Carregue ou jogue uma partida.</p></div><button id="review-btn" class="mini">Revisar</button></div>
           <progress id="review-progress" max="1" value="0" hidden></progress>
           <span id="variant-status" aria-live="polite" class="sr-only"></span>
-          <section class="variant-analysis" id="variant-analysis" hidden></section>
-          <div class="move-detail" id="move-detail" hidden></div>
           <div class="chart-wrap" id="chart-wrap">
             <div class="chart-label"><strong>Equilíbrio da partida</strong><span id="chart-value">—</span></div>
-            <canvas id="chart" aria-label="Gráfico da avaliação ao longo da partida. Os marcadores coloridos identificam lances classificados e podem ser selecionados para navegar até eles." tabindex="0"></canvas>
-            <div id="chart-tooltip" class="chart-tooltip" role="tooltip" hidden></div>
-            <details class="chart-key"><summary>Legenda</summary><div class="chart-legend" id="chart-key"></div></details>
+            <div class="chart-stage">
+              <canvas id="chart" aria-label="Gráfico da avaliação ao longo da partida. Use as setas para navegar pelos lances." tabindex="0"></canvas>
+              <div id="chart-markers" class="chart-markers"></div>
+            </div>
             <div class="chart-foot"><span>Início</span><span id="chart-end">Fim</span></div>
+            <details class="chart-key"><summary>Legenda</summary><div class="chart-legend" id="chart-key"></div></details>
           </div>
+          <section class="review-overview" aria-labelledby="review-overview-title">
+            <h4 id="review-overview-title">Resumo da partida</h4>
+            <table id="class-table">
+              <thead><tr><th scope="col">Jogadores</th><th scope="col" id="white-accuracy-label">Brancas</th><th scope="col" id="black-accuracy-label">Pretas</th></tr></thead>
+              <tbody class="review-totals">
+                <tr><th scope="row">Precisão</th><td><strong id="white-acc">—</strong></td><td><strong id="black-acc">—</strong></td></tr>
+                <tr><th scope="row">Rating da partida <a class="rating-method" href="/methodology.html" aria-label="Método e validação">ⓘ</a></th><td><strong id="white-game-rating" class="game-rating-value">—</strong></td><td><strong id="black-game-rating" class="game-rating-value">—</strong></td></tr>
+                <tr class="rating-reference"><th scope="row">Rating do PGN</th><td id="white-pgn-rating">—</td><td id="black-pgn-rating">—</td></tr>
+              </tbody>
+              <tbody id="class-breakdown"></tbody>
+            </table>
+            <details class="rating-details">
+              <summary>Detalhes da estimativa</summary>
+              <div class="rating-estimates" id="rating-estimates"></div>
+              <a href="/methodology.html">Método e validação</a>
+            </details>
+          </section>
+          <section class="variant-analysis" id="variant-analysis" hidden></section>
+          <div class="move-detail" id="move-detail" hidden></div>
           <section class="moments-section" aria-labelledby="moments-title">
             <div class="moments-head"><h4 id="moments-title">Momentos importantes</h4><span id="moment-count">0 lances</span></div>
             <div id="key-moments" class="key-moments"><p class="muted moments-empty">Os momentos importantes aparecerão depois da revisão.</p></div>
           </section>
-          <h4 class="accuracy-title">Precisão por jogador</h4><div class="accuracies"><div><span id="white-accuracy-label">Brancas</span><strong id="white-acc">—</strong></div><div><span id="black-accuracy-label">Pretas</span><strong id="black-acc">—</strong></div></div>
-          <h4 class="accuracy-title rating-title">Rating informado e desempenho equivalente</h4>
-          <div class="rating-estimates" id="rating-estimates"><p class="muted">Os dados de rating e desempenho aparecem após a revisão.</p></div>
-          <p class="muted footnote">Faixa de referência Lichess. Uma partida tem alta incerteza. <a href="/methodology.html">Método e validação</a></p>
           <h4 class="accuracy-title">Desempenho por área</h4>
           <div id="phase-insights" class="phase-insights"><p class="muted">A revisão mostrará abertura, táticas, estratégia, final e princípios.</p></div>
-          
           <button class="secondary practice-button" id="practice-from-report" hidden></button>
-          <table id="class-table"><thead><tr><th>Classificação</th><th>Brancas</th><th>Pretas</th></tr></thead><tbody></tbody></table>
-          <p class="muted footnote">Precisão estimada e classificações calculadas a partir da avaliação do motor.</p>
         </section>
         <section id="lines" class="panel" role="tabpanel" aria-labelledby="tab-lines" hidden>
           <div class="section-head"><div><h3>Análise da posição</h3><p class="muted" id="engine-status" role="status">Motor aguardando análise</p></div><button id="engine-toggle" class="mini" aria-pressed="true">Pausar</button></div>

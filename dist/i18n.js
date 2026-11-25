@@ -333,6 +333,145 @@ Object.assign(MESSAGES, {
   'Sua jogada': ['Your move','Sua jogada','Tu jugada','Votre coup','Dein Zug','La tua mossa','Jouw zet','Ваш ход','你的着法','あなたの手','내 수','Senin hamlen','نقلتك','आपकी चाल'],
   'Variação da avaliação para quem jogou': ['Evaluation change for the player to move','Variação da avaliação para quem jogou','Cambio de evaluación para quien jugó','Variation de l’évaluation pour le joueur','Bewertungsänderung für den Spieler am Zug','Variazione della valutazione per chi ha mosso','Evaluatieverandering voor de speler die aan zet was','Изменение оценки для сделавшего ход','当前行棋方的评估变化','手番側から見た評価の変化','착수한 쪽 기준 평가 변화','Hamleyi yapan taraf için değerlendirme farkı','تغير التقييم للاعب الذي تحرك','चाल चलने वाले खिलाड़ी के लिए मूल्यांकन परिवर्तन']
 });
+Object.assign(MESSAGES, {
+  "Resumo da partida": [
+    "Game summary",
+    "Resumo da partida",
+    "Resumen de la partida",
+    "Résumé de la partie",
+    "Partieübersicht",
+    "Riepilogo della partita",
+    "Partijoverzicht",
+    "Итоги партии",
+    "对局摘要",
+    "対局の概要",
+    "경기 요약",
+    "Oyun özeti",
+    "ملخص المباراة",
+    "खेल का सारांश"
+  ],
+  "Jogadores": [
+    "Players",
+    "Jogadores",
+    "Jugadores",
+    "Joueurs",
+    "Spieler",
+    "Giocatori",
+    "Spelers",
+    "Игроки",
+    "棋手",
+    "プレイヤー",
+    "선수",
+    "Oyuncular",
+    "اللاعبون",
+    "खिलाड़ी"
+  ],
+  "Precisão": [
+    "Accuracy",
+    "Precisão",
+    "Precisión",
+    "Précision",
+    "Genauigkeit",
+    "Precisione",
+    "Nauwkeurigheid",
+    "Точность",
+    "准确率",
+    "精度",
+    "정확도",
+    "Doğruluk",
+    "الدقة",
+    "सटीकता"
+  ],
+  "Rating da partida": [
+    "Game rating",
+    "Rating da partida",
+    "Rating de la partida",
+    "Performance de la partie",
+    "Partieleistung",
+    "Rating della partita",
+    "Partijrating",
+    "Рейтинг партии",
+    "对局表现分",
+    "対局レーティング",
+    "경기 레이팅",
+    "Oyun derecesi",
+    "تصنيف المباراة",
+    "खेल की रेटिंग"
+  ],
+  "Rating do PGN": [
+    "PGN rating",
+    "Rating do PGN",
+    "Rating del PGN",
+    "Classement du PGN",
+    "PGN-Rating",
+    "Rating del PGN",
+    "PGN-rating",
+    "Рейтинг из PGN",
+    "PGN 等级分",
+    "PGN レーティング",
+    "PGN 레이팅",
+    "PGN derecesi",
+    "تصنيف PGN",
+    "PGN रेटिंग"
+  ],
+  "Detalhes da estimativa": [
+    "Estimate details",
+    "Detalhes da estimativa",
+    "Detalles de la estimación",
+    "Détails de l’estimation",
+    "Details zur Schätzung",
+    "Dettagli della stima",
+    "Details van de schatting",
+    "Детали оценки",
+    "估算详情",
+    "推定の詳細",
+    "추정 세부 정보",
+    "Tahmin ayrıntıları",
+    "تفاصيل التقدير",
+    "अनुमान का विवरण"
+  ],
+  "Gráfico da avaliação ao longo da partida. Use as setas para navegar pelos lances.": [
+    "Evaluation chart. Use the arrow keys to navigate the moves.",
+    "Gráfico da avaliação ao longo da partida. Use as setas para navegar pelos lances.",
+    "Gráfico de evaluación. Usa las flechas para recorrer las jugadas.",
+    "Graphique d’évaluation. Utilisez les flèches pour parcourir les coups.",
+    "Bewertungsdiagramm. Mit den Pfeiltasten durch die Züge navigieren.",
+    "Grafico della valutazione. Usa le frecce per scorrere le mosse.",
+    "Evaluatiegrafiek. Gebruik de pijltoetsen om door de zetten te gaan.",
+    "График оценки. Используйте стрелки для перехода между ходами.",
+    "评估曲线。用方向键浏览着法。",
+    "評価グラフ。矢印キーで指し手を移動します。",
+    "평가 그래프. 화살표 키로 수를 탐색합니다.",
+    "Değerlendirme grafiği. Hamleler arasında ok tuşlarıyla gezinin.",
+    "مخطط التقييم. استخدم مفاتيح الأسهم للتنقل بين النقلات.",
+    "मूल्यांकन ग्राफ़। चालों के बीच जाने के लिए तीर कुंजियाँ दबाएँ।"
+  ],
+  "Poucas decisões úteis para estimar.": [
+    "Too few informative moves to estimate.",
+    "Poucas decisões úteis para estimar."
+  ],
+  "Origem da partida não identificada no PGN.": [
+    "Game platform unavailable in the PGN.",
+    "Origem da partida não identificada no PGN."
+  ],
+  "O PGN não informa um rating válido.": [
+    "The PGN has no usable player rating.",
+    "O PGN não informa um rating válido."
+  ],
+  "Estimativa indisponível no bullet.": [
+    "Estimate unavailable for bullet.",
+    "Estimativa indisponível no bullet."
+  ],
+  "Estimativa indisponível no clássico.": [
+    "Estimate unavailable for classical.",
+    "Estimativa indisponível no clássico."
+  ],
+  "Escala: ": [
+    "Rating scale: ",
+    "Escala: "
+  ]
+});
+
 function languageIndex() {
   const index = CODES.indexOf(activeLanguage);
   return index < 0 ? 0 : index;

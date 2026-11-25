@@ -21,7 +21,7 @@ Move by Move is designed for focused post-game analysis. The chess rules, board 
 
 **Move accuracy** uses Stockfish's expected-score change and a Chess.com-oriented exponential scoring curve. The current in-app parameters are explicitly marked provisional: CAPS2 is proprietary, and Chess.com publishes game-level accuracy but not a complete per-move CAPS2 label/evaluation dataset. The repository includes a reproducible collector, Stockfish analysis pipeline, player-disjoint fitter, and held-out error report so the curve can be fitted locally against a broad sample of reviewed Chess.com games. It never labels the provisional defaults as an official CAPS2 implementation.
 
-**Equivalent performance** uses a separate, player-disjoint model trained on 3,600 analyzed Lichess games per time control (Rapid and Blitz). It profiles decision quality, centipawn/expected-score losses, consistency and pressure signals, then reports a central estimate and a broad uncertainty interval on the **Lichess rating scale**. Held-out MAE is about 272 points in Rapid and 289 in Blitz; a single game remains noisy. This is not the player's actual rating and does not reproduce Chess.com's private Game Rating formula. Chess.com describes its rating as comparing move quality with what is expected from a player at that rating, but does not publish the exact model. The app displays the central estimate, range and historical test error separately from the PGN rating and move accuracy. **Move labels** follow the requested order: Brilliant, Excellent, Book/Theory, Best, Great, Good, Inaccuracy, Mistake, Missed Chance, and Blunder. "Missed Chance" is reserved for a concrete opportunity that was missed, such as a forced mate, a clearly winning capture, or a forcing attack. The labels are engine-backed heuristics, not a claim to reproduce Chess.com's private category model.
+**Game rating** uses the recorded PGN rating as a baseline for Chess.com Blitz and Rapid. It compares move quality against public games from the same rating and time control and discounts forced moves and already decided positions. Lichess games use a separate model and scale. The review shows the recorded rating, estimated game rating, and supporting range. **Move labels** follow the requested order: Brilliant, Excellent, Book/Theory, Best, Great, Good, Inaccuracy, Mistake, Missed Chance, and Blunder. "Missed Chance" is reserved for a concrete opportunity that was missed, such as a forced mate, a clearly winning capture, or a forcing attack. The labels are engine-backed heuristics, not a claim to reproduce Chess.com's private category model.
 
 References: [Chess.com accuracy methodology](https://support.chess.com/en/articles/8708970-how-is-accuracy-in-analysis-determined), [Chess.com Game Rating explanation](https://support.chess.com/en/articles/10773754-how-is-game-rating-calculated-in-game-review), [Ginzoh's rating curves](https://github.com/Ginzoh/chess-review/blob/main/public/js/rating.js) and [accuracy calibration](https://github.com/Ginzoh/chess-review/blob/main/public/js/analysis.js), [Maia3 human-move model](https://github.com/CSSLab/maia3), [single-game Maia rating research](https://github.com/arasarkan/chess-rating-estimator), and [TxClaudes' public calibration method](https://github.com/TxClaudes/chess/blob/main/tools/calibrate.py).
 
@@ -37,8 +37,6 @@ References: [Chess.com accuracy methodology](https://support.chess.com/en/articl
 | Board interaction | Drag and drop, legal-move highlights, move navigation, board flipping, fullscreen mode, and colored arrow annotations. |
 | Export and archive | Copy PGN or FEN, download PGN, create a shareable game link, and store games locally in the browser. |
 | Personalization | Piece sets, engine settings, sound controls, animation speed, board coordinates, and 14 interface languages. |
-
-> **Performance estimates are not player ratings.** When a PGN includes a known Blitz or Rapid time control and enough moves, the report compares average move accuracy with public Chess.com rating-conditioned curves derived from approximately 16,000 player-game observations. It shows a median performance estimate and a broad reference interval. The measured median absolute error for a single game in the source project was about 711 rating points in Blitz and 519 in Rapid, so this is not the player's actual rating. Bullet and unsupported time controls are not estimated. The PGN's recorded rating is shown separately.
 
 ## Getting started
 
@@ -73,7 +71,7 @@ The project has no required npm dependencies to install. The static application 
 npm run build
 ~~~
 
-The validation command checks JavaScript syntax for the application modules and local server. It does not bundle or regenerate the static files in **dist/**.
+The validation command checks JavaScript syntax and runs the Node test suite. It does not bundle or regenerate the static files in **dist/**.
 
 ## Engine profiles
 
