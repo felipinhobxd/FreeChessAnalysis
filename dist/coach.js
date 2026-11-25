@@ -1,7 +1,7 @@
 const VALUE = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
 const PIECE = { p: 'peão', n: 'cavalo', b: 'bispo', r: 'torre', q: 'dama' };
 
-export const isTrainingMove = node => ['inaccuracy', 'mistake', 'blunder'].includes(node.classification) && Boolean(node.coach?.best);
+export const isTrainingMove = node => ['inaccuracy', 'mistake', 'blunder', 'chance-lost'].includes(node.classification) && Boolean(node.coach?.best);
 
 const decode = move => ({ from: move.slice(0, 2), to: move.slice(2, 4), promotion: move[4] });
 
@@ -39,7 +39,14 @@ export function inspectMove(Chess, node) {
   const alreadyLosingToMate = before.type === 'mate' && before.white * player < 0;
 
   let reason;
-  if (best === played) {
+  if (node.chanceLost?.kind === 'mate') {
+    reason = 'Você deixou escapar um mate forçado. A melhor sequência começava com ' + (node.chanceLost.san || proposal) + '.';
+  } else if (node.chanceLost?.kind === 'piece') {
+    const pieceName = PIECE[node.chanceLost.piece] || 'peça';
+    reason = 'Você deixou passar ' + proposal + ', que capturava uma peça sem defesa suficiente (' + pieceName + '). A posição ainda era favorável, mas a oportunidade de ganhar material foi perdida.';
+  } else if (node.chanceLost?.kind === 'attack') {
+    reason = proposal + ' iniciava uma sequência forçante de ataque. Ao jogar ' + node.move.san + ', você deixou essa oportunidade escapar, embora a posição ainda fosse favorável.';
+  } else if (best === played) {
     reason = 'O Stockfish escolheu ' + node.move.san + ' como a melhor opção desta posição.';
   } else if (opponentMate && !alreadyLosingToMate && Math.abs(after.value) <= 1) {
     reason = reply

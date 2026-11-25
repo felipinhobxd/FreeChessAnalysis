@@ -17,20 +17,30 @@ The interface begins with a language selector. Choose from 14 languages before e
 
 Move by Move is designed for focused post-game analysis. The chess rules, board interaction, and Stockfish analysis run in the browser. Games can be imported, reviewed move by move, edited into side variations, and converted into training puzzles.
 
+## Review methodology
+
+**Move accuracy** converts Stockfish evaluations into expected-score percentages, then measures the change from the position before a move to the position after it. The game score combines a volatility-weighted mean with a harmonic mean, following the published Lichess approach rather than taking a simple arithmetic average.
+
+**Performance bands** are optional context, not an Elo calculator. For games with at least 20 plies and a known blitz or rapid time control, the app compares each player's average move accuracy with public Lichess results grouped by rating. The reference covers 981,166 analysed games from September 2025 and reports the median and middle 50% range for each rating band. Bullet, classical, unknown-time-control, and short games do not receive an estimate. The displayed band is Lichess-equivalent and must not be read as a Chess.com or FIDE rating.
+
+**Missed opportunities** are deliberately conservative. The new label is reserved for a position where the engine finds a concrete forcing continuation that was missed: a forced mate, a clearly winning capture, or a forcing attack supported by the principal variation. Ordinary inaccuracies and blunders keep their own labels.
+
+References: [Lichess Accuracy](https://lichess.org/page/accuracy), [Lichess accuracy implementation](https://github.com/lichess-org/lila/blob/master/modules/analyse/src/main/AccuracyPercent.scala), and [the public accuracy-by-rating dataset and methodology](https://trychessgoat.com/improve/good-accuracy-by-rating/).
+
 ### Core capabilities
 
 | Area | Capabilities |
 | --- | --- |
 | Game import | Load PGN files or text, inspect FEN positions, and retrieve public games from Chess.com or Lichess by username. |
 | Engine analysis | Stockfish 19 Lite by default, optional Full profile, configurable search depth, and multi-variation analysis. |
-| Game review | Move classifications, evaluation graph, key moments, player accuracy estimates, and clearly labeled estimated performance ratings. |
+| Game review | Engine-backed move classifications, volatility-aware accuracy, key moments, and an opening/tactics/strategy/endgame breakdown. |
 | Variations | Explore candidate lines, edit a continuation, and analyze the resulting position without replacing the original game line. |
-| Training | Generate puzzles from inaccuracies, mistakes, and blunders. Review the previous opponent move and navigate the game history before solving. |
+| Training | Generate puzzles from inaccuracies, mistakes, blunders, and clearly identified missed opportunities. |
 | Board interaction | Drag and drop, legal-move highlights, move navigation, board flipping, fullscreen mode, and colored arrow annotations. |
 | Export and archive | Copy PGN or FEN, download PGN, create a shareable game link, and store games locally in the browser. |
 | Personalization | Piece sets, engine settings, sound controls, animation speed, board coordinates, and 14 interface languages. |
 
-> **Rating estimates are approximate.** They are heuristics derived from Stockfish evaluations and move-quality signals. They are not official FIDE, Chess.com, or Lichess ratings.
+> **Performance estimates are not player ratings.** When a PGN includes a time control and the game is long enough, the report compares average move accuracy with a public Lichess dataset. It displays a broad Lichess-equivalent performance band, not a Chess.com, FIDE, or verified Lichess rating. A single game is noisy; the actual rating supplied in the PGN is shown separately.
 
 ## Getting started
 

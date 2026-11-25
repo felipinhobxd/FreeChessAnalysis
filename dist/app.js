@@ -2,6 +2,7 @@ import { Engine } from './engine.js';
 import { acceptedMove, inspectMove, isTrainingMove } from './coach.js';
 import { icon, unlockSound, boardSound, setBoardVolume, mateCelebration } from './board-ui.js';
 import { initLanguage, setLanguage, getLanguage } from './i18n.js';
+import { aggregateGameAccuracy, estimatePerformance, moveAccuracyFromWinLoss, phaseForPosition } from './review-metrics.js';
 
 const $ = id => document.getElementById(id);
 const languageState = initLanguage();
@@ -42,6 +43,7 @@ const CLASSIFICATIONS = {
   brilliant: ['!!', 'Brilhante'], critical: ['!', 'Crítico'], best: ['★', 'Melhor lance'],
   excellent: ['✓', 'Excelente'], good: ['○', 'Bom lance'], inaccuracy: ['?!', 'Imprecisão'],
   mistake: ['?', 'Erro'], blunder: ['??', 'Erro grave'], theory: ['▤', 'Teoria'],
+  'chance-lost': ['✕', 'Chance perdida'],
 };
 const BOOK = new Set(['e2e4', 'd2d4', 'c2c4', 'g1f3']);
 const BOOK_REPLY = {
@@ -80,7 +82,7 @@ const puzzleProgress = new Map();
 const positions = new Map();
 const chartColors = {
   brilliant: '#63d5cc', critical: '#8cb9e0', best: '#a6d579', excellent: '#86c8a0',
-  good: '#b4c899', inaccuracy: '#edce69', mistake: '#f3a464', blunder: '#ef7d78',
+  good: '#b4c899', inaccuracy: '#edce69', mistake: '#f3a464', blunder: '#ef7d78', 'chance-lost': '#e7b95f',
 };
 let chartMarkers = [];
 let boardAnimations = new Set();
@@ -766,65 +768,103 @@ function renderMoments(path) {
   target.replaceChildren(fragment);
 }
 
-function estimatePlayerPerformance(path, side) {
-  const records = [];
-  const playerMoves = path.slice(1).filter(node => node.move?.color === side && node.evaluation && node.parent?.evaluation);
-  for (const node of playerMoves) {
-    const before = node.coach?.before ?? node.parent.evaluation;
-    const after = node.evaluation;
-    const sign = side === 'w' ? 1 : -1;
-    const loss = Math.max(0, sign * (winPercent(before) - winPercent(after)));
-    const quality = Math.exp(-loss / 11);
-    let legalCount = 20;
-    try { legalCount = new Chess(node.parent.fen).moves().length; } catch { /* Neutral complexity. */ }
-    const candidates = node.parent.lines ?? [];
-    const gap = candidates.length > 1 ? Math.abs(winPercent(candidates[0]) - winPercent(candidates[1])) : 0;
-    const difficulty = Math.max(.55, Math.min(1, .55 + .25 * Math.min(1, legalCount / 40) + .2 * Math.min(1, gap / 30)));
-    records.push({ node, loss, quality, difficulty, weight: .85 + difficulty * .3 });
-  }
-  if (records.length < 5) return { moves: records.length, rating: null, low: null, high: null, depth: 0 };
-  const weightTotal = records.reduce((sum, item) => sum + item.weight, 0);
-  const weightedQuality = records.reduce((sum, item) => sum + item.quality * item.weight, 0) / weightTotal;
-  const meanLoss = records.reduce((sum, item) => sum + item.loss, 0) / records.length;
-  const deviation = Math.sqrt(records.reduce((sum, item) => sum + (item.loss - meanLoss) ** 2, 0) / records.length);
-  const consistency = 1 / (1 + deviation / 18);
-  const errors = records.reduce((counts, item) => {
-    counts[item.node.classification] = (counts[item.node.classification] || 0) + 1;
-    return counts;
-  }, {});
-  const tacticalQuality = Math.max(.2, Math.min(1,
-    1 - ((errors.blunder || 0) + (errors.mistake || 0) * .7 + (errors.inaccuracy || 0) * .3) / records.length
-  ));
-  const hardest = [...records].sort((a, b) => b.difficulty - a.difficulty).slice(0, Math.max(3, Math.ceil(records.length / 2)));
-  const complexPositionQuality = hardest.reduce((sum, item) => sum + item.quality, 0) / hardest.length;
-  const performance = Math.max(.12, Math.min(1,
-    weightedQuality * .63 + consistency * .14 + tacticalQuality * .15 + complexPositionQuality * .08
-  ));
-  // A single game is weak evidence, so use a conservative curve and cap the point estimate.
-  const rating = Math.max(700, Math.min(2200, Math.round((700 + 1500 * performance ** 3.2) / 50) * 50));
-  const depth = Math.round(records.reduce((sum, item) => sum + (item.node.depth || 0), 0) / records.length);
-  const uncertainty = Math.max(180, Math.min(380, Math.round((390 - records.length * 4 - depth * 3) / 50) * 50));
-  return { moves: records.length, rating, low: Math.max(600, rating - uncertainty), high: Math.min(2400, rating + uncertainty), depth };
+function formatRating(value,bound=null){
+ const text=new Intl.NumberFormat().format(value);if(bound==='below')return'< '+text;if(bound==='above')return'≥ '+text;return text;
 }
-
-function renderRatingEstimates(path) {
-  const target = $('rating-estimates');
-  target.replaceChildren();
-  for (const side of ['w', 'b']) {
-    const estimate = estimatePlayerPerformance(path, side);
-    const card = element('div', undefined, 'rating-estimate');
-    card.append(element('span', displayName(side), 'rating-player'));
-    if (estimate.rating === null) {
-      card.append(element('strong', '—'));
-      card.append(element('small', estimate.moves + ' lances analisados; são necessários pelo menos 5.', 'muted'));
-    } else {
-      const number = value => new Intl.NumberFormat('pt-BR').format(value);
-      card.append(element('strong', '≈ ' + number(estimate.rating)));
-      card.append(element('small', 'Faixa indicativa: ' + number(estimate.low) + '–' + number(estimate.high) + ' · ' + estimate.moves + ' lances', 'muted'));
-    }
-    target.append(card);
+function renderRatingEstimates(path){
+ const target=$('rating-estimates');target.replaceChildren();
+ for(const side of ['w','b']){
+  const estimate=estimatePerformance(path,side,gameHeaders),actual=gameHeaders[side==='w'?'WhiteElo':'BlackElo'];
+  const card=element('div',undefined,'rating-estimate');card.append(element('span',displayName(side),'rating-player'));
+  card.append(element('small','Rating informado no PGN','rating-caption'));
+  card.append(element('strong',actual&&/^\d+$/.test(actual)?new Intl.NumberFormat().format(Number(actual)):'—'));
+  card.append(element('small','Desempenho equivalente','rating-caption'));
+  if(estimate.available){
+   card.append(element('strong','≈ '+formatRating(estimate.rating),'rating-performance'));
+   const control=estimate.timeClass==='blitz'?'Blitz':'Rapid';
+   card.append(element('small','Lichess '+control+' · Faixa indicativa: '+formatRating(estimate.low,estimate.lowBound)+'–'+formatRating(estimate.high,estimate.highBound)+' · '+estimate.moves+' lances','muted'));
+   card.append(element('small','Precisão média por lance: '+estimate.accuracy.toFixed(1).replace('.',',')+'%','muted'));
+  }else{
+   card.append(element('strong','—','rating-performance'));
+   const reasons={short:'Partida curta demais para estimar.','time-control':'Ritmo não informado no PGN.',bullet:'Precisão isolada não estima bem rating bullet.',classical:'Sem curva de referência para partidas clássicas.'};
+   card.append(element('small',reasons[estimate.reason]||'Dados insuficientes para estimar.','muted'));
   }
+  target.append(card);
+ }
 }
+function tacticalPosition(before,node){
+ if(node.move?.captured||node.move?.promotion||node.move?.san?.includes('+'))return true;
+ const best=before.lines?.[0],second=before.lines?.[1],gap=best&&second?Math.abs(best.value-second.value):0;
+ if(!best?.pv?.length)return false;
+ const board=new Chess(before.fen);
+ for(const [index,command] of best.pv.slice(0,3).entries()){
+  let move;try{move=board.move(moveFromUci(command))}catch{break}
+  if(move.captured||move.promotion||move.san.includes('+'))return index===0||gap>=100;
+ }
+ return gap>=120;
+}
+function renderPhaseReport(path){
+ const target=$('phase-insights');if(!target)return;target.replaceChildren();
+ const moves=path.slice(1).filter(n=>n.evaluation&&n.parent?.evaluation&&n.move);
+ if(!moves.length){target.append(element('p','Complete a revisão para ver o desempenho por área.','muted'));return}
+ const entries=moves.map((node,index)=>({node,phase:phaseForPosition(node.parent.fen,index+1),tactical:tacticalPosition(node.parent,node)}));
+ const areas=[
+  {label:'Abertura',filter:x=>x.phase==='opening'},
+  {label:'Táticas',filter:x=>x.tactical},
+  {label:'Estratégia',filter:x=>x.phase==='middlegame'&&!x.tactical},
+  {label:'Final',filter:x=>x.phase==='endgame'}
+ ];
+ const table=element('table',undefined,'phase-table'),thead=element('thead'),headRow=element('tr');
+ headRow.append(element('th','Área'),element('th',displayName('w')),element('th',displayName('b')));thead.append(headRow);table.append(thead);
+ const body=element('tbody');
+ for(const area of areas){
+  const row=element('tr');row.append(element('th',area.label));
+  for(const side of ['w','b']){
+   const selected=entries.filter(x=>area.filter(x)&&x.node.move.color===side),cell=element('td');
+   if(selected.length){
+    const average=selected.reduce((sum,x)=>sum+x.node.accuracy,0)/selected.length;
+    cell.append(element('strong',average.toFixed(1).replace('.',',')+'%'),element('small',selected.length+' lances'));
+   }else cell.append(element('span','—'),element('small','Sem dados'));
+   if(area.label==='Táticas'){
+    const misses=selected.filter(x=>x.node.classification==='chance-lost').length;
+    if(misses)cell.append(element('small',misses+' oportunidades perdidas','phase-warning'));
+   }
+   row.append(cell);
+  }
+  body.append(row);
+ }
+ table.append(body);target.append(table);
+ const opening=gameHeaders.Opening||(gameHeaders.ECO?'ECO '+gameHeaders.ECO:'');
+ target.append(element('p',opening?'Abertura: '+opening:'Abertura não identificada nos dados do PGN.','muted phase-opening'));
+ target.append(element('p','Táticas considera posições com capturas, xeques ou promoções nas principais linhas do motor. Estratégia considera lances tranquilos do meio-jogo.','muted phase-note'));
+}
+function findMissedChance(ChessClass,before,node){
+ if(!before?.evaluation||!node?.evaluation||!node.coach||acceptedMove(node.coach,uci(node.move)))return null;
+ const side=node.move.color,sign=side==='w'?1:-1;
+ const beforeWin=side==='w'?winPercent(before.evaluation):100-winPercent(before.evaluation);
+ const afterWin=side==='w'?winPercent(node.evaluation):100-winPercent(node.evaluation);
+ if(afterWin<58||beforeWin-afterWin<2.5)return null;
+ const hadMate=before.evaluation.type==='mate'&&before.evaluation.white*sign>0;
+ const keptMate=node.evaluation.type==='mate'&&node.evaluation.white*sign>0;
+ const bestMove=before.lines?.[0]?.pv?.[0]||before.best;
+ if(hadMate&&!keptMate)return{kind:'mate',move:bestMove,san:moveSan(ChessClass,before.fen,bestMove)};
+ if(!bestMove)return null;
+ const board=new ChessClass(before.fen),candidate=board.moves({verbose:true}).find(move=>uci(move)===bestMove);
+ if(!candidate)return null;
+ const targetValue=candidate.captured?material[candidate.captured]:0;
+ if(candidate.captured&&targetValue>=3&&beforeWin-afterWin>=3.5)return{kind:'piece',move:bestMove,san:candidate.san,piece:candidate.captured};
+ let forcing=candidate.san.includes('+')||candidate.san.includes('#');
+ if(!forcing){
+  const lineBoard=new ChessClass(before.fen);
+  for(const command of(before.lines?.[0]?.pv||[]).slice(0,3)){
+   let move;try{move=lineBoard.move(moveFromUci(command))}catch{break}
+   if(move.captured||move.san.includes('+')||move.promotion){forcing=true;break}
+  }
+ }
+ if(forcing&&beforeWin-afterWin>=5)return{kind:'attack',move:bestMove,san:candidate.san};
+ return null;
+}
+function moveSan(ChessClass,fen,command){try{return new ChessClass(fen).move(moveFromUci(command)).san}catch{return command||''}}
 
 function variationText(fen, pv) {
   if (!pv?.length) return '';
@@ -880,9 +920,12 @@ function renderReport() {
     : '—';
   $('white-accuracy-label').textContent = displayName('w');
   $('black-accuracy-label').textContent = displayName('b');
-  $('white-acc').textContent = average('w');
-  $('black-acc').textContent = average('b');
+  const whiteGameAccuracy = aggregateGameAccuracy(path, 'w', winPercent);
+  const blackGameAccuracy = aggregateGameAccuracy(path, 'b', winPercent);
+  $('white-acc').textContent = whiteGameAccuracy === null ? '—' : whiteGameAccuracy.toFixed(1).replace('.', ',') + '%';
+  $('black-acc').textContent = blackGameAccuracy === null ? '—' : blackGameAccuracy.toFixed(1).replace('.', ',') + '%';
   renderRatingEstimates(path);
+  renderPhaseReport(path);
   renderVariantEvaluation(cursor);
   $('chart-end').textContent = path.length === 1 ? 'Fim' : (path.length - 1) + ' lances';
   renderMoments(path);
@@ -1493,7 +1536,8 @@ function reviewClass(node, before, after, previousBest, runnersUp, index) {
   const color = node.move.color === 'w' ? 1 : -1;
   const loss = Math.max(0, color * (winPercent(before) - winPercent(after)));
   const actual = uci(node.move);
-  const top = previousBest === actual || loss < 1.2;
+  const top = acceptedMove(node.coach, actual) || loss < 1.2;
+  if (node.chanceLost) return 'chance-lost';
   const opening = root.fen === new Chess().fen() && loss < 6 &&
     ((index === 1 && BOOK.has(actual)) || (index === 2 && BOOK_REPLY[uci(node.parent.move)]?.includes(actual)));
   const margin = runnersUp?.[1] ? color * (winPercent(runnersUp[0]) - winPercent(runnersUp[1])) : 0;
@@ -1536,7 +1580,7 @@ async function runReview() {
   progress.value = 0;
   $('review-btn').textContent = 'Parar';
   $('report-status').textContent = 'Iniciando Stockfish 19…';
-  for (const node of path) { node.classification = null; node.accuracy = null; node.coach = null; }
+  for (const node of path) { node.classification = null; node.accuracy = null; node.coach = null; node.chanceLost = null; }
   render();
   let completed = false;
   try {
@@ -1563,9 +1607,10 @@ async function runReview() {
         const before = path[index - 1];
         const sign = node.move.color === 'w' ? 1 : -1;
         const loss = Math.max(0, sign * (winPercent(before.evaluation) - winPercent(node.evaluation)));
-        node.accuracy = before.best === uci(node.move) ? 100 : Math.min(100, Math.max(0, 103.1668 * Math.exp(-.04354 * loss) - 3.1669));
-        node.classification = reviewClass(node, before.evaluation, node.evaluation, before.best, before.lines, index);
         node.coach = { before: before.evaluation, after: node.evaluation, best: before.best, choices: before.lines };
+        node.accuracy = moveAccuracyFromWinLoss(loss);
+        node.chanceLost = findMissedChance(Chess, before, node);
+        node.classification = reviewClass(node, before.evaluation, node.evaluation, before.best, before.lines, index);
       }
       progress.value = index + 1;
       $('report-status').textContent = 'Avaliando ' + (index + 1) + ' de ' + path.length + ' posições…';
