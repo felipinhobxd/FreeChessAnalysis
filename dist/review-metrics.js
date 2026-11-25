@@ -101,8 +101,9 @@ export function estimatePerformance(path,side,headers={}) {
   const decisions=sideDecisions(path,side);
   const features=decisionProfile(decisions);
   if(!features)return {available:false,reason:'short'};
-  const band=predictBand(features,timeClass==='rapid'?rapid:blitz);
-  return band?{available:true,...band,timeClass,moves:decisions.length}:{available:false,reason:'outside-range'};
+  const model=timeClass==='rapid'?rapid:blitz;
+  const band=predictBand(features,model);
+  return band?{available:true,...band,timeClass,moves:decisions.length,validation:model.validation}:{available:false,reason:'outside-range'};
 }
 
 export function phaseForPosition(fen, ply) {

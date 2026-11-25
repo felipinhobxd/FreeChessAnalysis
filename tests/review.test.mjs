@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Chess } from 'chess.js';
-import { missedOpportunity, aspectEvidence } from '../dist/review-evidence.js';
+import { missedOpportunity, aspectEvidence, aspectGrade } from '../dist/review-evidence.js';
 import { estimatePerformance, phaseForPosition, gameTimeClass } from '../dist/review-metrics.js';
 import { decisionProfile, predictBand } from '../dist/decision-profile.js';
 import { performanceModel } from '../dist/performance-model.js';
@@ -75,4 +75,34 @@ test('performance uses signed decisions and abstains on short or unsupported gam
   const band=predictBand(performanceModel.center,performanceModel);
   assert.ok(band.low<band.rating && band.rating<band.high);
   assert.equal(predictBand(performanceModel.center.map(x=>x+100),performanceModel),null);
+});
+
+
+test('missed-opportunity detector ignores near-equivalent MultiPV alternatives', () => {
+  const fen = '7k/p5pp/8/8/3n4/8/PP4PP/3R2K1 w - - 0 1';
+  const close = position(fen, 'a3', cp(320,['d1d4','h7h6','a2a3','a7a6']),
+    cp(0,['d4c6','h2h3','a7a6']),
+    [cp(285,['a2a3','h7h6','d1d4','a7a6'])]);
+  close.coach.choices[1].depth = 16;
+  assert.equal(missedOpportunity(Chess,close.parent,close), null);
+});
+
+test('aspect grades reflect excellent play and serious mistakes', () => {
+  const excellent = aspectGrade([{classification:'excellent'},{classification:'best'},{classification:'great'}]);
+  const veryBad = aspectGrade([{classification:'blunder'},{classification:'chance-lost'},{classification:'mistake'}]);
+  assert.equal(excellent.key,'excellent');
+  assert.equal(veryBad.key,'blunder');
+  assert.equal(veryBad.misses,1);
+  assert.equal(aspectGrade([]),null);
+});
+
+test('aspect evidence separates opening and endgame decision groups', () => {
+  const board = new Chess();
+  const development = position(board.fen(),'Nf3',cp(25,['g1f3']),cp(25));
+  development.classification = 'best';
+  assert.equal(aspectEvidence(development,'opening',Chess).has('Abertura'),true);
+  assert.equal(aspectEvidence(development,'opening',Chess).has('Princípios'),true);
+  const ending = position('8/7k/8/8/8/6K1/P7/8 w - - 0 53','a4',cp(160,['a2a4']),cp(160));
+  ending.classification = 'good';
+  assert.equal(aspectEvidence(ending,'endgame',Chess).has('Final'),true);
 });

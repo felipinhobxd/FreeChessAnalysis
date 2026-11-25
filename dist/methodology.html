@@ -17,7 +17,7 @@
   <dl>
     <dt>Rating informado</dt><dd>Vem dos dados da partida (PGN ou importação). Representa o rating registrado na origem.</dd>
     <dt>Precisão</dt><dd>Resume quanto os lances preservaram a avaliação do motor, na escala de 0 a 100%.</dd>
-    <dt>Desempenho equivalente</dt><dd>Faixa de ratings de referência do Lichess associada ao perfil de decisões de cada lado. A incerteza é alta para uma única partida. As escalas de Chess.com, Lichess e FIDE são diferentes.</dd>
+    <dt>Desempenho equivalente</dt><dd>Estimativa central e intervalo de referência do Lichess associados ao perfil de decisões de cada lado. A tela também mostra o erro histórico no conjunto de teste. A incerteza é alta para uma única partida. As escalas de Chess.com, Lichess e FIDE são diferentes.</dd>
   </dl>
   <h2>Dados e modelo</h2>
   <p>Usamos 3.600 partidas de blitz e 3.600 de rápidas com ratings e avaliações já publicados pelo Lichess em novembro de 2025. A seleção começa no início do arquivo e exige pelo menos 30 meios-lances com anotações. O modelo usa perda de centipawns, qualidade e regularidade das decisões e desempenho sob pressão. Capturas, xeques, promoções e mudanças bruscas na avaliação são sinais aproximados de pressão.</p>

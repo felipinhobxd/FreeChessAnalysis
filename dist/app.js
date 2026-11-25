@@ -1,4 +1,4 @@
-import { missedOpportunity, aspectEvidence } from './review-evidence.js';
+import { missedOpportunity, aspectEvidence, aspectGrade } from './review-evidence.js';
 import { syncSprites, resetSprites } from './board-motion.js';
 import { Engine } from './engine.js';
 import { acceptedMove, inspectMove, isTrainingMove } from './coach.js';
@@ -99,8 +99,8 @@ const BOOK_REPLY = {
   c2c4: ['e7e5', 'g8f6', 'c7c5', 'e7e6', 'c7c6', 'g7g6'],
   g1f3: ['d7d5', 'g8f6', 'c7c5', 'g7g6', 'e7e6', 'b7b6'],
 };
-const PREFS = ['review-depth', 'line-depth', 'multi-pv', 'show-arrow', 'show-coordinates', 'engine-mode', 'piece-set', 'sound-pack', 'sound-enabled', 'sound-volume', 'animation-speed', 'mate-enabled'];
-const REVIEW_CHART_MARKERS = new Set(Object.keys(CLASSIFICATIONS));
+const PREFS = ['review-depth', 'line-depth', 'multi-pv', 'show-arrow', 'show-coordinates', 'engine-mode', 'piece-set', 'sound-enabled', 'sound-volume', 'animation-speed', 'mate-enabled'];
+const REVIEW_CHART_MARKERS = new Set(['brilliant', 'great', 'inaccuracy', 'mistake', 'chance-lost', 'blunder']);
 const TABS = ['import', 'report', 'lines', 'puzzles'];
 
 let Chess;
@@ -139,7 +139,7 @@ let chartMarkers = [];
 let boardMarks = [];
 let activeBoardMark = null;
 
-const setting = id => $(id).type === 'checkbox' ? $(id).checked : ['engine-mode', 'piece-set', 'animation-speed','sound-pack'].includes(id) ? $(id).value : Number($(id).value);
+const setting = id => $(id).type === 'checkbox' ? $(id).checked : ['engine-mode', 'piece-set', 'animation-speed'].includes(id) ? $(id).value : Number($(id).value);
 const playSound = name => {
   if (!setting('sound-enabled')) return;
   unlockSound(true);
@@ -704,64 +704,41 @@ function renderChart() {
   const nodes = mainPath();
   const x = index => 5 + (width - 10) * index / Math.max(1, nodes.length - 1);
   const y = evaluation => 5 + (height - 10) * (1 - winPercent(evaluation) / 100);
-  context.strokeStyle = '#637466';
-  context.setLineDash([4, 4]);
-  context.beginPath();
-  context.moveTo(0, height / 2);
-  context.lineTo(width, height / 2);
-  context.stroke();
+  const evalCp = evaluation => evaluation?.type === 'mate' ? (evaluation.white > 0 ? 1000 : -1000) : Number(evaluation?.white || 0);
+  context.strokeStyle = '#687060'; context.setLineDash([4, 4]);
+  context.beginPath(); context.moveTo(0, height / 2); context.lineTo(width, height / 2); context.stroke();
   context.setLineDash([]);
-  const evaluated = nodes.flatMap((node, index) => node.evaluation ? [[x(index), y(node.evaluation)]] : []);
-  if (evaluated.length) {
-    context.beginPath();
-    evaluated.forEach(([px, py], index) => index ? context.lineTo(px, py) : context.moveTo(px, py));
-    context.lineTo(evaluated.at(-1)[0], height - 2);
-    context.lineTo(evaluated[0][0], height - 2);
-    context.closePath();
-    context.fillStyle = '#424f38';
-    context.fill();
-    context.beginPath();
-    evaluated.forEach(([px, py], index) => index ? context.lineTo(px, py) : context.moveTo(px, py));
-    context.strokeStyle = '#bad69b';
-    context.lineWidth = 2.2;
-    context.stroke();
+  for (let i = 1; i < nodes.length; i++) {
+    const a=nodes[i-1],b=nodes[i]; if(!a.evaluation||!b.evaluation)continue;
+    const x1=x(i-1),x2=x(i),y1=y(a.evaluation),y2=y(b.evaluation);
+    const adv=(evalCp(a.evaluation)+evalCp(b.evaluation))/2;
+    const white=adv>35,black=adv< -35;
+    const stroke=white?'#b5d98d':black?'#e18b83':'#c3c9b8';
+    const fill=white?'rgba(181,217,141,.12)':black?'rgba(225,139,131,.12)':'rgba(195,201,184,.07)';
+    context.beginPath();context.moveTo(x1,y1);context.lineTo(x2,y2);context.lineTo(x2,height/2);context.lineTo(x1,height/2);context.closePath();context.fillStyle=fill;context.fill();
+    context.beginPath();context.moveTo(x1,y1);context.lineTo(x2,y2);context.strokeStyle=stroke;context.lineWidth=2.6;context.lineCap='round';context.stroke();
   }
-
-  const markerRadius = Math.min(5.3, Math.max(1.65, (width - 10) / Math.max(1, nodes.length - 1) * .38));
-  for (const [index, node] of nodes.entries()) {
-    const color = chartColors[node.classification];
-    if (!node.evaluation || !REVIEW_CHART_MARKERS.has(node.classification) || !color || index === 0) continue;
-    const marker = { node, index, x: x(index), y: y(node.evaluation), color };
-    chartMarkers.push(marker);
-    context.beginPath();
-    context.arc(marker.x, marker.y, markerRadius + 1.8, 0, Math.PI * 2);
-    context.fillStyle = '#1c211bdd';
-    context.fill();
-    context.beginPath();
-    context.arc(marker.x, marker.y, markerRadius, 0, Math.PI * 2);
-    context.fillStyle = color;
-    context.fill();
-    context.lineWidth = 1.7;
-    context.strokeStyle = '#2d3029';
-    context.stroke();
-
+  const radius=Math.min(7,Math.max(4.5,(width-10)/Math.max(1,nodes.length-1)*.5));
+  for(const [index,node] of nodes.entries()){
+    if(!node.evaluation||!REVIEW_CHART_MARKERS.has(node.classification)||index===0)continue;
+    const color=chartColors[node.classification];if(!color)continue;
+    const marker={node,index,x:x(index),y:y(node.evaluation),color};chartMarkers.push(marker);
+    context.beginPath();context.arc(marker.x,marker.y,radius+1.7,0,Math.PI*2);context.fillStyle='#171b16';context.fill();
+    context.beginPath();context.arc(marker.x,marker.y,radius,0,Math.PI*2);context.fillStyle=color;context.fill();
+    context.lineWidth=1.3;context.strokeStyle='#20271d';context.stroke();
+    const glyph=CLASSIFICATIONS[node.classification]?.[0]||'';
+    context.fillStyle=['blunder','chance-lost'].includes(node.classification)?'#fff8f2':'#182016';
+    context.font='800 '+Math.max(8,radius*1.25)+'px system-ui,sans-serif';context.textAlign='center';context.textBaseline='middle';
+    context.fillText(glyph,marker.x,marker.y+.35,radius*1.8);
   }
-
-  const index = nodes.indexOf(cursor.userEdited ? pathTo(cursor).reverse().find(n=>nodes.includes(n)) || root : cursor);
-  if (index >= 0 && cursor.evaluation) {
-    context.strokeStyle = '#ffd382';
-    context.lineWidth = 1;
-    context.beginPath();
-    context.moveTo(x(index), 1);
-    context.lineTo(x(index), height - 1);
-    context.stroke();
-    context.beginPath();
-    context.arc(x(index), y(cursor.evaluation), 4.5, 0, Math.PI * 2);
-    context.fillStyle = '#ffd382';
-    context.fill();
-    context.strokeStyle = '#343b2d';
-    context.lineWidth = 1.2;
-    context.stroke();
+  const selectedNode=cursor.userEdited?pathTo(cursor).reverse().find(node=>nodes.includes(node))||root:cursor;
+  const index=nodes.indexOf(selectedNode);
+  if(index>=0&&cursor.evaluation){
+    const px=x(index),py=y(cursor.evaluation);
+    context.setLineDash([3,3]);context.strokeStyle=cursor.userEdited?'#f0bd78':'#f5d18b';context.lineWidth=cursor.userEdited?2:1.2;
+    context.beginPath();context.moveTo(px,1);context.lineTo(px,height-1);context.stroke();context.setLineDash([]);
+    context.beginPath();context.arc(px,py,cursor.userEdited?6.2:5,0,Math.PI*2);
+    context.fillStyle=cursor.userEdited?'#f0bd78':'#f5d18b';context.fill();context.strokeStyle='#343b2d';context.lineWidth=1.2;context.stroke();
   }
 }
 
@@ -821,10 +798,12 @@ function renderMoments(path) {
       element('strong', moveNumber(node) + node.move.san),
       element('small', displayName(node.move.color) + ' · ' + CLASSIFICATIONS[node.classification][1])
     );
-    if(node.coach?.best) {
-      const guide = node.momentCoach === node.coach ? node.momentGuide : inspectMove(Chess,node);
-      node.momentCoach=node.coach;node.momentGuide=guide;
-      details.append(element('small',guide.reason,'moment-reason'));
+    if (node.chanceLost?.reason) {
+      details.append(element('small', node.chanceLost.reason, 'moment-reason'));
+    } else if (node.coach?.best) {
+      const guide = node.momentCoach === node.coach ? node.momentGuide : inspectMove(Chess, node);
+      node.momentCoach = node.coach; node.momentGuide = guide;
+      details.append(element('small', guide.reason, 'moment-reason'));
     }
     row.append(details, icon('next'));
     row.title = 'Ir para ' + moveNumber(node) + node.move.san;
@@ -841,13 +820,21 @@ function renderRatingEstimates(path) {
   const cards=['w','b'].map(side=>{
     const actual=gameHeaders[side==='w'?'WhiteElo':'BlackElo'];
     const card=element('div',undefined,'rating-estimate');
-    card.append(element('b',displayName(side)),element('small','Rating informado no PGN'),element('strong',/^\d+$/.test(actual)?actual:'—'));
+    card.append(element('b',displayName(side),'rating-player'),
+      element('small','Rating informado no PGN','rating-caption'),
+      element('strong',/^\\d+$/.test(actual)?new Intl.NumberFormat().format(Number(actual)):'—'));
     const estimate=estimatePerformance(path,side,gameHeaders);
-    card.append(element('small','Desempenho equivalente'));
+    card.append(element('small','Desempenho equivalente estimado','rating-caption'));
     if(estimate.available){
-      card.append(element('strong',estimate.low+'–'+estimate.high,'rating-performance'),
-        element('small','Lichess · '+estimate.timeClass+' · '+estimate.moves+' lances'));
-    } else card.append(element('strong','—'),element('small',estimate.reason==='pending'?'Revisão incompleta':estimate.reason==='short'?'Amostra curta':estimate.reason==='outside-range'?'Fora da amostra':'Ritmo sem calibração'));
+      card.append(element('strong','≈ '+formatRating(estimate.rating),'rating-performance'),
+        element('small','Faixa indicativa: '+formatRating(estimate.low)+'–'+formatRating(estimate.high),'rating-range'),
+        element('small','Escala Lichess · '+(estimate.timeClass==='blitz'?'Blitz':'Rapid')+' · '+estimate.moves+' lances analisados','rating-meta'));
+      if(Number.isFinite(estimate.validation?.mae))
+        card.append(element('small','Erro médio absoluto no teste histórico: '+Math.round(estimate.validation.mae)+' pontos','rating-validation'));
+    }else{
+      const reasons={pending:'A revisão ainda não terminou.',short:'Partida curta ou poucas decisões avaliáveis.','outside-range':'Perfil fora da amostra usada para calibrar o modelo.','time-control':'Ritmo da partida não identificado.',bullet:'O modelo ainda não estima partidas bullet.',classical:'O modelo ainda não estima partidas clássicas.'};
+      card.append(element('strong','—','rating-performance'),element('small',reasons[estimate.reason]||'Dados insuficientes para uma estimativa confiável.','rating-meta'));
+    }
     return card;
   });
   $('rating-estimates').replaceChildren(...cards);
@@ -865,44 +852,48 @@ function tacticalPosition(before,node){
  return gap>=120;
 }
 function renderPhaseReport(path) {
-  const target = $('phase-insights');
-  const entries = path.slice(1).flatMap((node,i) => {
-    if (!node.coach || node.forced) return [];
-    const ply = (Number(node.parent.fen.split(' ')[5])-1)*2 + (node.move.color==='w'?1:2);
-    node.aspects ??= aspectEvidence(node,phaseForPosition(node.parent.fen,ply));
-    return [{node,tags:node.aspects}];
+  const target=$('phase-insights');if(!target)return;
+  const entries=path.slice(1).flatMap(node=>{
+    if(!node.coach||!node.classification||node.forced)return[];
+    const ply=(Number(node.parent.fen.split(' ')[5])-1)*2+(node.move.color==='w'?1:2);
+    node.aspects??=aspectEvidence(node,phaseForPosition(node.parent.fen,ply),Chess);
+    return[{node,tags:node.aspects}];
   });
-  const sections = ['Abertura','Táticas','Estratégia','Final','Princípios'].map(label => {
-    const section = element('details',undefined,'aspect-row');
-    const summary = element('summary');
+  const areas=['Abertura','Táticas','Estratégia','Final','Princípios'];
+  const sections=areas.map(label=>{
+    const section=element('details',undefined,'aspect-row'),summary=element('summary'),notes=element('div',undefined,'aspect-notes');
     summary.append(element('strong',label));
-    const notes=element('div',undefined,'aspect-notes');
     for(const side of ['w','b']){
-      const group=entries.filter(e=>e.node.move.color===side && e.tags.has(label));
-      const slips=group.filter(e=>isTrainingMove(e.node));
-      const grade=!group.length?'—':group.length<3?'Amostra curta':slips.length===0?'Consistente':slips.length*3>=group.length?'A rever':'Misto';
-      const column=element('span',grade);
+      const group=entries.filter(item=>item.node.move.color===side&&item.tags.has(label));
+      const grade=aspectGrade(group.map(item=>item.node)),column=element('span',undefined,'aspect-grade');
       column.title=displayName(side);
+      if(grade)column.append(badge(grade.key),element('small',CLASSIFICATIONS[grade.key][1]));
+      else column.append(element('small','Sem dados'));
       summary.append(column);
-      const note=element('div');note.append(element('b',displayName(side)));
-      if(!group.length)note.append(element('small','Sem posição relevante'));
-      else {
-        note.append(element('small',slips.length+' / '+group.length+' · Imprecisões ou erros'));
-        for(const item of Array.from(new Set([slips[0]||group[0],group.at(-1)])).slice(0,2)){
-          const link=element('button',moveNumber(item.node)+item.node.move.san+' · '+item.tags.get(label),'text-button');
-          link.onclick=()=>goTo(item.node);note.append(link);
+      const note=element('div',undefined,'aspect-note');note.append(element('b',displayName(side)));
+      if(!grade)note.append(element('small','Sem situação relevante para avaliar'));
+      else{
+        const sample=grade.count<3?' · Amostra curta':'';
+        note.append(element('small',grade.count+' lances · '+grade.errors+' imprecisões/erros · '+grade.misses+' oportunidades perdidas'+sample,'aspect-metrics'));
+        const ordered=[...group].sort((a,b)=>aspectGrade([a.node]).score-aspectGrade([b.node]).score);
+        const examples=ordered.length>1?[ordered[0],ordered[ordered.length-1]]:[ordered[0]];
+        for(const item of Array.from(new Set(examples))){
+          const key=item.node.classification,link=element('button',undefined,'text-button aspect-example');
+          link.append(badge(key),document.createTextNode(moveNumber(item.node)+item.node.move.san));
+          link.title=item.tags.get(label)||CLASSIFICATIONS[key][1];link.onclick=()=>goTo(item.node);note.append(link);
         }
       }
       notes.append(note);
     }
     section.append(summary,notes);return section;
   });
-  // Preserve expansion across analysis updates even with translated headings.
-  const flags=[...target.querySelectorAll('details')].map(e=>e.open);
-  sections.forEach((section,i)=>section.open=Boolean(flags[i]));
+  const previous=[...target.querySelectorAll('details')].map(item=>item.open);
+  sections.forEach((section,index)=>section.open=previous.length?Boolean(previous[index]):index<2);
   const headings=element('div',undefined,'aspect-columns');
-  headings.append(element('span','Área'),element('span',displayName('w')),element('span',displayName('b')));
+  headings.append(element('span','Aspecto'),element('span',displayName('w')),element('span',displayName('b')));
   target.replaceChildren(headings,...sections);
+  const opening=gameHeaders.Opening||(gameHeaders.ECO?'ECO '+gameHeaders.ECO:'');
+  target.append(element('p',opening?'Abertura identificada: '+opening:'As notas usam as classificações dos lances relevantes; áreas sem amostra não recebem nota.','muted phase-opening'));
 }
 
 async function reviewExploration(node, engine, cache, depth, task) {
@@ -956,30 +947,32 @@ function variationText(fen, pv) {
 }
 
 function renderVariantEvaluation(node) {
-  const target = $('variant-analysis');
-  target.replaceChildren();
-  target.hidden = !node?.userEdited;
-  if (!node?.userEdited) return;
-  const original = pathTo(node).reverse().find(n=>!n.userEdited) || root;
-  const back = element('button','Voltar à partida','mini');
-  back.onclick=()=>{ goTo(original); if(original.children[0]) preferred.set(original,original.children[0]); };
-  target.append(back);
-  target.append(element('h4', 'Análise da variante editada'));
-  if (!node.evaluation) {
-    target.append(element('p', 'Aguardando a avaliação do Stockfish para esta nova posição…', 'muted'));
-    return;
+  const target=$('variant-analysis');target.replaceChildren();target.hidden=!node?.userEdited;if(!node?.userEdited)return;
+  const original=pathTo(node).reverse().find(item=>!item.userEdited)||root;
+  const back=element('button','Voltar à partida','mini');back.onclick=()=>{goTo(original);if(original.children[0])preferred.set(original,original.children[0])};
+  target.append(back,element('h4','Análise da variante exploratória'));
+  if(!node.evaluation){target.append(element('p','Aguardando a avaliação do Stockfish para esta nova posição…','muted'));return}
+  const percentage=winPercent(node.evaluation);
+  const advantage=percentage>55?'Vantagem das brancas · '+Math.round(percentage)+'%':percentage<45?'Vantagem das pretas · '+Math.round(100-percentage)+'%':'Posição equilibrada · '+Math.round(Math.max(percentage,100-percentage))+'%';
+  const summary=element('div',undefined,'variant-summary');
+  summary.append(element('strong',evaluationLabel(node.evaluation),'variant-score'),element('span',advantage));
+  target.append(summary,element('p','Stockfish 19 · profundidade '+(node.depth||'…'),'muted'));
+  if(node.classification&&CLASSIFICATIONS[node.classification]){
+    const quality=element('div',undefined,'variant-quality');quality.append(badge(node.classification),element('strong',CLASSIFICATIONS[node.classification][1]));target.append(quality);
   }
-  const percentage = winPercent(node.evaluation);
-  const advantage = percentage > 55
-    ? 'Vantagem das brancas · ' + Math.round(percentage) + '%'
-    : percentage < 45
-      ? 'Vantagem das pretas · ' + Math.round(100 - percentage) + '%'
-      : 'Posição equilibrada · ' + Math.round(Math.max(percentage, 100 - percentage)) + '%';
-  const summary = element('div', undefined, 'variant-summary');
-  summary.append(element('strong', evaluationLabel(node.evaluation), 'variant-score'), element('span', advantage));
-  target.append(summary, element('p', 'Stockfish 19 · profundidade ' + (node.depth || '…'), 'muted'));
-  if (node.lines?.[0]?.pv?.length) appendCoachLine(target, 'Melhor linha', variationText(node.fen, node.lines[0].pv));
-  else target.append(element('p', 'O motor ainda não encontrou uma continuação completa.', 'muted'));
+  if(node.coach){
+    const bestUci=node.coach.best||node.coach.choices?.[0]?.pv?.[0],bestSan=bestUci?moveSan(Chess,node.parent.fen,bestUci):'—';
+    const comparison=element('div',undefined,'variant-comparison');
+    comparison.append(element('span','Sua jogada: '+node.move.san),element('span','Melhor alternativa: '+bestSan));
+    const sign=node.move.color==='w'?1:-1,before=node.coach.before,after=node.coach.after;
+    if(before&&after&&before.type!=='mate'&&after.type!=='mate'){
+      const loss=Math.max(0,sign*(Number(before.white||0)-Number(after.white||0)));
+      comparison.append(element('small','Variação da avaliação para quem jogou: '+(loss/100).toFixed(2)+' peões'));
+    }
+    target.append(comparison);
+  }
+  if(node.lines?.[0]?.pv?.length)appendCoachLine(target,'Melhor continuação a partir da posição atual',variationText(node.fen,node.lines[0].pv));
+  else target.append(element('p','O motor ainda não encontrou uma continuação completa.','muted'));
 }
 
 function renderReport() {
@@ -1833,7 +1826,7 @@ function cancelBoardMark(event) {
 }
 
 function bindEvents() {
-  for (const [key,[,label]] of Object.entries(CLASSIFICATIONS)) $('chart-key').append(element('span',label,'class-'+key));
+  for (const key of REVIEW_CHART_MARKERS) { const item=element('span',undefined,'chart-key-item class-'+key); item.append(badge(key),document.createTextNode(CLASSIFICATIONS[key][1])); $('chart-key').append(item); }
   for (const [id, name] of Object.entries({ first: 'first', prev: 'prev', play: 'play', next: 'next', last: 'last', flip: 'flip', export: 'share', 'mate-icon': 'mate' })) {
     $(id).replaceChildren(icon(name));
   }

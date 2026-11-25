@@ -1,4 +1,3 @@
-import {unlockWood,woodVolume,silenceWood,woodSound} from './wood-audio.js';
 const NS = 'http://www.w3.org/2000/svg';
 
 const paths = {
@@ -111,13 +110,11 @@ function stopSoundPlayers() {
 
 export function setBoardVolume(volume) {
   outputVolume = Math.max(0, Math.min(1, Number(volume) || 0));
-  woodVolume(outputVolume);
   for (const player of soundPlayers.values()) player.volume = outputVolume * (player._boardSoundGain ?? 1);
 }
 
 export function unlockSound(enabled) {
   soundEnabled = Boolean(enabled);
-  unlockWood(enabled && document.getElementById('sound-pack')?.value==='wood');
   if (!soundEnabled) stopSoundPlayers();
 }
 
@@ -126,11 +123,6 @@ export function boardSound(name, enabled, volume = 65) {
   outputVolume = Math.max(0, Math.min(100, Number(volume) || 0)) / 100;
   if (!outputVolume) return;
   try {
-    stopSoundPlayers();
-    if(document.getElementById('sound-pack')?.value==='wood' && ['mate','move','opponent','capture','enPassant','castle','promotion','check','end'].includes(name)){
-      if (woodSound(name,outputVolume)) return;
-    }
-    silenceWood();
     const player = soundPlayer(name);
     if (!player) return;
     player._boardSoundGain = SOUND_GAINS[name] ?? 1;
@@ -141,7 +133,25 @@ export function boardSound(name, enabled, volume = 65) {
   } catch { /* Audio is optional and must never interrupt a move. */ }
 }
 export function mateCelebration(layer) {
+  const colors = ['#b7ed80', '#f7cb76', '#f0f5cb', '#72d7c2'];
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   layer.hidden = false;
-  return setTimeout(() => { layer.hidden = true; }, reduced ? 1550 : 2400);
+  if (reduced) return setTimeout(() => { layer.hidden = true; }, 1550);
+  const pieces = [];
+  for (let index = 0; index < 24; index += 1) {
+    const particle = document.createElement('i');
+    const angle = index * Math.PI * 2 / 24;
+    const reach = 12 + (index % 5) * 6;
+    particle.className = 'mate-particle';
+    particle.style.setProperty('--dx', Math.cos(angle) * reach + 'cqw');
+    particle.style.setProperty('--dy', Math.sin(angle) * reach + 'cqw');
+    particle.style.setProperty('--spin', (index % 2 ? -1 : 1) * (130 + index * 17) + 'deg');
+    particle.style.background = colors[index % colors.length];
+    layer.append(particle);
+    pieces.push(particle);
+  }
+  return setTimeout(() => {
+    layer.hidden = true;
+    for (const particle of pieces) particle.remove();
+  }, 2400);
 }
