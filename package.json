@@ -1,0 +1,12 @@
+{
+  "name": "free-chess-analysis",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": "24.x" },
+  "scripts": {
+    "start": "node serve.mjs",
+    "build": "npm run check",
+    "check": "node --check dist/app.js && node --check dist/board-ui.js && node --check dist/coach.js && node --check dist/engine.js && node --check serve.mjs"
+  }
+}
