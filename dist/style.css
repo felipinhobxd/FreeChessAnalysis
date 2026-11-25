@@ -148,7 +148,7 @@ table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
 td,th{text-align:center;border-bottom:1px solid var(--soft-line);padding:6px 4px;font-size:13px}th{font-size:11px;color:var(--muted)}td:first-child,th:first-child{text-align:left}
 .badge{width:23px;height:23px;display:inline-grid;place-items:center;border-radius:50%;background:var(--badge);color:var(--glyph,#17251a);vertical-align:middle;flex:none}
 .badge .ui-icon{width:72%;height:72%}td .badge{margin-right:8px}
-.class-brilliant{--badge:#63d5cc}.class-critical{--badge:#8cb9e0}.class-best{--badge:#a6d579}.class-excellent{--badge:#86c8a0}.class-good{--badge:#b4c899}
+.class-brilliant{--badge:#63d5cc}.class-great{--badge:#8cb9e0}.class-best{--badge:#a6d579}.class-excellent{--badge:#86c8a0}.class-good{--badge:#b4c899}
 .class-inaccuracy{--badge:#edce69;--glyph:#4d3810}.class-mistake{--badge:#f3a464;--glyph:#482910}.class-blunder{--badge:#ef7d78;--glyph:#3e181b}.class-theory{--badge:#c4b499;--glyph:#3e3326}.class-chance-lost{--badge:#e7b95f;--glyph:#443316}
 .board-badge{position:absolute;top:3%;right:2%;width:clamp(17px,4cqw,36px);height:clamp(17px,4cqw,36px);z-index:4;pointer-events:none;box-shadow:0 0 0 1.5px #263021,0 2px 4px #1e251d55}
 .history{border-top:1px solid var(--line);padding:12px clamp(16px,1.15vw,22px) 14px;background:#262923}

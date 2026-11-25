@@ -1,79 +1,181 @@
-// Lichess-style accuracy and Lichess-equivalent performance reference curves.
-// Performance curves use 981,166 analysed Lichess games from September 2025.
-const CURVES={
- blitz:[
- [500,70,78.6,85],[600,70,78.9,86],[700,72,79.8,86],[800,74,80.7,87],[900,75,81.5,87],
- [1000,76,82.2,88],[1100,77,82.7,88],[1200,78,83.3,88],[1300,78,83.6,89],[1400,79,84.1,89],
- [1500,80,84.7,89],[1600,80,85.0,89],[1700,81,85.4,90],[1800,81,85.8,90],[1900,82,86.4,90],
- [2000,83,87.0,91],[2100,84,87.6,91],[2200,85,88.3,92],[2300,85,88.9,92],[2400,86,89.4,93],
- [2500,87,89.9,93],[2600,88,90.8,94]],
- rapid:[
- [500,69,77.7,85],[600,69,78.4,86],[700,71,78.9,86],[800,73,80.0,87],[900,74,81.1,87],
- [1000,75,81.8,88],[1100,77,82.8,88],[1200,77,83.3,88],[1300,78,83.9,89],[1400,79,84.4,89],
- [1500,80,85.1,90],[1600,81,85.4,90],[1700,81,86.0,90],[1800,82,86.5,91],[1900,83,87.3,91],
- [2000,84,88.0,92],[2100,85,88.9,92],[2200,86,89.7,93],[2300,87,90.6,94],[2400,88,91.4,95],
- [2500,89,92.2,95]]
+// Chess.com-oriented review metrics.
+//
+// Accuracy and rating are separate models. CAPS2 is proprietary; the runtime
+// score below is an explicitly provisional fit shape until the included
+// calibration pipeline is run against a large, player-disjoint Chess.com sample.
+// Rating curves are independently derived from ~16,000 publicly reviewed
+// Chess.com player-games (Ginzoh/chess-review, rating-samples* and rating-table).
+const RATING_CURVES = {
+  blitz: [
+    [100,48.78,62.24,73.49],[300,58.52,66.28,75.81],[500,58.73,68.70,77.31],
+    [700,61.54,71.32,78.61],[900,64.49,73.02,79.67],[1100,66.94,74.80,81.78],
+    [1300,68.73,75.25,81.87],[1500,69.04,75.57,83.24],[1700,71.55,77.48,83.24],
+    [1900,71.55,77.98,83.36],[2100,73.31,79.12,84.21],[2300,75.18,81.06,87.50],
+    [2500,77.62,82.49,87.50],[2700,78.29,82.64,87.50],[2900,79.84,84.18,88.40],
+    [3100,80.86,86.46,91.72],[3300,83.82,88.63,92.74]
+  ],
+  rapid: [
+    [100,46.40,57.35,64.64],[300,49.09,60.52,69.80],[500,55.85,64.82,73.87],
+    [700,61.76,69.72,77.09],[900,65.43,72.08,79.30],[1100,65.86,73.61,80.50],
+    [1300,67.91,73.92,80.94],[1500,69.68,76.42,83.02],[1700,69.81,76.42,83.02],
+    [1900,71.11,76.82,83.81],[2100,75.26,80.81,86.04],[2300,80.26,84.20,87.61],
+    [2500,80.26,85.87,89.71],[2700,83.68,88.56,92.44]
+  ]
 };
-const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
-const mean=xs=>xs.length?xs.reduce((a,b)=>a+b,0)/xs.length:null;
-function stdev(xs){const m=mean(xs);return m===null||xs.length<2?0:Math.sqrt(xs.reduce((a,x)=>a+(x-m)**2,0)/xs.length)}
-export function moveAccuracyFromWinLoss(loss){
- if(!Number.isFinite(loss)||loss<=0)return 100;
- return clamp(103.1668100711649*Math.exp(-0.04354415386753951*loss)-3.166924740191411+1,0,100);
+const TYPICAL_ABSOLUTE_ERROR = { blitz: 711, rapid: 519 };
+const ACCURACY_STORAGE_KEY = 'move-by-move/caps2-model';
+const DEFAULT_ACCURACY_MODEL = Object.freeze({
+  version: 1,
+  status: 'provisional',
+  source: 'TxClaudes/chess calibration approach; awaiting local Chess.com sample fit',
+  winK: 0.00368208,
+  decay: 0.055,
+  floor: 0,
+  offset: 0,
+  aggregation: 'mean'
+});
+const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
+const mean = values => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+
+export function getAccuracyModel() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(ACCURACY_STORAGE_KEY));
+    if (saved?.version === 1 && Number.isFinite(saved.decay) &&
+        Number.isFinite(saved.winK) && ['mean','harmonic','blend80'].includes(saved.aggregation)) {
+      return { ...DEFAULT_ACCURACY_MODEL, ...saved };
+    }
+  } catch { /* Local calibration is optional. */ }
+  return DEFAULT_ACCURACY_MODEL;
 }
-export function aggregateGameAccuracy(path,side,winPercent){
- const positions=[];for(const node of path){if(!node?.evaluation)break;positions.push(node)}
- const plies=positions.length-1;if(plies<1)return null;
- const wp=positions.map(node=>{const white=winPercent(node.evaluation);return side==='w'?white:100-white});
- const size=clamp(Math.floor(plies/10),2,8);
- const windows=[
-  ...Array.from({length:Math.max(0,size-2)},()=>wp.slice(0,size)),
-  ...Array.from({length:Math.max(0,wp.length-size+1)},(_,i)=>wp.slice(i,i+size))
- ];
- const weights=windows.map(window=>clamp(stdev(window),0.5,12));
- const scores=[],moveWeights=[];
- for(let i=0;i<plies;i++){
-  if(positions[i+1].move?.color!==side)continue;
-  scores.push(moveAccuracyFromWinLoss(Math.max(0,wp[i]-wp[i+1])));
-  moveWeights.push(weights[i]??1);
- }
- if(!scores.length)return null;
- const weighted=scores.reduce((s,x,i)=>s+x*moveWeights[i],0)/moveWeights.reduce((s,x)=>s+x,0);
- const harmonic=scores.length/scores.reduce((s,x)=>s+1/Math.max(x,1),0);
- return Math.round((weighted+harmonic)*5)/10;
+
+export function installAccuracyModel(model) {
+  if (!model || model.version !== 1 || !Number.isFinite(model.decay) ||
+      model.decay < 0.005 || model.decay > 0.3 ||
+      !Number.isFinite(model.winK) || model.winK < 0.0005 || model.winK > 0.01 ||
+      !['mean','harmonic','blend80'].includes(model.aggregation)) {
+    throw new TypeError('Invalid Move by Move calibration model.');
+  }
+  const normalized = {
+    version: 1, status: 'calibrated', winK: model.winK, decay: model.decay,
+    floor: clamp(Number(model.floor) || 0, 0, 60),
+    offset: clamp(Number(model.offset) || 0, -10, 10),
+    aggregation: model.aggregation,
+    trainedGames: Math.max(0, Math.floor(Number(model.trainedGames) || 0)),
+    heldOutSides: Math.max(0, Math.floor(Number(model.heldOutSides) || 0)),
+    heldOutMae: Number.isFinite(model.heldOutMae) ? model.heldOutMae : null,
+    engine: model.engine || 'Stockfish 19'
+  };
+  try { localStorage.setItem(ACCURACY_STORAGE_KEY, JSON.stringify(normalized)); } catch {}
+  return normalized;
 }
-export function gameTimeClass(headers={}){
- const m=/^(\d+)(?:\+(\d+))?$/.exec(String(headers.TimeControl||'').trim());if(!m)return null;
- const seconds=Number(m[1])+40*Number(m[2]||0);
- if(seconds<180)return'bullet';if(seconds<480)return'blitz';if(seconds<=1500)return'rapid';return'classical';
+
+function expectedScore(evaluation, side, k) {
+  if (!evaluation) return 50;
+  const sign = side === 'w' ? 1 : -1;
+  const value = Number(evaluation.white ?? evaluation.value ?? 0) * sign;
+  if (evaluation.type === 'mate') return value > 0 ? 100 : value < 0 ? 0 : 50;
+  const cp = clamp(value, -1000, 1000);
+  return 100 / (1 + Math.exp(-k * cp));
 }
-function invert(rows,column,accuracy){
- const first=rows[0],last=rows.at(-1);
- if(accuracy<=first[column])return{value:first[0]+50,bound:'below'};
- if(accuracy>=last[column])return{value:last[0]+50,bound:'above'};
- for(let i=1;i<rows.length;i++){const a=rows[i-1],b=rows[i];if(accuracy<=b[column]){
-  const span=b[column]-a[column],t=span?(accuracy-a[column])/span:1;
-  return{value:a[0]+50+t*(b[0]-a[0]),bound:null};
- }}
- return{value:last[0]+50,bound:'above'};
+
+export function moveAccuracyFromWinLoss(loss) {
+  if (!Number.isFinite(loss)) return null;
+  const model = getAccuracyModel();
+  const raw = 103.1668100711649 * Math.exp(-model.decay * Math.max(0, loss)) - 3.166924740191411 + 1;
+  return Math.round(clamp(raw + model.offset, model.floor, 100) * 10) / 10;
 }
-export function estimatePerformance(path,side,headers={}){
- const moves=path.slice(1).filter(n=>n.move?.color===side&&Number.isFinite(n.accuracy));
- if(moves.length<10||path.length-1<20)return{available:false,reason:'short',moves:moves.length};
- const timeClass=gameTimeClass(headers);
- if(!timeClass)return{available:false,reason:'time-control',moves:moves.length};
- if(timeClass==='bullet')return{available:false,reason:'bullet',moves:moves.length};
- if(timeClass==='classical')return{available:false,reason:'classical',moves:moves.length};
- const accuracy=mean(moves.map(n=>n.accuracy)),table=CURVES[timeClass];
- if(accuracy<table[0][2]||accuracy>table.at(-1)[2])return{available:false,reason:'outside-range',moves:moves.length,accuracy:Math.round(accuracy*10)/10};
- const c=invert(table,2,accuracy),lo=invert(table,3,accuracy),hi=invert(table,1,accuracy);
- const round=x=>Math.round(x/50)*50;
- return{available:true,rating:round(c.value),low:round(Math.min(lo.value,c.value)),high:round(Math.max(hi.value,c.value)),
-  lowBound:lo.bound,highBound:hi.bound,timeClass,accuracy:Math.round(accuracy*10)/10,moves:moves.length};
+
+export function moveAccuracyBetween(before, after, side) {
+  if (!before || !after) return null;
+  const model = getAccuracyModel();
+  const beforeChance = expectedScore(before, side, model.winK);
+  const afterChance = expectedScore(after, side, model.winK);
+  return moveAccuracyFromWinLoss(Math.max(0, beforeChance - afterChance));
 }
-export function phaseForPosition(fen,ply){
- const board=String(fen||'').split(' ')[0].replace(/[1-8/]/g,'');
- const value={q:9,r:5,b:3,n:3};
- const material=[...board].reduce((s,p)=>s+(value[p.toLowerCase()]||0),0);
- if(material<=13)return'endgame';if(ply<=20)return'opening';return'middlegame';
+
+function aggregateScores(scores, aggregation) {
+  if (!scores.length) return null;
+  const arithmetic = mean(scores);
+  if (aggregation === 'mean') return arithmetic;
+  const harmonic = scores.length / scores.reduce((sum, score) => sum + 1 / Math.max(1, score), 0);
+  return aggregation === 'harmonic' ? harmonic : arithmetic * 0.8 + harmonic * 0.2;
+}
+
+export function aggregateGameAccuracy(path, side) {
+  const scores = path.slice(1)
+    .filter(node => node?.move?.color === side && Number.isFinite(node.accuracy))
+    .map(node => node.accuracy);
+  const result = aggregateScores(scores, getAccuracyModel().aggregation);
+  return result === null ? null : Math.round(result * 10) / 10;
+}
+
+export function gameTimeClass(headers = {}) {
+  const raw = String(headers.TimeControl || '').trim();
+  const match = /^(\d+)(?:\+(\d+))?$/.exec(raw);
+  if (!match) return null;
+  const base = Number(match[1]);
+  const increment = Number(match[2] || 0);
+  const estimated = base + increment * 40;
+  if (estimated < 180) return 'bullet';
+  if (estimated < 480) return 'blitz';
+  if (estimated <= 1500) return 'rapid';
+  return 'classical';
+}
+
+function invertCurve(rows, column, accuracy) {
+  const first = rows[0], last = rows.at(-1);
+  if (accuracy <= first[column]) return { value: first[0] - 100, bound: 'below' };
+  if (accuracy >= last[column]) return { value: last[0] + 100, bound: 'above' };
+  for (let index = 1; index < rows.length; index++) {
+    const a = rows[index - 1], b = rows[index];
+    if (accuracy <= b[column]) {
+      const span = b[column] - a[column];
+      const fraction = span > 0 ? (accuracy - a[column]) / span : 1;
+      return { value: a[0] + fraction * (b[0] - a[0]), bound: null };
+    }
+  }
+  return { value: last[0], bound: null };
+}
+
+export function estimatePerformance(path, side, headers = {}) {
+  const moves = path.slice(1).filter(node =>
+    node?.move?.color === side && Number.isFinite(node.accuracy));
+  if (moves.length < 10 || path.length - 1 < 20) {
+    return { available: false, reason: 'short', moves: moves.length };
+  }
+  const timeClass = gameTimeClass(headers);
+  if (!timeClass) return { available: false, reason: 'time-control', moves: moves.length };
+  if (timeClass === 'bullet') return { available: false, reason: 'bullet', moves: moves.length };
+  if (timeClass === 'classical') return { available: false, reason: 'classical', moves: moves.length };
+  const accuracy = aggregateGameAccuracy(path, side);
+  const table = RATING_CURVES[timeClass];
+  if (accuracy < table[0][2] || accuracy > table.at(-1)[2]) {
+    return { available: false, reason: 'outside-range', moves: moves.length, accuracy };
+  }
+  const median = invertCurve(table, 2, accuracy);
+  const low = invertCurve(table, 3, accuracy);
+  const high = invertCurve(table, 1, accuracy);
+  const round = value => Math.round(value / 25) * 25;
+  return {
+    available: true,
+    rating: round(median.value),
+    low: round(Math.min(low.value, median.value)),
+    high: round(Math.max(high.value, median.value)),
+    lowBound: low.bound,
+    highBound: high.bound,
+    timeClass,
+    accuracy,
+    moves: moves.length,
+    typicalAbsoluteError: TYPICAL_ABSOLUTE_ERROR[timeClass],
+    dataSourceGames: 16000
+  };
+}
+
+export function phaseForPosition(fen, ply) {
+  const board = String(fen || '').split(' ')[0].replace(/[1-8/]/g, '');
+  const value = { q: 9, r: 5, b: 3, n: 3 };
+  const material = [...board].reduce((sum, piece) => sum + (value[piece.toLowerCase()] || 0), 0);
+  if (material <= 13) return 'endgame';
+  if (ply <= 20) return 'opening';
+  return 'middlegame';
 }

@@ -2,7 +2,7 @@ import { Engine } from './engine.js';
 import { acceptedMove, inspectMove, isTrainingMove } from './coach.js';
 import { icon, unlockSound, boardSound, setBoardVolume, mateCelebration } from './board-ui.js';
 import { initLanguage, setLanguage, getLanguage } from './i18n.js';
-import { aggregateGameAccuracy, estimatePerformance, moveAccuracyFromWinLoss, phaseForPosition } from './review-metrics.js';
+import { aggregateGameAccuracy, estimatePerformance, moveAccuracyBetween, phaseForPosition } from './review-metrics.js';
 
 const $ = id => document.getElementById(id);
 const languageState = initLanguage();
@@ -40,10 +40,16 @@ const EXAMPLE = `[Event "Partida de exemplo"]
 const FIGURES = { p: '♟', n: '♞', b: '♝', r: '♜', q: '♛', k: '♚' };
 const NAMES = { p: 'Peão', n: 'Cavalo', b: 'Bispo', r: 'Torre', q: 'Dama', k: 'Rei' };
 const CLASSIFICATIONS = {
-  brilliant: ['!!', 'Brilhante'], critical: ['!', 'Crítico'], best: ['★', 'Melhor lance'],
-  excellent: ['✓', 'Excelente'], good: ['○', 'Bom lance'], inaccuracy: ['?!', 'Imprecisão'],
-  mistake: ['?', 'Erro'], blunder: ['??', 'Erro grave'], theory: ['▤', 'Teoria'],
-  'chance-lost': ['✕', 'Chance perdida'],
+  brilliant: ['!!', 'Brilhante'],
+  excellent: ['✓', 'Excelente'],
+  theory: ['▤', 'Teoria'],
+  best: ['★', 'Melhor'],
+  great: ['!', 'Ótimo'],
+  good: ['○', 'Bom'],
+  inaccuracy: ['?!', 'Imprecisão'],
+  mistake: ['?', 'Erro'],
+  'chance-lost': ['✕', 'Chance Perdida'],
+  blunder: ['??', 'Erro grave'],
 };
 const BOOK = new Set(['e2e4', 'd2d4', 'c2c4', 'g1f3']);
 const BOOK_REPLY = {
@@ -53,7 +59,7 @@ const BOOK_REPLY = {
   g1f3: ['d7d5', 'g8f6', 'c7c5', 'g7g6', 'e7e6', 'b7b6'],
 };
 const PREFS = ['review-depth', 'line-depth', 'multi-pv', 'show-arrow', 'show-coordinates', 'engine-mode', 'piece-set', 'sound-enabled', 'sound-volume', 'animation-speed', 'mate-enabled'];
-const REVIEW_CHART_MARKERS = new Set(['brilliant', 'critical', 'inaccuracy', 'mistake', 'blunder', 'theory']);
+const REVIEW_CHART_MARKERS = new Set(['brilliant', 'great', 'inaccuracy', 'mistake', 'blunder', 'theory']);
 const TABS = ['import', 'report', 'lines', 'puzzles'];
 
 let Chess;
@@ -81,7 +87,7 @@ let fullscreenFallback = false;
 const puzzleProgress = new Map();
 const positions = new Map();
 const chartColors = {
-  brilliant: '#63d5cc', critical: '#8cb9e0', best: '#a6d579', excellent: '#86c8a0',
+  brilliant: '#63d5cc', great: '#8cb9e0', best: '#a6d579', excellent: '#86c8a0',
   good: '#b4c899', inaccuracy: '#edce69', mistake: '#f3a464', blunder: '#ef7d78', 'chance-lost': '#e7b95f',
 };
 let chartMarkers = [];
@@ -1548,7 +1554,7 @@ function reviewClass(node, before, after, previousBest, runnersUp, index) {
     material[reply.captured] - (node.move.captured ? material[node.move.captured] : 0) - opponentCapture >= 2);
   if (opening) return 'theory';
   if (top && margin > 12 && commitment && color * (winPercent(after) - 50) >= -5) return 'brilliant';
-  if (top && margin > 14) return 'critical';
+  if (top && margin > 14) return 'great';
   if (top) return 'best';
   if (loss < 3.5) return 'excellent';
   if (loss < 7) return 'good';
@@ -1605,10 +1611,8 @@ async function runReview() {
       node.depth = result.lines[0].depth;
       if (index > 0) {
         const before = path[index - 1];
-        const sign = node.move.color === 'w' ? 1 : -1;
-        const loss = Math.max(0, sign * (winPercent(before.evaluation) - winPercent(node.evaluation)));
         node.coach = { before: before.evaluation, after: node.evaluation, best: before.best, choices: before.lines };
-        node.accuracy = moveAccuracyFromWinLoss(loss);
+        node.accuracy = moveAccuracyBetween(before.evaluation, node.evaluation, node.move.color);
         node.chanceLost = findMissedChance(Chess, before, node);
         node.classification = reviewClass(node, before.evaluation, node.evaluation, before.best, before.lines, index);
       }
