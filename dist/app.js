@@ -1573,6 +1573,49 @@ function snapshotGame() {
   return root.children.length ? { pgn: exportPgn(), ply: pathTo(cursor).length } : { fen: root.fen };
 }
 
+function boardSquareAtPoint(clientX, clientY) {
+  const target = document.elementFromPoint(clientX, clientY);
+  const cell = target?.closest?.('[data-square]');
+  return cell && $('board').contains(cell) ? cell.dataset.square : null;
+}
+
+function annotationColor(event) {
+  if (event.altKey) return '#e6b84c';
+  if (event.ctrlKey || event.metaKey) return '#e56b68';
+  if (event.shiftKey) return '#5b9fe5';
+  return '#45ad71';
+}
+
+function finishBoardMark(event) {
+  const active = activeBoardMark;
+  if (!active || active.pointerId !== event.pointerId) return;
+  const destination = boardSquareAtPoint(event.clientX, event.clientY);
+  activeBoardMark = null;
+  try {
+    if (destination) {
+      const mark = destination === active.from
+        ? { type: 'circle', from: active.from, to: null, color: active.color }
+        : { type: 'arrow', from: active.from, to: destination, color: active.color };
+      const duplicate = boardMarks.findIndex(item =>
+        item.type === mark.type && item.from === mark.from && item.to === mark.to && item.color === mark.color);
+      if (duplicate >= 0) boardMarks.splice(duplicate, 1);
+      else {
+        boardMarks.push(mark);
+        if (boardMarks.length > 32) boardMarks.shift();
+      }
+    }
+  } finally {
+    try { $('board').releasePointerCapture(event.pointerId); } catch { /* Capture may already be released. */ }
+    renderScore();
+  }
+}
+
+function cancelBoardMark(event) {
+  if (!activeBoardMark || activeBoardMark.pointerId !== event.pointerId) return;
+  activeBoardMark = null;
+  renderScore();
+}
+
 function bindEvents() {
   for (const [id, name] of Object.entries({ first: 'first', prev: 'prev', play: 'play', next: 'next', last: 'last', flip: 'flip', export: 'share', 'mate-icon': 'mate' })) {
     $(id).replaceChildren(icon(name));
