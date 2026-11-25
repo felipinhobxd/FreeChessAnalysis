@@ -78,15 +78,24 @@ function createNoiseBuffer() {
   return noiseBuffer;
 }
 
+let outputVolume = .65;
+
+export function setBoardVolume(volume) {
+  outputVolume = Math.max(0, Math.min(1, Number(volume) || 0));
+  if (audio && masterGain && audio.state !== 'closed') {
+    masterGain.gain.setTargetAtTime(outputVolume, audio.currentTime, .018);
+  }
+}
+
 export function unlockSound(enabled) {
-  if (!enabled) return;
+  if (!enabled) { setBoardVolume(0); return; }
   const Audio = audioConstructor();
   if (!Audio) return;
   try {
     audio ??= new Audio();
     if (!masterGain) {
       masterGain = audio.createGain();
-      masterGain.gain.value = .65;
+      masterGain.gain.value = outputVolume;
       masterGain.connect(audio.destination);
     }
     if (audio.state === 'suspended') audio.resume().catch(() => {});
