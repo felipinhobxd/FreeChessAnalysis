@@ -30,7 +30,7 @@ A aplicação é estática e executa a análise no navegador. Não exige conta, 
 | **Treino** | Resolver puzzles gerados a partir de imprecisões, erros e erros graves encontrados na revisão. Cada desafio começa com três vidas. |
 | **Tabuleiro** | Mover peças por seleção ou arrastar e soltar com destinos legais destacados, desenhar setas e círculos com o botão direito, navegar pelo histórico com animações, girar o tabuleiro e abrir o modo de tela cheia. |
 | **Exportação** | Copiar PGN ou FEN, baixar a partida em PGN, criar um link compartilhável ou salvar a partida no arquivo local. |
-| **Personalização** | Usar Cburnett como conjunto padrão ou escolher outros temas, configurar o motor, ajustar parâmetros de análise, ativar ou silenciar sons, controlar o volume e escolher a velocidade das animações. |
+| **Personalização** | Usar Cburnett como conjunto padrão ou escolher outros temas, configurar o motor, ajustar parâmetros de análise, ativar ou silenciar sons, controlar o volume e escolher a velocidade das animações. Os efeitos usam variações locais para movimentos e capturas. |
 
 As classificações e os percentuais de precisão são estimativas calculadas a partir das avaliações do motor. Não representam uma classificação oficial do Chess.com, Lichess ou de outra plataforma.
 
@@ -88,9 +88,9 @@ A rota principal também está disponível em `/analysis`.
 
 ### Sobre o Stockfish
 
-O motor é carregado sob demanda pelo navegador. O modo **Completo** pode baixar aproximadamente **95 MB** na primeira utilização. Em navegadores e implantações compatíveis com isolamento de origem, ele pode usar várias threads. Caso essa compilação não esteja disponível, a aplicação tenta a versão completa de uma thread e, em seguida, a versão **Lite**.
+O motor é carregado sob demanda pelo navegador. O **Stockfish 19 Lite é o modo padrão**, oferecendo inicialização mais leve para as análises do dia a dia. O modo **Completo** continua disponível em **Ajustes → Modo do Stockfish** para quem deseja mais força de análise e aceita baixar aproximadamente **95 MB** na primeira utilização. Em navegadores e implantações compatíveis com isolamento de origem, a compilação completa pode usar várias threads.
 
-Você também pode selecionar o modo Lite em **Ajustes → Modo do Stockfish**. Os cabeçalhos `Cross-Origin-Opener-Policy` e `Cross-Origin-Embedder-Policy` configurados em `vercel.json` ajudam a habilitar os recursos necessários à execução multithread.
+Os cabeçalhos `Cross-Origin-Opener-Policy` e `Cross-Origin-Embedder-Policy` configurados em `vercel.json` ajudam a habilitar os recursos necessários à execução multithread. Preferências salvas no formato antigo são migradas uma vez para o novo padrão Lite.
 
 ## Como usar
 
@@ -156,6 +156,8 @@ O projeto reúne recursos próprios e componentes de terceiros:
 - **Chessnut:** peças de Alexis Luengas, sob [Apache License 2.0](https://github.com/LexLuengas/chessnut-pieces).
 - **Stockfish.js 19.0.1:** motor de xadrez distribuído sob [GNU GPLv3](https://www.gnu.org/licenses/gpl-3.0.html).
 - **chess.js 1.4.0:** biblioteca de regras e movimentação, sob [BSD 2-Clause](https://github.com/jhlywa/chess.js).
+
+- **Sons do tabuleiro:** pacote [chess-sounds-gen](https://github.com/chessvault-app/chess-sounds-gen), sintetizado do zero e licenciado sob GPL-3.0-or-later. Consulte `dist/sounds/README.md` e `dist/sounds/LICENSE.txt`.
 
 Consulte também a página de [créditos e licenças da aplicação](dist/notices.html) e os arquivos de licença distribuídos com os respectivos recursos.
 
