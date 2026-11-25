@@ -472,6 +472,77 @@ Object.assign(MESSAGES, {
   ]
 });
 
+Object.assign(MESSAGES, {
+  "Detalhes do lance": [
+    "Move details",
+    "Detalhes do lance"
+  ],
+  "Ver melhor lance": [
+    "See best move",
+    "Ver melhor lance",
+    "Ver mejor jugada",
+    "Voir le meilleur coup",
+    "Besten Zug ansehen",
+    "Vedi la mossa migliore",
+    "Beste zet bekijken",
+    "Показать лучший ход",
+    "查看最佳着法",
+    "最善手を見る",
+    "최선의 수 보기",
+    "En iyi hamleyi gör",
+    "عرض أفضل نقلة",
+    "सबसे अच्छी चाल देखें"
+  ],
+  "Próxima oportunidade": [
+    "Next missed chance",
+    "Próxima oportunidade",
+    "Siguiente oportunidad",
+    "Occasion suivante",
+    "Nächste verpasste Chance",
+    "Prossima opportunità",
+    "Volgende gemiste kans",
+    "Следующая возможность",
+    "下一次错失机会",
+    "次のチャンス",
+    "다음 놓친 기회",
+    "Sonraki fırsat",
+    "الفرصة التالية",
+    "अगला मौका"
+  ],
+  "Comparar linhas": [
+    "Compare lines",
+    "Comparar linhas",
+    "Comparar líneas",
+    "Comparer les variantes",
+    "Varianten vergleichen",
+    "Confronta le varianti",
+    "Varianten vergelijken",
+    "Сравнить варианты",
+    "比较变化",
+    "変化を比較",
+    "변화 비교",
+    "Varyantları karşılaştır",
+    "مقارنة الخطوط",
+    "चाल-क्रमों की तुलना"
+  ],
+  "Havia mate em ": [
+    "There was mate in ",
+    "Havia mate em "
+  ],
+  "Havia mate forçado em ": [
+    "There was a forced mate in ",
+    "Havia mate forçado em "
+  ],
+  "Depois do lance, o motor aponta mate em ": [
+    "After the move, the engine finds mate in ",
+    "Depois do lance, o motor aponta mate em "
+  ],
+  "abria um ataque descoberto sobre a dama em ": [
+    "opened a discovered attack on the queen on ",
+    "abria um ataque descoberto sobre a dama em "
+  ]
+});
+
 function languageIndex() {
   const index = CODES.indexOf(activeLanguage);
   return index < 0 ? 0 : index;

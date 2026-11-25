@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Chess } from 'chess.js';
-import { missedOpportunity, aspectEvidence, aspectGrade } from '../dist/review-evidence.js';
+import { missedOpportunity, shortMateAfter, aspectEvidence, aspectGrade } from '../dist/review-evidence.js';
 import { estimatePerformance, phaseForPosition, gameTimeClass } from '../dist/review-metrics.js';
 import { decisionProfile, predictBand } from '../dist/decision-profile.js';
 import { performanceModel } from '../dist/performance-model.js';
@@ -26,13 +26,51 @@ test('mate in one is checked on the board, in both perspectives', () => {
   assert.equal(missedOpportunity(Chess,black.parent,black)?.san,'Qh4#');
 });
 
-test('a winning mate remains available after the move', () => {
-  const fen='7k/8/5KQ1/8/8/8/8/8 w - - 0 1';
-  const before=mate(1,['g6g7']);
-  const retained=position(fen,'Qh5+',before,mate(3));
-  const previouslySeen=position(fen,'Qh5+',before,cp(0,[],10),[mate(3,['g6h5'])]);
-  assert.equal(missedOpportunity(Chess,retained.parent,retained),null);
-  assert.equal(missedOpportunity(Chess,previouslySeen.parent,previouslySeen),null);
+test('a missed shorter mate is detected even when the position is still winning', () => {
+  const fen = '7k/8/5KQ1/8/8/8/8/8 w - - 0 1';
+  const before = mate(1, ['g6g7']);
+  const retained = position(fen, 'Qh5+', before, mate(3));
+  const alsoSeen = position(fen, 'Qh5+', before, cp(0, [], 10), [mate(3, ['g6h5'])]);
+  for (const node of [retained, alsoSeen]) {
+    const result = missedOpportunity(Chess, node.parent, node);
+    assert.equal(result?.kind, 'faster-mate');
+    assert.equal(result.distance, 1);
+    assert.ok(result.playedDistance > 1);
+  }
+});
+
+test('an equally fast mate remains correct even outside the displayed alternatives', () => {
+  const fen = '4n3/2q3k1/6pp/3K4/1p6/p7/7r/8 b - - 1 45';
+  const before = mate(-2, ['e8f6', 'd5e6', 'h2e2']);
+  const alternate = position(fen, 'Rh4', before, mate(-1));
+  assert.ok(shortMateAfter(Chess, alternate.move.after, 2));
+  assert.equal(missedOpportunity(Chess, alternate.parent, alternate), null);
+});
+
+test('the seven reference positions are recognized at the default review depth', () => {
+  const examples = [
+    { fen: 'rnb1kbnr/ppp1pppp/q7/8/1P6/2N5/1BQPPPPP/4KBNR w Kkq - 2 7', san: 'Qd3',
+      before: cp(-134, ["e2e4","a6d6","c3b5"], 14), after: cp(-851, [], 14), expected: 'attack' },
+    { fen: '4n3/p1q3k1/1p4pp/3K4/8/8/7r/8 b - - 3 40', san: 'a5',
+      before: mate(-2, ["h2h4","d5e6","c7d6"], 14), after: mate(-3, [], 14), expected: 'faster-mate' },
+    { fen: '4n3/2q3k1/6pp/pp6/8/3K4/7r/8 b - - 1 42', san: 'b4',
+      before: mate(-2, ["c7f4","d3c3","f4c4"], 14), after: mate(-3, [], 14), expected: 'faster-mate' },
+    { fen: '4n3/2q3k1/6pp/3K4/1p6/p7/7r/8 b - - 1 45', san: 'b3',
+      before: mate(-2, ["e8f6","d5e6","h2e2"], 14), after: mate(-4, [], 14), expected: 'faster-mate' },
+    { fen: '4n3/2q3k1/4K1pp/8/8/pp6/7r/8 b - - 1 46', san: 'b2',
+      before: mate(-1, ["c7d6"], 14), after: mate(-2, [], 14), expected: 'faster-mate' },
+    { fen: '4n3/2q3k1/6pp/3K4/8/p7/1p5r/8 b - - 1 47', san: 'a2',
+      before: mate(-2, ["h2h4","d5e6","c7d6"], 14), after: mate(-3, [], 14), expected: 'faster-mate' },
+    { fen: '4n3/2q3k1/4K1pp/8/8/8/pp5r/8 b - - 1 48', san: 'a1=Q',
+      before: mate(-1, ["c7d6"], 14), after: mate(-2, [], 14), expected: 'faster-mate' },
+  ];
+  for (const { fen, san, before, after, expected } of examples) {
+    const node = position(fen, san, before, after);
+    const result = missedOpportunity(Chess, node.parent, node);
+    assert.equal(result?.kind, expected, san);
+    if (expected === 'attack') assert.match(result.reason, /ataque descoberto.*a6/);
+    else assert.ok(result.playedDistance > result.distance, san);
+  }
 });
 
 test('hanging material only counts when the gain survives replies', () => {

@@ -1,47 +1,152 @@
-const values={p:1,n:3,b:3,r:5,q:9,k:0};
-const decode=u=>({from:u.slice(0,2),to:u.slice(2,4),promotion:u[4]});
-const command=m=>m.from+m.to+(m.promotion||'');
-const sideScore=(e,sign)=>!e?null:e.type==='mate'?Math.sign(Number(e.white)||0)*sign*10000:sign*Number(e.white??e.value??0);
-function inspectLine(Chess,fen,pv,side){
- const board=new Chess(fen),moves=[];let material=0,capturedMajor=false,givesCheck=false,promotes=false,mate=false;
- for(const u of (pv||[]).slice(0,12)){let m;try{m=board.move(decode(u))}catch{break}if(!m)break;
-  if(m.captured){material+=(m.color===side?1:-1)*(values[m.captured]||0);if(m.color===side&&(values[m.captured]||0)>=3)capturedMajor=true}
-  if(m.promotion){material+=(m.color===side?1:-1)*Math.max(0,(values[m.promotion]||0)-1);if(m.color===side)promotes=true}
-  if(m.color===side&&m.san.includes('+'))givesCheck=true;moves.push(m);if(board.isCheckmate()){mate=m.color===side;break}
- }
- return{moves,material,capturedMajor,givesCheck,promotes,mate};
+const values = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
+const decode = uci => ({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] });
+const command = move => move.from + move.to + (move.promotion || '');
+const sideScore = (score, sign) => !score ? null : score.type === 'mate'
+  ? Math.sign(Number(score.white) || 0) * sign * 10000
+  : sign * Number(score.white ?? score.value ?? 0);
+
+function inspectLine(Chess, fen, pv, side) {
+  const board = new Chess(fen);
+  const moves = [];
+  let material = 0;
+  let capturedMajor = false;
+  let givesCheck = false;
+  let promotes = false;
+  let mate = false;
+  for (const uci of (pv || []).slice(0, 12)) {
+    let move;
+    try { move = board.move(decode(uci)); } catch { break; }
+    const ours = move.color === side;
+    if (move.captured) {
+      material += (ours ? 1 : -1) * values[move.captured];
+      if (ours && values[move.captured] >= 3) capturedMajor = true;
+    }
+    if (move.promotion) {
+      material += (ours ? 1 : -1) * (values[move.promotion] - 1);
+      if (ours) promotes = true;
+    }
+    if (ours && move.san.endsWith('+')) givesCheck = true;
+    moves.push(move);
+    if (move.san.endsWith('#')) {
+      mate = ours;
+      break;
+    }
+  }
+  return { moves, material, capturedMajor, givesCheck, promotes, mate };
 }
-const winningMate=(e,sign)=>e?.type==='mate'&&sideScore(e,sign)>0;
-export function missedOpportunity(Chess,before,node){
- const coach=node?.coach;if(!coach?.best||!coach.before||!coach.after||!node.move||node.forced)return null;
- const side=node.move.color,sign=side==='w'?1:-1,played=command(node.move),bestMove=coach.best||coach.choices?.[0]?.pv?.[0];
- if(!bestMove||bestMove===played)return null;
- const best=(coach.choices||[]).find(l=>l.pv?.[0]===bestMove)||coach.before;if(!best?.pv?.length)return null;
- const actualLine=(coach.choices||[]).find(l=>l.pv?.[0]===played&&(l.depth||0)>=(best.depth||0)-2);
- if(actualLine){const b=sideScore(best,sign),p=sideScore(actualLine,sign);if(b!==null&&p!==null&&b-p<75)return null;if(winningMate(actualLine,sign))return null}
- if(winningMate(coach.after,sign))return null;
- const candidate=inspectLine(Chess,before.fen,best.pv,side),first=candidate.moves[0];if(!first)return null;
- const base={move:bestMove,san:first.san},depth=Number(best.depth||coach.before.depth||0),afterDepth=Number(coach.after.depth||0);
- if(candidate.mate&&candidate.moves.length===1)return{...base,kind:'mate',distance:1,reason:'Havia xeque-mate em um lance.'};
- const beforeScore=sideScore(coach.before,sign),afterScore=sideScore(coach.after,sign),bestScore=sideScore(best,sign),playedScore=actualLine?sideScore(actualLine,sign):afterScore;
- if(beforeScore===null||afterScore===null||bestScore===null||playedScore===null)return null;
- const lost=Math.max(0,Math.min(beforeScore-afterScore,bestScore-playedScore));
- if(winningMate(best,sign)&&!winningMate(coach.after,sign)&&depth>=12&&(candidate.mate||(lost>=1200&&afterDepth>=10)))
-  return{...base,kind:'mate',distance:Math.abs(Number(best.value||0)),reason:'A continuação principal levava a um mate forçado que foi perdido.'};
- const actual=inspectLine(Chess,node.fen,coach.after.pv||[],side);
- const forcing=candidate.givesCheck||candidate.promotes||candidate.mate;
- const netGain=candidate.material-Math.max(0,actual.material);
- const materialOpportunity=candidate.material>=2.5&&(candidate.capturedMajor||candidate.promotes)&&netGain>=2;
- if(depth>=10&&afterDepth>=8&&beforeScore>=125&&lost>=150&&playedScore<=bestScore-125&&
-    (materialOpportunity||(forcing&&candidate.moves.length>=3&&lost>=190))){
-  if(materialOpportunity){const captured=first.captured||candidate.moves.find(m=>m.color===side&&m.captured)?.captured;
-   return{...base,kind:'piece',piece:captured||'material',reason:'Uma sequência forçada permitia ganhar material e manter o ganho após as melhores respostas.'}}
-  return{...base,kind:'attack',reason:'Havia uma sequência tática forçada que criava uma vantagem decisiva.'};
- }
- if(depth>=14&&afterDepth>=12&&bestScore>=350&&playedScore<=90&&lost>=260&&best.pv.length>=4)
-  return{...base,kind:'advantage',reason:'A jogada desperdiçou uma vantagem decisiva que podia ser convertida.'};
- return null;
+
+function mateDistance(score, sign) {
+  return score?.type === 'mate' && sideScore(score, sign) > 0 && Number.isFinite(score.value)
+    ? Math.abs(score.value) : null;
 }
+
+// The position is immediately after the attacker's move. To prove a mate in
+// two, every legal defense must leave at least one immediate mating reply.
+export function shortMateAfter(Chess, fen, distance) {
+  if (distance !== 1 && distance !== 2) return false;
+  const board = new Chess(fen);
+  if (board.isCheckmate()) return true;
+  if (distance === 1) return false;
+  const replies = board.moves({ verbose: true });
+  return replies.length > 0 && replies.every(reply =>
+    new Chess(reply.after).moves().some(san => san.endsWith('#')));
+}
+
+function missedMate(Chess, best, after, actualLine, candidate, move, sign) {
+  const distance = mateDistance(best, sign);
+  if (!distance || move.san.endsWith('#')) return null;
+  const afterMate = mateDistance(after, sign);
+  const alternativeMate = mateDistance(actualLine, sign);
+  const playedDistance = Math.min(alternativeMate ?? Infinity, afterMate === null ? Infinity : afterMate + 1);
+  const short = distance <= 2;
+  if (short) {
+    if (!shortMateAfter(Chess, candidate.moves[0].after, distance)) return null;
+    if (shortMateAfter(Chess, move.after, distance)) return null;
+  } else if (best.depth < 12 || (after.depth > 0 && after.depth < 10)) {
+    return null;
+  }
+  if (Number.isFinite(playedDistance)) {
+    // For longer sequences demand a verified principal variation and a
+    // meaningful delay. A one-move difference deeper in the search can flip.
+    if (playedDistance <= distance || (!short && (!candidate.mate || playedDistance - distance < 2))) return null;
+    return { kind: 'faster-mate', distance, playedDistance,
+      reason: 'Havia mate em ' + distance + '. Depois do lance, o motor aponta mate em ' + (playedDistance - 1) + '.' };
+  }
+  if (short || candidate.mate || (after.depth >= 10 && sideScore(best, sign) - sideScore(after, sign) >= 1200)) {
+    return { kind: 'mate', distance, reason: 'Havia mate forçado em ' + distance + '.' };
+  }
+  return null;
+}
+
+function discoveredQueenAttack(Chess, fen, move, side) {
+  const before = new Chess(fen);
+  const after = new Chess(move.after);
+  for (const square of after.findPiece({ type: 'q', color: side === 'w' ? 'b' : 'w' })) {
+    const previous = before.attackers(square, side);
+    const attacker = after.attackers(square, side).find(from => {
+      if (from === move.to || previous.includes(from)) return false;
+      return 'brq'.includes(after.get(from)?.type ?? ' ');
+    });
+    if (attacker) return square;
+  }
+  return null;
+}
+
+export function missedOpportunity(Chess, before, node) {
+  const coach = node?.coach;
+  if (!coach?.before || !coach.after || !node.move || node.forced) return null;
+  const side = node.move.color;
+  const sign = side === 'w' ? 1 : -1;
+  const played = command(node.move);
+  const bestMove = coach.best || coach.choices?.[0]?.pv?.[0];
+  if (!bestMove || bestMove === played) return null;
+  const best = (coach.choices || []).find(line => line.pv?.[0] === bestMove) || coach.before;
+  if (!best?.pv?.length) return null;
+  const actualLine = (coach.choices || []).find(line =>
+    line.pv?.[0] === played && (line.depth || 0) >= (best.depth || 0) - 2);
+  if (mateDistance(best, sign) === null &&
+      (mateDistance(coach.after, sign) !== null || mateDistance(actualLine, sign) !== null)) return null;
+  const bestScore = sideScore(best, sign);
+  const afterScore = sideScore(coach.after, sign);
+  const playedScore = actualLine ? sideScore(actualLine, sign) : afterScore;
+  if (mateDistance(best, sign) === null && actualLine && bestScore - playedScore < 75) return null;
+  const candidate = inspectLine(Chess, before.fen, best.pv, side);
+  const first = candidate.moves[0];
+  if (!first) return null;
+  const base = { move: bestMove, san: first.san };
+  if (mateDistance(best, sign) !== null) {
+    const miss = missedMate(Chess, best, coach.after, actualLine, candidate, node.move, sign);
+    return miss ? { ...base, ...miss } : null;
+  }
+
+  const beforeScore = sideScore(coach.before, sign);
+  const lost = Math.max(0, Math.min(beforeScore - afterScore, bestScore - playedScore));
+  const depth = Number(best.depth || coach.before.depth || 0);
+  const afterDepth = Number(coach.after.depth || 0);
+  if (depth >= 12 && afterDepth >= 10 && bestScore >= -175 && playedScore <= -300 && lost >= 325) {
+    const queen = discoveredQueenAttack(Chess, before.fen, first, side);
+    if (queen) return { ...base, kind: 'attack', reason: first.san + ' abria um ataque descoberto sobre a dama em ' + queen + '.' };
+  }
+
+  const actual = inspectLine(Chess, node.fen ?? node.move.after, coach.after.pv || [], side);
+  const forcing = candidate.givesCheck || candidate.promotes || candidate.mate;
+  const netGain = candidate.material - Math.max(0, actual.material);
+  const materialOpportunity = candidate.material >= 2.5 && (candidate.capturedMajor || candidate.promotes) && netGain >= 2;
+  if (depth >= 10 && afterDepth >= 8 && beforeScore >= 125 && lost >= 150 && playedScore <= bestScore - 125 &&
+      (materialOpportunity || (forcing && candidate.moves.length >= 3 && lost >= 190))) {
+    if (materialOpportunity) {
+      const captured = first.captured || candidate.moves.find(move => move.color === side && move.captured)?.captured;
+      return { ...base, kind: 'piece', piece: captured || 'material',
+        reason: 'Uma sequência forçada permitia ganhar material e manter o ganho após as melhores respostas.' };
+    }
+    return { ...base, kind: 'attack', reason: 'Havia uma sequência tática forçada que criava uma vantagem decisiva.' };
+  }
+  if (depth >= 14 && afterDepth >= 12 && bestScore >= 350 && playedScore <= 90 && lost >= 260 && best.pv.length >= 4) {
+    return { ...base, kind: 'advantage', reason: 'A jogada desperdiçou uma vantagem decisiva que podia ser convertida.' };
+  }
+  return null;
+}
+
 function boardSquares(fen){const result=new Map();let rank=8,file=0;for(const c of fen.split(' ')[0]){if(c==='/'){rank--;file=0}else if(/[1-8]/.test(c))file+=Number(c);else{result.set('abcdefgh'[file]+rank,c);file++}}return result}
 function hasTacticalContinuation(Chess,node){const pv=node.coach?.choices?.[0]?.pv||[];if(!pv.length)return false;const board=new Chess(node.parent.fen);for(const u of pv.slice(0,5)){let m;try{m=board.move(decode(u))}catch{break}if(!m)break;if(m.captured||m.promotion||m.san.includes('+')||board.isCheckmate())return true}return false}
 export function aspectEvidence(node,phase,Chess=null){

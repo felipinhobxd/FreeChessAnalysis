@@ -39,13 +39,18 @@ export function inspectMove(Chess, node) {
   const alreadyLosingToMate = before.type === 'mate' && before.white * player < 0;
 
   let reason;
-  if (node.chanceLost?.kind === 'mate') {
+  if (node.chanceLost?.kind === 'faster-mate') {
+    const { distance, playedDistance, san } = node.chanceLost;
+    reason = 'Havia mate em ' + distance + ' com ' + san + '. Depois do lance, o motor aponta mate em ' + (playedDistance - 1) + '.';
+  } else if (node.chanceLost?.kind === 'mate') {
     reason = 'Você deixou escapar um mate forçado. A melhor sequência começava com ' + (node.chanceLost.san || proposal) + '.';
   } else if (node.chanceLost?.kind === 'piece') {
     const pieceName = PIECE[node.chanceLost.piece] || 'peça';
     reason = 'Você deixou passar ' + proposal + ', que capturava uma peça sem defesa suficiente (' + pieceName + '). A posição ainda era favorável, mas a oportunidade de ganhar material foi perdida.';
   } else if (node.chanceLost?.kind === 'attack') {
-    reason = proposal + ' iniciava uma sequência forçante de ataque. Ao jogar ' + node.move.san + ', você deixou essa oportunidade escapar, embora a posição ainda fosse favorável.';
+    reason = node.chanceLost.reason;
+  } else if (node.chanceLost?.kind === 'advantage') {
+    reason = node.chanceLost.reason;
   } else if (best === played) {
     reason = 'O Stockfish escolheu ' + node.move.san + ' como a melhor opção desta posição.';
   } else if (opponentMate && !alreadyLosingToMate && Math.abs(after.value) <= 1) {

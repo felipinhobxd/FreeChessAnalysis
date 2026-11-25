@@ -130,9 +130,13 @@
               <canvas id="chart" aria-label="Gráfico da avaliação ao longo da partida. Use as setas para navegar pelos lances." tabindex="0"></canvas>
               <div id="chart-markers" class="chart-markers"></div>
             </div>
-            <div class="chart-foot"><span>Início</span><span id="chart-end">Fim</span></div>
-            <details class="chart-key"><summary>Legenda</summary><div class="chart-legend" id="chart-key"></div></details>
+            <div class="chart-foot">
+              <span>Início</span>
+              <details class="chart-key"><summary>Legenda</summary><div class="chart-legend" id="chart-key"></div></details>
+              <span id="chart-end">Fim</span>
+            </div>
           </div>
+          <section class="move-detail" id="move-detail" aria-label="Detalhes do lance" hidden></section>
           <section class="review-overview" aria-labelledby="review-overview-title">
             <h4 id="review-overview-title">Resumo da partida</h4>
             <table id="class-table">
@@ -151,7 +155,6 @@
             </details>
           </section>
           <section class="variant-analysis" id="variant-analysis" hidden></section>
-          <div class="move-detail" id="move-detail" hidden></div>
           <section class="moments-section" aria-labelledby="moments-title">
             <div class="moments-head"><h4 id="moments-title">Momentos importantes</h4><span id="moment-count">0 lances</span></div>
             <div id="key-moments" class="key-moments"><p class="muted moments-empty">Os momentos importantes aparecerão depois da revisão.</p></div>

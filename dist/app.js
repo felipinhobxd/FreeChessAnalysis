@@ -1,4 +1,4 @@
-import { missedOpportunity, aspectEvidence, aspectGrade } from './review-evidence.js';
+import { missedOpportunity, shortMateAfter, aspectEvidence, aspectGrade } from './review-evidence.js';
 import { syncSprites, resetSprites } from './board-motion.js';
 import { Engine } from './engine.js';
 import { acceptedMove, inspectMove, isTrainingMove } from './coach.js';
@@ -691,7 +691,7 @@ function renderHistory() {
   $('play').disabled = !cursor.children.length && !runningTimer;
 }
 
-const CHART_INSET = 12;
+const CHART_INSET = 7;
 
 function chartX(index, count, width) {
   return CHART_INSET + (width - 2 * CHART_INSET) * index / Math.max(1, count - 1);
@@ -702,69 +702,59 @@ function renderChart() {
   if (!surface) return;
   const { context, width, height } = surface;
   const nodes = mainPath();
-  const x = index => chartX(index, nodes.length, width);
   const y = evaluation => CHART_INSET + (height - 2 * CHART_INSET) * (1 - winPercent(evaluation) / 100);
-  const points = nodes.flatMap((node, index) => node.evaluation ? [{ node, x: x(index), y: y(node.evaluation) }] : []);
+  const points = nodes.flatMap((node, index) => node.evaluation
+    ? [{ node, x: chartX(index, nodes.length, width), y: y(node.evaluation) }]
+    : []);
 
-  context.strokeStyle = '#69716c';
-  context.lineWidth = 1;
+  if (points.length) {
+    const first = points[0];
+    const last = points.at(-1);
+    context.beginPath();
+    context.moveTo(first.x, height);
+    for (const point of points) context.lineTo(point.x, point.y);
+    context.lineTo(last.x, height);
+    context.closePath();
+    context.fillStyle = '#c9d0c6';
+    context.fill();
+  }
+
   context.beginPath();
   context.moveTo(0, height / 2);
   context.lineTo(width, height / 2);
+  context.strokeStyle = 'rgba(126, 145, 136, .65)';
+  context.lineWidth = 1;
   context.stroke();
 
   if (points.length) {
-    const gradient = context.createLinearGradient(0, 0, 0, height);
-    gradient.addColorStop(0, 'rgba(192, 218, 193, .64)');
-    gradient.addColorStop(1, 'rgba(159, 190, 169, .18)');
     context.beginPath();
-    for (const point of points) context.lineTo(point.x, point.y);
-    context.lineTo(points.at(-1).x, height);
-    context.lineTo(points[0].x, height);
-    context.closePath();
-    context.fillStyle = gradient;
-    context.fill();
-    context.beginPath();
-    for (const point of points) context.lineTo(point.x, point.y);
-    context.strokeStyle = '#e8f1e1';
-    context.lineWidth = 2;
+    context.moveTo(points[0].x, points[0].y);
+    for (const point of points.slice(1)) context.lineTo(point.x, point.y);
+    context.strokeStyle = '#f7f8f2';
+    context.lineWidth = 1.5;
     context.lineJoin = 'round';
     context.stroke();
   }
 
-  const selectedNode = cursor.userEdited ? pathTo(cursor).reverse().find(node => nodes.includes(node)) : cursor;
-  const selected = nodes.indexOf(selectedNode);
-  if (selected >= 0 && points.length) {
-    const currentX = x(selected);
-    context.strokeStyle = '#d7e8aa';
-    context.lineWidth = 1;
+  const current = cursor.userEdited ? pathTo(cursor).reverse().find(node => nodes.includes(node)) : cursor;
+  const selected = points.find(point => point.node === current);
+  if (selected) {
+    context.strokeStyle = current.chanceLost ? '#ff8b82' : '#c3e2a1';
+    context.lineWidth = 1.5;
     context.beginPath();
-    context.moveTo(currentX, 0);
-    context.lineTo(currentX, height);
+    context.moveTo(selected.x, 0);
+    context.lineTo(selected.x, height);
     context.stroke();
   }
-
-  renderChartMarkers(points, selectedNode, height);
+  renderChartMarkers(points, current);
 }
 
-function renderChartMarkers(points, current, height) {
+function renderChartMarkers(points, current) {
   const layer = $('chart-markers');
   const activeId = document.activeElement?.dataset.chartPly;
-  const markers = [];
-  for (const point of points) {
-    const { node, x, y } = point;
-    if (!node.move || !REVIEW_CHART_MARKERS.has(node.classification)) continue;
-    // Nearby evaluations can share a pixel in a long game. Offset the badge
-    // vertically so each moment still has its own selectable target.
-    const offsets = [0, -19, 19, -38, 38, -57, 57, -76, 76];
-    const positions = offsets.map(offset => Math.max(10, Math.min(height - 10, y + offset)));
-    const markerY = positions.find(candidate => markers.every(marker =>
-      Math.hypot(marker.x - x, marker.y - candidate) >= 18)) ?? y;
-    markers.push({ node, x, y: markerY });
-  }
   const rendered = new Map(Array.from(layer.children, button => [Number(button.dataset.chartPly), button]));
-  for (const marker of markers) {
-    const { node, x, y } = marker;
+  for (const { node, x, y } of points) {
+    if (!node.move || !REVIEW_CHART_MARKERS.has(node.classification)) continue;
     let button = rendered.get(node.id);
     if (!button) {
       button = element('button', undefined, 'chart-marker');
@@ -1019,7 +1009,7 @@ function renderReport() {
   $('chart-end').textContent = path.length === 1 ? 'Fim' : (path.length - 1) + ' lances';
   renderMoments(path);
   $('review-btn').disabled = path.length === 1 && !review;
-  renderCoach(cursor);
+  renderCoach(cursor, path);
   const count = path.filter(isTrainingMove).length;
   $('practice-from-report').hidden = !count;
   $('practice-from-report').textContent = count === 1 ? 'Treinar no puzzle' : 'Treinar em ' + count + ' puzzles';
@@ -1040,24 +1030,24 @@ function renderReport() {
   $('class-breakdown').replaceChildren(...rows);
 }
 
-function renderCoach(node) {
+function renderCoach(node, path) {
   const detail = $('move-detail');
+  const wasOpen = detail.querySelector('details')?.open && detail.dataset.ply === String(node.id);
+  detail.dataset.ply = node.id;
   detail.className = 'move-detail' + (node.classification ? ' class-' + node.classification : '');
   detail.hidden = !node.classification || !node.coach?.best;
   detail.replaceChildren();
   if (detail.hidden) return;
   const guide = inspectMove(Chess, node);
+  const heading = element('h4', moveNumber(node) + ' ' + node.move.san + ' · ' + CLASSIFICATIONS[node.classification][1]);
+  heading.tabIndex = -1;
   const head = element('div', undefined, 'move-detail-head');
-  if (CLASSIFICATIONS[node.classification]) head.append(badge(node.classification));
-  head.append(element('h4', moveNumber(node) + ' ' + node.move.san + ' · ' + CLASSIFICATIONS[node.classification][1]));
-  const flow = element('div', undefined, 'analysis-flow');
-  flow.append(element('span', 'Antes ' + evaluationLabel(guide.before)), element('span', 'Depois ' + evaluationLabel(guide.after)));
-  detail.append(head, flow, element('p', guide.reason, 'coach-reason'));
+  head.append(badge(node.classification), heading, element('span', evaluationLabel(guide.after), 'move-detail-eval'));
+  detail.append(head, element('p', guide.reason, 'coach-reason'));
+
+  const actions = element('div', undefined, 'coach-actions');
   if (guide.proposal && guide.played !== guide.proposal) {
-    appendCoachLine(detail, 'Na partida', guide.chosen);
-    appendCoachLine(detail, 'Melhor linha', guide.recommended);
-    const actions = element('div', undefined, 'coach-actions');
-    const inspect = element('button', 'Ver ' + guide.proposal + ' no tabuleiro', 'mini');
+    const inspect = element('button', 'Ver melhor lance', 'mini coach-best');
     inspect.onclick = () => { goTo(node.parent); setTab('lines'); commitMoves([node.coach.best]); };
     actions.append(inspect);
     if (isTrainingMove(node)) {
@@ -1065,7 +1055,26 @@ function renderCoach(node) {
       train.onclick = () => { startPuzzle(node); setTab('puzzles'); };
       actions.append(train);
     }
-    detail.append(actions);
+  }
+  const position = path.indexOf(node);
+  const next = position >= 0 ? path.slice(position + 1).find(entry => entry.chanceLost) : null;
+  if (next) {
+    const advance = element('button', 'Próxima oportunidade', 'mini');
+    advance.onclick = () => {
+      goTo(next);
+      detail.querySelector('h4')?.focus({ preventScroll: true });
+    };
+    actions.append(advance);
+  }
+  if (actions.childElementCount) detail.append(actions);
+
+  if (guide.proposal && guide.played !== guide.proposal) {
+    const lines = element('details', undefined, 'coach-variations');
+    lines.open = Boolean(wasOpen);
+    lines.append(element('summary', 'Comparar linhas'));
+    appendCoachLine(lines, 'Na partida', guide.chosen);
+    appendCoachLine(lines, 'Melhor linha', guide.recommended);
+    detail.append(lines);
   }
 }
 
@@ -1112,7 +1121,9 @@ function submitPuzzleMove(command) {
   playSound(moveSound(move));
   selected = null;
   puzzle.wrongSquare = null;
-  if (command !== uci(puzzle.node.move) && acceptedMove(puzzle.node.coach, command)) {
+  const correct = acceptedMove(puzzle.node.coach, command) ||
+    shortMateAfter(Chess, move.after, puzzle.node.chanceLost?.distance);
+  if (command !== uci(puzzle.node.move) && correct) {
     puzzle.status = 'solved';
     puzzle.result = createPosition(board, position, move);
   } else {
@@ -1345,7 +1356,12 @@ function goTo(node) {
     else if (step && previous.parent !== node) playSound(moveSound(step, endResult(node)));
     else playSound('move');
   }, duration * .77);
-  if (tab === 'report') $('inspector-scroll').scrollTop = 0;
+  if (tab === 'report') {
+    const pane = $('inspector-scroll');
+    const chart = $('chart-wrap');
+    pane.scrollTop = $('move-detail').hidden ? 0
+      : pane.scrollTop + chart.getBoundingClientRect().top - pane.getBoundingClientRect().top - 8;
+  }
   if (resumeReview && !node.userEdited) { resumeReview = false; runReview(); }
   else if (tab === 'lines' || (tab === 'report' && node.userEdited)) queueLive();
 }
@@ -1931,7 +1947,27 @@ function bindEvents() {
   });
   $('chart-markers').addEventListener('click', event => {
     const button = event.target.closest('[data-chart-ply]');
-    if (button) goTo(positions.get(Number(button.dataset.chartPly)));
+    if (!button) return;
+    // When nearby points overlap, use the closest point to the pointer.
+    // Keyboard activation still goes directly to the focused marker.
+    let selected = button;
+    if (event.detail) {
+      const chart = $('chart').getBoundingClientRect();
+      const x = event.clientX - chart.left;
+      const y = event.clientY - chart.top;
+      let nearest = Infinity;
+      for (const candidate of $('chart-markers').children) {
+        const dx = parseFloat(candidate.style.left) - x;
+        const dy = parseFloat(candidate.style.top) - y;
+        if (Math.abs(dx) > 8 || Math.abs(dy) > 8) continue;
+        const distance = dx * dx + dy * dy;
+        if (distance < nearest) {
+          selected = candidate;
+          nearest = distance;
+        }
+      }
+    }
+    goTo(positions.get(Number(selected.dataset.chartPly)));
   });
   $('first').onclick = () => goTo(root);
   $('prev').onclick = () => goTo(cursor.parent);
