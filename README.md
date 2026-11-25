@@ -26,11 +26,11 @@ A aplicação é estática e executa a análise no navegador. Não exige conta, 
 | --- | --- |
 | **Importação** | Colar ou carregar arquivos PGN, analisar posições FEN e buscar partidas públicas pelo nome de usuário no Chess.com ou Lichess. |
 | **Análise ao vivo** | Consultar avaliação do Stockfish 19, linhas de continuação e múltiplas variantes. Ajustar profundidade e quantidade de linhas. |
-| **Revisão da partida** | Avaliar os lances, consultar classificações, comparar a jogada realizada com a melhor continuação e visualizar a evolução da avaliação. |
+| **Revisão da partida** | Avaliar os lances, consultar classificações, comparar a jogada realizada com a melhor continuação e visualizar a evolução da avaliação com marcadores clicáveis e uma lista de momentos importantes. |
 | **Treino** | Resolver puzzles gerados a partir de imprecisões, erros e erros graves encontrados na revisão. Cada desafio começa com três vidas. |
-| **Tabuleiro** | Mover peças por seleção ou arrastar e soltar, navegar pelo histórico, girar o tabuleiro e abrir o modo de tela cheia. |
+| **Tabuleiro** | Mover peças por seleção ou arrastar e soltar, navegar pelo histórico com animações de movimento, captura e roque, girar o tabuleiro e abrir o modo de tela cheia. |
 | **Exportação** | Copiar PGN ou FEN, baixar a partida em PGN, criar um link compartilhável ou salvar a partida no arquivo local. |
-| **Personalização** | Escolher conjuntos de peças, configurar o motor, ajustar parâmetros de análise, ativar ou desativar sons e controlar a animação de xeque-mate. |
+| **Personalização** | Escolher conjuntos de peças, configurar o motor, ajustar parâmetros de análise, ativar ou silenciar sons, controlar o volume, escolher a velocidade das animações e ativar ou desativar a celebração de xeque-mate. |
 
 As classificações e os percentuais de precisão são estimativas calculadas a partir das avaliações do motor. Não representam uma classificação oficial do Chess.com, Lichess ou de outra plataforma.
 
