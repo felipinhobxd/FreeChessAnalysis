@@ -822,7 +822,7 @@ function renderRatingEstimates(path) {
     const card=element('div',undefined,'rating-estimate');
     card.append(element('b',displayName(side),'rating-player'),
       element('small','Rating informado no PGN','rating-caption'),
-      element('strong',/^\\d+$/.test(actual)?new Intl.NumberFormat().format(Number(actual)):'—'));
+      element('strong',/^\d+$/.test(actual)?new Intl.NumberFormat().format(Number(actual)):'—'));
     const estimate=estimatePerformance(path,side,gameHeaders);
     card.append(element('small','Desempenho equivalente estimado','rating-caption'));
     if(estimate.available){
