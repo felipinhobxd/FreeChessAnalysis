@@ -23,17 +23,9 @@ const RATING_CURVES = {
   ]
 };
 const TYPICAL_ABSOLUTE_ERROR = { blitz: 711, rapid: 519 };
+import { calibrationModel } from './caps2-model.js';
 const ACCURACY_STORAGE_KEY = 'move-by-move/caps2-model';
-const DEFAULT_ACCURACY_MODEL = Object.freeze({
-  version: 1,
-  status: 'provisional',
-  source: 'TxClaudes/chess calibration approach; awaiting local Chess.com sample fit',
-  winK: 0.00368208,
-  decay: 0.055,
-  floor: 0,
-  offset: 0,
-  aggregation: 'mean'
-});
+const DEFAULT_ACCURACY_MODEL = calibrationModel;
 const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
 const mean = values => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
 
@@ -60,6 +52,7 @@ export function installAccuracyModel(model) {
     floor: clamp(Number(model.floor) || 0, 0, 60),
     offset: clamp(Number(model.offset) || 0, -10, 10),
     aggregation: model.aggregation,
+    forcedPolicy: model.forcedPolicy === 'exclude' ? 'exclude' : 'include',
     trainedGames: Math.max(0, Math.floor(Number(model.trainedGames) || 0)),
     heldOutSides: Math.max(0, Math.floor(Number(model.heldOutSides) || 0)),
     heldOutMae: Number.isFinite(model.heldOutMae) ? model.heldOutMae : null,
@@ -103,7 +96,7 @@ function aggregateScores(scores, aggregation) {
 
 export function aggregateGameAccuracy(path, side) {
   const scores = path.slice(1)
-    .filter(node => node?.move?.color === side && Number.isFinite(node.accuracy))
+    .filter(node => node?.move?.color === side && Number.isFinite(node.accuracy) && !(getAccuracyModel().forcedPolicy === 'exclude' && node.forced))
     .map(node => node.accuracy);
   const result = aggregateScores(scores, getAccuracyModel().aggregation);
   return result === null ? null : Math.round(result * 10) / 10;

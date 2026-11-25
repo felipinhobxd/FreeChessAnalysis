@@ -184,3 +184,8 @@ See [Credits and Licenses](dist/notices.html) for more information.
 <div align="center">
   <sub>Built for clearer analysis, better decisions, and stronger chess.</sub>
 </div>
+
+
+## Chess.com accuracy calibration
+
+The runtime keeps a clearly marked provisional score curve until it has been fitted against a broad Chess.com sample. The repository includes a reproducible local collector, Stockfish analysis runner, and player-disjoint fitter. See [CAPS2 calibration workflow](tools/CAPS2-CALIBRATION.md). The fit is an approximation to Chess.com's published game-level accuracy, not a reverse-engineering of the proprietary CAPS2 formula.

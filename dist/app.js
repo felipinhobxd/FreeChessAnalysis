@@ -1612,6 +1612,7 @@ async function runReview() {
       if (index > 0) {
         const before = path[index - 1];
         node.coach = { before: before.evaluation, after: node.evaluation, best: before.best, choices: before.lines };
+        node.forced = new Chess(before.fen).moves().length <= 1;
         node.accuracy = moveAccuracyBetween(before.evaluation, node.evaluation, node.move.color);
         node.chanceLost = findMissedChance(Chess, before, node);
         node.classification = reviewClass(node, before.evaluation, node.evaluation, before.best, before.lines, index);
