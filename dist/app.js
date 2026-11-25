@@ -727,14 +727,14 @@ function renderChart() {
     context.beginPath();context.arc(marker.x,marker.y,radius,0,Math.PI*2);context.fillStyle=color;context.fill();
     context.lineWidth=1.3;context.strokeStyle='#20271d';context.stroke();
     const glyph=CLASSIFICATIONS[node.classification]?.[0]||'';
-    context.fillStyle=['blunder','chance-lost'].includes(node.classification)?'#fff8f2':'#182016';
+    context.fillStyle=node.classification==='blunder'?'#fff8f2':node.classification==='chance-lost'?'#592326':'#182016';
     context.font='800 '+Math.max(8,radius*1.25)+'px system-ui,sans-serif';context.textAlign='center';context.textBaseline='middle';
     context.fillText(glyph,marker.x,marker.y+.35,radius*1.8);
   }
   const selectedNode=cursor.userEdited?pathTo(cursor).reverse().find(node=>nodes.includes(node))||root:cursor;
   const index=nodes.indexOf(selectedNode);
-  if(index>=0&&cursor.evaluation){
-    const px=x(index),py=y(cursor.evaluation);
+  if(index>=0&&selectedNode?.evaluation){
+    const px=x(index),py=y(selectedNode.evaluation);
     context.setLineDash([3,3]);context.strokeStyle=cursor.userEdited?'#f0bd78':'#f5d18b';context.lineWidth=cursor.userEdited?2:1.2;
     context.beginPath();context.moveTo(px,1);context.lineTo(px,height-1);context.stroke();context.setLineDash([]);
     context.beginPath();context.arc(px,py,cursor.userEdited?6.2:5,0,Math.PI*2);
