@@ -1,6 +1,20 @@
 const NS = 'http://www.w3.org/2000/svg';
 
 const paths = {
+  workspace: 'M3 4h18v16H3zM14 4v16m3-11h1m-1 4h1M6 15l2.5-4 2 1.5',
+  inbox: 'M12 3v10m-4-4 4 4 4-4M4 12v7h16v-7',
+  upload: 'M12 16V4m-4 4 4-4 4 4M4 15v5h16v-5',
+  chart: 'M3.5 4v16h17M7 15l4-5 3 2 6-7',
+  branch: 'M7 4v13m0-4c0-4 10-1 10-7m-2-1 2-2 2 2M5 18a2 2 0 1 0 4 0 2 2 0 1 0-4 0',
+  board: 'M3 3h18v18H3zM9 3v18m6-18v18M3 9h18M3 15h18',
+  puzzle: 'M4 5h6c0-4 5-4 5 0h4v5c4 0 4 5 0 5v4h-6c1-4-5-4-4 0H4v-5c4 0 4-5 0-5z',
+  archive: 'M3 4h18v5H3zm2 5v11h14V9m-10 4h6',
+  list: 'M8 6h12M8 12h12M8 18h12M3.5 6h.2m-.2 6h.2m-.2 6h.2',
+  info: 'M21 12a9 9 0 1 1-18 0 9 9 0 1 1 18 0M12 11v5m0-9v.2',
+  forward: 'M4 12h15m-6-6 6 6-6 6',
+  close: 'm6 6 12 12m0-12L6 18',
+  heart: 'M12 20 4 12c-5-6 3-12 8-6 5-6 13 0 8 6z',
+  player: 'M7.5 8a4.5 4.5 0 1 0 9 0 4.5 4.5 0 1 0-9 0M4 21a8 8 0 0 1 16 0z',
   first: 'M6 4v16m12-15-8 7 8 7z',
   prev: 'm15 5-7 7 7 7',
   play: 'm9 5 11 7-11 7z',
@@ -15,14 +29,14 @@ const paths = {
   settings: 'M4 7h16M4 17h16M9 4v6m6 4v6',
   share: 'M13 5h6v6m0-6-9 9m6-1v6H5V8h6',
   layers: 'm12 3 9 5-9 5-9-5zm-8 9 8 4 8-4m-16 4 8 4 8-4',
-  brilliant: 'M12 2.5 14.5 9l6.5 3-6.5 2.5-2.5 7-3-7L3 12l6-3zM20 3v4m-2-2h4',
+  brilliant: 'm3 9 4-5h10l4 5-9 11zM3 9h18m-12-5-2 5 5 11 5-11-2-5',
   critical: 'm13 2-8 12h6l-1 8 9-12h-6z',
   best: 'm12 2.5 2.8 5.7 6.2.9-4.5 4.4 1 6.2-5.5-2.9-5.5 2.9 1-6.2L3 9.1l6.2-.9z',
-  excellent: 'M3.5 12.5 7 16l7-8m-3.5 6.5 2 2 8-9',
+  excellent: 'm3 13 3.5 3.5L15 7m-4 8 2 2 8-10',
   good: 'm5 12 4 4 10-9',
-  inaccuracy: 'M12 4 3.5 19h17zM12 10v3m0 3v.1',
-  mistake: 'm4 17 6-6 4 3 6-8m-5 0h5v5',
-  blunder: 'M8 3h8l5 5v8l-5 5H8l-5-5V8zm1 6 6 6m0-6-6 6',
+  inaccuracy: 'M4 15 9 9l5 6 6-7',
+  mistake: 'M7.5 8a4.5 4.5 0 0 1 9 0c0 3.5-4.5 3.5-4.5 7m0 4v.25',
+  blunder: 'm6.5 6.5 11 11m0-11-11 11',
   theory: 'M12 6c-3-2-6-2-9-1v13c3-1 6-1 9 1 3-2 6-2 9-1V5c-3-1-6-1-9 1zm0 0v13',
   mate: 'm3 7 5 4 4-6 4 6 5-4-2 10H5zm3 13h12',
 };
@@ -32,14 +46,14 @@ export function icon(name) {
   svg.setAttribute('viewBox', '0 0 24 24');
   svg.setAttribute('fill', 'none');
   svg.setAttribute('stroke', 'currentColor');
-  svg.setAttribute('stroke-width', '1.85');
+  svg.setAttribute('stroke-width', ['good','excellent','inaccuracy','mistake','blunder'].includes(name) ? '2.8' : '1.8');
   svg.setAttribute('stroke-linecap', 'round');
   svg.setAttribute('stroke-linejoin', 'round');
   svg.setAttribute('aria-hidden', 'true');
   svg.classList.add('ui-icon');
   const path = document.createElementNS(NS, 'path');
   path.setAttribute('d', paths[name]);
-  if (name === 'play') path.setAttribute('fill', 'currentColor');
+  if (['play','best','critical','player'].includes(name)) path.setAttribute('fill', 'currentColor');
   svg.append(path);
   return svg;
 }

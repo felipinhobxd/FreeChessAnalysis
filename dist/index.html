@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
-  <meta name="theme-color" content="#101512">
+  <meta name="theme-color" content="#232620">
   <meta name="description" content="Analise partidas de xadrez com Stockfish 19 no seu navegador.">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <title>Livro de Lances — Análise de xadrez</title>
@@ -13,21 +13,18 @@
 </head>
 <body>
   <header class="masthead">
-    <div class="shell header-inner">
-      <a class="brand" href="./" aria-label="Livro de Lances, início"><span aria-hidden="true">♞</span>Livro de Lances</a>
-      <nav aria-label="Navegação principal">
-        <button class="nav-button active" id="nav-today" type="button">Análise</button>
-        <button class="nav-button" id="nav-puzzles" type="button">Puzzles</button>
-        <button class="nav-button" id="nav-library" type="button">Arquivo</button>
-      </nav>
-      <button class="icon-button mast-settings" id="settings-btn" title="Configurações" aria-label="Configurações">⚙</button>
-    </div>
+    <a class="brand" href="./" aria-label="Livro de Lances, início"><img src="/favicon.svg" alt=""><span>Livro de<br><b>Lances</b></span></a>
+    <nav aria-label="Navegação principal">
+      <button class="nav-button active" id="nav-today" type="button"><i data-icon="workspace" aria-hidden="true"></i> Análise</button>
+      <button class="nav-button" id="nav-puzzles" type="button"><i data-icon="puzzle" aria-hidden="true"></i> Puzzles</button>
+      <button class="nav-button" id="nav-library" type="button"><i data-icon="archive" aria-hidden="true"></i> Arquivo</button>
+    </nav>
+    <div class="rail-bottom"><button class="nav-button" id="settings-btn" title="Configurações"><i data-icon="settings" aria-hidden="true"></i> Ajustes</button>
+    <a class="nav-button credits" href="/notices" title="Créditos e licenças"><i data-icon="info" aria-hidden="true"></i> Créditos</a></div>
   </header>
   <main class="shell">
-    <div class="hero">
-      <div><h1>Estúdio de análise</h1>
-      <p>Revise suas partidas e treine os lances que mudaram o jogo.</p></div>
-      <div class="engine-label"><i aria-hidden="true"></i><strong>Stockfish 19</strong><span> / Motor local</span></div>
+    <div class="hero"><h1>Análise de partida</h1>
+      <div class="engine-label"><i aria-hidden="true"></i><strong>Stockfish 19</strong><span>Motor local</span></div>
     </div>
     <div class="workspace">
       <section class="board-column" id="board-area" aria-label="Tabuleiro">
@@ -55,42 +52,44 @@
         <div id="board-feedback" class="board-feedback" role="status" hidden></div>
       </section>
       <aside class="inspector">
-        <div class="inspector-head"><div class="panel-mark" aria-hidden="true">≋</div><div><h2>Painel da partida</h2><p id="panel-sub">Partida sem título</p></div><button id="export" class="icon-button" title="Compartilhar ou exportar" aria-label="Compartilhar ou exportar">↗</button></div>
+        <div class="inspector-head"><i data-icon="workspace" aria-hidden="true"></i><div><h2>Central de análise</h2><p id="panel-sub">Posição inicial</p></div><button id="export" class="icon-button" title="Compartilhar ou exportar" aria-label="Compartilhar ou exportar"></button></div>
         <div class="tabs" role="tablist" aria-label="Painéis">
-          <button id="tab-import" role="tab" aria-controls="import" aria-selected="true">Importar</button>
-          <button id="tab-report" role="tab" aria-controls="report" aria-selected="false">Relatório</button>
-          <button id="tab-lines" role="tab" aria-controls="lines" aria-selected="false">Variantes</button>
-          <button id="tab-puzzles" role="tab" aria-controls="puzzles" aria-selected="false">Puzzles</button>
+          <button id="tab-import" role="tab" aria-controls="import" aria-selected="true"><i data-icon="inbox" aria-hidden="true"></i>Importar</button>
+          <button id="tab-report" role="tab" aria-controls="report" aria-selected="false"><i data-icon="chart" aria-hidden="true"></i>Revisão</button>
+          <button id="tab-lines" role="tab" aria-controls="lines" aria-selected="false"><i data-icon="branch" aria-hidden="true"></i>Variantes</button>
+          <button id="tab-puzzles" role="tab" aria-controls="puzzles" aria-selected="false"><i data-icon="puzzle" aria-hidden="true"></i>Puzzles</button>
         </div>
         <div class="inspector-scroll" id="inspector-scroll">
         <section id="import" class="panel" role="tabpanel" aria-labelledby="tab-import" tabindex="-1">
-          <h3>Carregar partida</h3>
-          <p class="muted intro">Importe uma partida ou monte uma posição para analisar.</p>
+          <h3>Importar partida</h3>
+          <p class="muted intro">Cole uma partida, carregue um arquivo ou busque um jogador.</p>
           <div class="sources" aria-label="Fonte da partida">
             <button data-source="pgn" aria-pressed="true">PGN</button><button data-source="fen" aria-pressed="false">FEN</button><button data-source="chesscom" aria-pressed="false">Chess.com</button><button data-source="lichess" aria-pressed="false">Lichess</button>
           </div>
           <form id="import-form">
             <label id="input-label" for="game-input">PGN da partida</label>
             <textarea id="game-input" rows="4" spellcheck="false" placeholder="1. e4 e5 2. Nf3 Nc6 …"></textarea>
-            <div class="form-secondary"><button class="text-button" id="file-btn" type="button"><span aria-hidden="true">↑</span> Enviar arquivo PGN</button><button class="text-button" id="example" type="button">Usar exemplo</button></div>
+            <div class="form-secondary"><button class="text-button" id="file-btn" type="button"><i data-icon="upload" aria-hidden="true"></i> Abrir arquivo PGN</button></div>
             <input id="pgn-file" type="file" accept=".pgn,.txt,application/x-chess-pgn,text/plain" hidden>
-            <button id="submit" class="primary" type="submit"><span aria-hidden="true">↗</span> <span id="submit-label">Analisar partida</span></button>
+            <button id="submit" class="primary" type="submit"><span id="submit-label">Analisar partida</span><i data-icon="forward" aria-hidden="true"></i></button>
           </form>
           <p id="import-error" class="error" role="status" hidden></p>
           <div id="remote-games" hidden></div>
-          <div class="or"><span>ou</span></div>
-          <button class="secondary" id="free-board"><span aria-hidden="true">♙</span> Analisar o tabuleiro atual</button>
+          <div class="quick-actions"><h4>Explorar</h4>
+          <button id="example" class="example-card" type="button"><span class="study-diagram" aria-hidden="true"><img src="/pieces/atelier/bK.svg" alt=""><img src="/pieces/atelier/wQ.svg" alt=""></span><span><small>Partida de exemplo</small><strong>Mate do Pastor</strong></span><i data-icon="next" aria-hidden="true"></i></button>
+          <button class="secondary" id="free-board"><i data-icon="board" aria-hidden="true"></i> Analisar o tabuleiro atual<i data-icon="next" aria-hidden="true"></i></button></div>
         </section>
         <section id="report" class="panel" role="tabpanel" aria-labelledby="tab-report" hidden>
           <div class="section-head"><div><h3>Revisão da partida</h3><p class="muted" id="report-status" role="status">Carregue ou jogue uma partida.</p></div><button id="review-btn" class="mini">Revisar</button></div>
           <progress id="review-progress" max="1" value="0" hidden></progress>
+          <div class="move-detail" id="move-detail" hidden></div>
           <div class="chart-wrap">
             <div class="chart-label"><strong>Equilíbrio da partida</strong><span id="chart-value">—</span></div>
             <canvas id="chart" aria-label="Gráfico da avaliação ao longo da partida" tabindex="0"></canvas>
             <div class="chart-foot"><span>Início</span><span id="chart-end">Fim</span></div>
           </div>
-          <div class="accuracies"><div><span id="white-accuracy-label">Brancas</span><strong id="white-acc">—</strong></div><div><span id="black-accuracy-label">Pretas</span><strong id="black-acc">—</strong></div></div>
-          <div class="move-detail" id="move-detail" hidden></div>
+          <h4 class="accuracy-title">Precisão por jogador</h4><div class="accuracies"><div><span id="white-accuracy-label">Brancas</span><strong id="white-acc">—</strong></div><div><span id="black-accuracy-label">Pretas</span><strong id="black-acc">—</strong></div></div>
+          
           <button class="secondary practice-button" id="practice-from-report" hidden></button>
           <table id="class-table"><thead><tr><th>Classificação</th><th>Brancas</th><th>Pretas</th></tr></thead><tbody></tbody></table>
           <p class="muted footnote">Precisão estimada e classificações calculadas a partir da avaliação do motor.</p>
@@ -105,26 +104,26 @@
           <div class="puzzle-list" id="puzzle-list"></div>
         </section>
         </div>
-        <section class="history" id="game-history" aria-label="Histórico de lances"><div class="history-head"><h3>Lances</h3><span id="ply-count">0 lances</span></div><div id="move-list"></div></section>
+        <section class="history" id="game-history" aria-label="Histórico de lances"><div class="history-head"><h3><i data-icon="list" aria-hidden="true"></i> Histórico de lances</h3><span id="ply-count">0 lances</span></div><div id="move-list"></div></section>
       </aside>
     </div>
-    <footer><span>Livro de Lances</span><span><a href="https://github.com/nmrugg/stockfish.js" target="_blank" rel="noopener noreferrer">Stockfish.js · GPLv3</a> · <a href="/notices">Créditos e licenças</a></span></footer>
+    
   </main>
-  <dialog id="settings"><form method="dialog"><div class="dialog-head"><h2>Configurações</h2><button class="icon-button" aria-label="Fechar">×</button></div></form><div class="dialog-body">
+  <dialog id="settings"><form method="dialog"><div class="dialog-head"><h2>Configurações</h2><button class="icon-button" aria-label="Fechar"><i data-icon="close" aria-hidden="true"></i></button></div></form><div class="dialog-body">
     <label class="option">Modo do Stockfish <select id="engine-mode"><option value="full">Completo (recomendado)</option><option value="lite">Leve</option></select></label>
     <p class="muted engine-hint">O modo completo baixa cerca de 95 MB na primeira análise.</p>
     <label class="option">Profundidade da revisão <select id="review-depth"><option>8</option><option>10</option><option>12</option><option selected>14</option><option>16</option><option>18</option><option>20</option><option>22</option></select></label>
     <label class="option">Profundidade das variantes <select id="line-depth"><option>10</option><option>14</option><option>16</option><option selected>18</option><option>20</option><option>22</option><option>24</option></select></label>
     <label class="option">Linhas simultâneas <select id="multi-pv"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select></label>
-    <label class="option">Conjunto de peças <select id="piece-set"><option value="classicas">Clássicas · Cburnett</option><option value="chessnut">Chessnut</option></select></label>
+    <label class="option">Conjunto de peças <select id="piece-set"><option value="atelier">Ateliê</option><option value="classicas">Clássicas · Cburnett</option><option value="chessnut">Chessnut</option></select></label>
     <label class="option">Sons do tabuleiro <input type="checkbox" id="sound-enabled" checked></label>
     <label class="option">Animação de xeque-mate <input type="checkbox" id="mate-enabled" checked></label>
     <label class="option">Mostrar melhor lance <input type="checkbox" id="show-arrow" checked></label>
     <label class="option">Mostrar coordenadas <input type="checkbox" id="show-coordinates" checked></label>
   </div></dialog>
-  <dialog id="archive"><form method="dialog"><div class="dialog-head"><h2>Arquivo local</h2><button class="icon-button" aria-label="Fechar">×</button></div></form><div class="dialog-body" id="archive-list"></div></dialog>
-  <dialog id="share"><form method="dialog"><div class="dialog-head"><h2>Compartilhar ou exportar</h2><button class="icon-button" aria-label="Fechar">×</button></div></form><div class="dialog-body share-actions"><button id="copy-link" class="secondary">Copiar link da partida</button><button id="copy-fen" class="secondary">Copiar FEN atual</button><button id="copy-pgn" class="secondary">Copiar PGN</button><button id="download-pgn" class="secondary">Baixar PGN</button><button id="save-game" class="secondary">Salvar no arquivo local</button></div></dialog>
-  <dialog id="promotion"><form method="dialog"><div class="dialog-head"><h2>Promover peão</h2><button class="icon-button" aria-label="Fechar">×</button></div></form><div id="promotions" class="dialog-body"></div></dialog>
+  <dialog id="archive"><form method="dialog"><div class="dialog-head"><h2>Arquivo local</h2><button class="icon-button" aria-label="Fechar"><i data-icon="close" aria-hidden="true"></i></button></div></form><div class="dialog-body" id="archive-list"></div></dialog>
+  <dialog id="share"><form method="dialog"><div class="dialog-head"><h2>Compartilhar ou exportar</h2><button class="icon-button" aria-label="Fechar"><i data-icon="close" aria-hidden="true"></i></button></div></form><div class="dialog-body share-actions"><button id="copy-link" class="secondary">Copiar link da partida</button><button id="copy-fen" class="secondary">Copiar FEN atual</button><button id="copy-pgn" class="secondary">Copiar PGN</button><button id="download-pgn" class="secondary">Baixar PGN</button><button id="save-game" class="secondary">Salvar no arquivo local</button></div></dialog>
+  <dialog id="promotion"><form method="dialog"><div class="dialog-head"><h2>Promover peão</h2><button class="icon-button" aria-label="Fechar"><i data-icon="close" aria-hidden="true"></i></button></div></form><div id="promotions" class="dialog-body"></div></dialog>
   <div id="toast" role="status" hidden></div>
 </body>
 </html>

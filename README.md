@@ -16,12 +16,14 @@ Chess.com e Lichess são consultados diretamente pelas APIs públicas quando voc
 
 ## Revisar e treinar
 
-- Importe um PGN ou FEN, busque uma partida pública ou clique em **Usar exemplo**.
-- No **Relatório**, selecione um lance para ver a marca sobre a peça, a avaliação e a comparação entre as continuações. Ao chegar ao xeque-mate de uma partida analisada, o tabuleiro sinaliza o vencedor.
+- Importe um PGN ou FEN, busque uma partida pública ou clique em **Mate do Pastor**.
+- Na aba **Revisão**, selecione um lance para ver a marca sobre a peça, a avaliação e a comparação entre as continuações. Ao chegar ao xeque-mate de uma partida analisada, o tabuleiro sinaliza o vencedor.
 - Em **Puzzles**, jogue a partir de uma posição em que houve erro. Há três vidas por puzzle. Um lance ilegal não gasta vida.
 - Use as setas para navegar pelos lances, Espaço para reproduzir, F para girar e G para expandir o tabuleiro. Os sons, a animação e o conjunto de peças são ajustáveis.
 
 ## Créditos
+
+- O conjunto padrão **Ateliê**, a marca e os ícones SVG foram desenhados para este projeto. Os conjuntos alternativos continuam disponíveis em **Ajustes**.
 
 - Peças clássicas Cburnett de Colin M. L. Burnett, obtidas no [Lichess](https://github.com/lichess-org/lila/tree/master/public/piece/cburnett) sob GPL v2 ou posterior. A licença acompanha os SVGs em `dist/pieces/classicas`.
 - Peças [Chessnut](https://github.com/LexLuengas/chessnut-pieces) de Alexis Luengas, Apache 2.0.

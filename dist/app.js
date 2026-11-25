@@ -19,8 +19,8 @@ const EXAMPLE = `[Event "Partida de exemplo"]
 const FIGURES = { p: '♟', n: '♞', b: '♝', r: '♜', q: '♛', k: '♚' };
 const NAMES = { p: 'Peão', n: 'Cavalo', b: 'Bispo', r: 'Torre', q: 'Dama', k: 'Rei' };
 const CLASSIFICATIONS = {
-  brilliant: ['!!', 'Brilhante'], critical: ['!', 'Crítico'], best: ['★', 'Melhor'],
-  excellent: ['✓', 'Excelente'], good: ['○', 'Bom'], inaccuracy: ['?!', 'Imprecisão'],
+  brilliant: ['!!', 'Brilhante'], critical: ['!', 'Crítico'], best: ['★', 'Melhor lance'],
+  excellent: ['✓', 'Excelente'], good: ['○', 'Bom lance'], inaccuracy: ['?!', 'Imprecisão'],
   mistake: ['?', 'Erro'], blunder: ['??', 'Erro grave'], theory: ['▤', 'Teoria'],
 };
 const BOOK = new Set(['e2e4', 'd2d4', 'c2c4', 'g1f3']);
@@ -173,7 +173,7 @@ function setGame({ pgn, fen, ply } = {}, shouldReview = false) {
   cursor = newPositions[Math.min(Math.max(Number(ply) || 0, 0), newPositions.length - 1)];
   gameHeaders = loader.getHeaders();
   selected = null;
-  $('panel-sub').textContent = gameHeaders.Event && gameHeaders.Event !== '?' ? gameHeaders.Event : 'Partida sem título';
+  $('panel-sub').textContent = gameHeaders.Event && gameHeaders.Event !== '?' ? gameHeaders.Event : moves.length ? displayName('w') + ' × ' + displayName('b') : fen ? 'Posição importada' : 'Posição inicial';
   $('chart-end').textContent = 'Fim';
   $('engine-status').textContent = 'Motor aguardando análise';
   $('report-status').textContent = 'Carregue ou jogue uma partida.';
@@ -209,7 +209,8 @@ function pieceGraphic(piece, square, playable) {
     image.hidden = true;
     fallback.hidden = false;
   };
-  const directory = setting('piece-set') === 'classicas' ? 'pieces/classicas/' : 'pieces/';
+  const set = setting('piece-set');
+  const directory = set === 'chessnut' ? 'pieces/' : 'pieces/' + set + '/';
   image.src = '/' + directory + file;
   for (const view of [image, fallback]) {
     view.draggable = playable;
@@ -285,8 +286,10 @@ function renderPlayers() {
   for (const [id, color] of [['top-player', orientBlack ? 'w' : 'b'], ['bottom-player', orientBlack ? 'b' : 'w']]) {
     const score = gameHeaders[color === 'w' ? 'WhiteElo' : 'BlackElo'];
     const pieces = new Chess(position.fen);
+    const avatar = element('span', undefined, 'player-icon ' + (color === 'w' ? 'white' : 'black'));
+    avatar.append(icon('player'));
     $(id).replaceChildren(
-      element('span', '♟', 'player-icon ' + (color === 'w' ? 'white' : 'black')),
+      avatar,
       element('span', displayName(color), 'player-name'),
     );
     if (score && score !== '?') $(id).append(element('span', score, 'player-elo'));
@@ -349,22 +352,27 @@ function renderScore() {
   const [x1, y1] = point(best.slice(0, 2));
   const [x2, y2] = point(best.slice(2, 4));
   const angle = Math.atan2(y2 - y1, x2 - x1);
-  const endX = x2 - Math.cos(angle) * size * .14;
-  const endY = y2 - Math.sin(angle) * size * .14;
-  context.strokeStyle = '#244d39df';
-  context.fillStyle = '#244d39f2';
-  context.lineWidth = size * .16;
-  context.lineCap = 'round';
+  const distance = Math.hypot(x2 - x1, y2 - y1);
+  context.save();
+  context.translate(x1, y1);
+  context.rotate(angle);
+  context.fillStyle = '#e8a647db';
+  context.strokeStyle = '#57471c99';
+  context.lineWidth = Math.max(1, size * .018);
+  context.lineJoin = 'round';
+  const neck = distance - size * .35;
   context.beginPath();
-  context.moveTo(x1, y1);
-  context.lineTo(endX, endY);
-  context.stroke();
-  context.beginPath();
-  context.moveTo(x2, y2);
-  context.lineTo(endX - Math.cos(angle - .78) * size * .29, endY - Math.sin(angle - .78) * size * .29);
-  context.lineTo(endX - Math.cos(angle + .78) * size * .29, endY - Math.sin(angle + .78) * size * .29);
+  context.moveTo(size * .18, -size * .077);
+  context.lineTo(neck, -size * .077);
+  context.lineTo(neck, -size * .205);
+  context.lineTo(distance - size * .025, 0);
+  context.lineTo(neck, size * .205);
+  context.lineTo(neck, size * .077);
+  context.lineTo(size * .18, size * .077);
   context.closePath();
   context.fill();
+  context.stroke();
+  context.restore();
 }
 
 function selectSquare(square) {
@@ -450,7 +458,7 @@ function renderHistory() {
   const scroll = list.scrollTop;
   $('ply-count').textContent = (main.length - 1) + (main.length === 2 ? ' lance' : ' lances');
   if (main.length === 1) {
-    list.replaceChildren(element('p', 'Os lances jogados aparecem aqui.', 'muted'));
+    list.replaceChildren(element('p', 'Jogue no tabuleiro ou importe uma partida.', 'history-empty muted'));
   } else {
     const rows = [];
     for (const node of main.slice(1)) {
@@ -476,8 +484,11 @@ function renderHistory() {
     list.replaceChildren(...fragments);
     list.scrollTop = scroll;
     const current = list.querySelector('[aria-current="step"]');
-    if (current && current.offsetTop - list.offsetTop > list.scrollTop + list.clientHeight - 24) {
-      list.scrollTop = current.offsetTop - list.offsetTop - list.clientHeight + 29;
+    if (current) {
+      const item = current.getBoundingClientRect();
+      const bounds = list.getBoundingClientRect();
+      if (item.top < bounds.top) list.scrollTop += item.top - bounds.top;
+      else if (item.bottom > bounds.bottom) list.scrollTop += item.bottom - bounds.bottom;
     }
   }
   $('first').disabled = $('prev').disabled = !cursor.parent;
@@ -506,13 +517,20 @@ function renderChart() {
   context.lineTo(evaluated.at(-1)[0], height - 2);
   context.lineTo(evaluated[0][0], height - 2);
   context.closePath();
-  context.fillStyle = '#385441';
+  context.fillStyle = '#424f38';
   context.fill();
   context.beginPath();
   evaluated.forEach(([px, py], index) => index ? context.lineTo(px, py) : context.moveTo(px, py));
-  context.strokeStyle = '#b6e98c';
+  context.strokeStyle = '#bad69b';
   context.lineWidth = 2.2;
   context.stroke();
+  for (const [i, node] of nodes.entries()) {
+    if (!node.evaluation || !['mistake', 'blunder'].includes(node.classification)) continue;
+    context.beginPath();
+    context.arc(x(i), y(node.evaluation), 3, 0, Math.PI * 2);
+    context.fillStyle = node.classification === 'blunder' ? '#ef7d78' : '#f3a464';
+    context.fill();
+  }
   const index = nodes.indexOf(cursor);
   if (index >= 0 && cursor.evaluation) {
     context.strokeStyle = '#ffd382';
@@ -565,6 +583,7 @@ function renderReport() {
 
 function renderCoach(node) {
   const detail = $('move-detail');
+  detail.className = 'move-detail' + (node.classification ? ' class-' + node.classification : '');
   detail.hidden = !node.classification || !node.coach?.best;
   detail.replaceChildren();
   if (detail.hidden) return;
@@ -608,6 +627,9 @@ function startPuzzle(node) {
   }
   activePuzzle = puzzleProgress.get(node.id);
   selected = null;
+  if (matchMedia('(max-width: 820px)').matches) {
+    requestAnimationFrame(() => $('board-area').scrollIntoView({ block: 'start' }));
+  }
 }
 
 function submitPuzzleMove(command) {
@@ -651,7 +673,8 @@ function renderPuzzles() {
   if (puzzle) {
     hearts.setAttribute('aria-label', puzzle.lives + ' de 3 vidas');
     for (let index = 0; index < 3; index += 1) {
-      const heart = element('span', index < puzzle.lives ? '♥' : '♡', index < puzzle.lives ? '' : 'lost');
+      const heart = element('span', undefined, index < puzzle.lives ? '' : 'lost');
+      heart.append(icon('heart'));
       heart.setAttribute('aria-hidden', 'true');
       hearts.append(heart);
     }
@@ -770,9 +793,30 @@ function goTo(node) {
   if (!node || node === cursor) return;
   hideMate();
   const movedForward = node.parent === cursor;
+  const reversed = cursor.parent === node;
+  const step = movedForward ? node.move : reversed ? cursor.move : null;
   cursor = node;
   selected = null;
   render();
+  if (step && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const animatePiece = (from, to) => {
+      const origin = $('board').querySelector('[data-square="' + from + '"]').getBoundingClientRect();
+      const cell = $('board').querySelector('[data-square="' + to + '"]');
+      const dest = cell.getBoundingClientRect();
+      const piece = cell.querySelector('.piece-art');
+      if (!piece) return;
+      const motion = piece.animate([{ transform: 'translate(' + (origin.x - dest.x) + 'px,' + (origin.y - dest.y) + 'px)' }, { transform: 'none' }], { duration: 155, easing: 'cubic-bezier(.2,.65,.3,1)' });
+      cell.classList.add('moving');
+      motion.finished.finally(() => cell.classList.remove('moving')).catch(() => {});
+    };
+    animatePiece(reversed ? step.to : step.from, reversed ? step.from : step.to);
+    if (step.flags?.includes('k') || step.flags?.includes('q')) {
+      const rank = step.from[1], short = step.to[0] === 'g';
+      const from = (short ? 'h' : 'a') + rank, to = (short ? 'f' : 'd') + rank;
+      animatePiece(reversed ? to : from, reversed ? from : to);
+    }
+  }
+  if (tab === 'report') $('inspector-scroll').scrollTop = 0;
   if (movedForward) playSound(node.move.captured ? 'capture' : 'move');
   announceMate();
   if (tab === 'lines') queueLive();
@@ -852,7 +896,7 @@ function normalizeLine(line, node) {
 function syncEngine(status, caption) {
   const chip = document.querySelector('.engine-label');
   chip.dataset.status = status;
-  chip.querySelector('span').textContent = ' / ' + caption;
+  chip.querySelector('span').textContent = caption;
 }
 
 function readyEngine(status = 'ready') {
@@ -1073,6 +1117,8 @@ function setSource(value) {
   $('submit-label').textContent = value === 'pgn' ? 'Analisar partida' : value === 'fen' ? 'Analisar posição' : 'Buscar partidas';
   $('file-btn').hidden = value !== 'pgn';
   $('example').hidden = external;
+  $('example').querySelector('small').textContent = value === 'fen' ? 'Posição de exemplo' : 'Partida de exemplo';
+  $('example').querySelector('strong').textContent = value === 'fen' ? 'Posição de meio-jogo' : 'Mate do Pastor';
   document.querySelectorAll('[data-source]').forEach(button => button.setAttribute('aria-pressed', button.dataset.source === value ? 'true' : 'false'));
 }
 
@@ -1206,10 +1252,9 @@ function snapshotGame() {
 }
 
 function bindEvents() {
-  for (const [id, name] of Object.entries({ first: 'first', prev: 'prev', play: 'play', next: 'next', last: 'last', flip: 'flip', 'settings-btn': 'settings', export: 'share', 'mate-icon': 'mate' })) {
+  for (const [id, name] of Object.entries({ first: 'first', prev: 'prev', play: 'play', next: 'next', last: 'last', flip: 'flip', export: 'share', 'mate-icon': 'mate' })) {
     $(id).replaceChildren(icon(name));
   }
-  document.querySelector('.panel-mark').replaceChildren(icon('layers'));
   document.addEventListener('pointerdown', () => unlockSound(setting('sound-enabled')), { passive: true });
   document.addEventListener('keydown', () => unlockSound(setting('sound-enabled')));
   document.addEventListener('fullscreenchange', syncBoardTools);
@@ -1395,6 +1440,7 @@ function restoreFromLink() {
 }
 
 try {
+  for (const placeholder of document.querySelectorAll('[data-icon]')) placeholder.replaceWith(icon(placeholder.dataset.icon));
   $('submit').disabled = true;
   $('free-board').disabled = true;
   Chess = await loadChess();
