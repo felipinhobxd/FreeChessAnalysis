@@ -279,7 +279,7 @@ function renderPieces() {
       button.classList.toggle('check', piece?.type === 'k' && piece.color === board.turn() && board.isCheck());
       button.classList.toggle('puzzle-wrong', puzzle?.wrongSquare === square && puzzle.status === 'active');
       button.classList.toggle('puzzle-right', puzzle?.result?.move.to === square);
-      const rating = !puzzle && piece && position.move?.to === square ? CLASSIFICATIONS[position.classification]?.[1] : null;
+      const rating = !puzzle && piece && position.move?.to === square && MOVE_DOT_CLASSES.has(position.classification) ? CLASSIFICATIONS[position.classification]?.[1] : null;
       const ariaName = piece ? square + ', ' + NAMES[piece.type] + (piece.color === 'w' ? ' das brancas' : ' das pretas') : square;
       button.setAttribute('aria-label', ariaName + (rating ? ' · ' + rating : ''));
       if (rating) button.title = rating;
