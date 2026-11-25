@@ -1090,8 +1090,8 @@ function playMoveSound(step, node) {
   const position = new Chess(node.fen);
   if (step.flags?.includes('k') || step.flags?.includes('q')) playSound('castle');
   else if (step.promotion) playSound('promotion');
-  else if (position.isCheck()) playSound('check');
   else if (step.captured) playSound('capture');
+  else if (position.isCheck()) playSound('check');
   else playSound('move');
 }
 
