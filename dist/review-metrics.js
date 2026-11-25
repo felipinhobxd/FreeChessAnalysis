@@ -199,7 +199,7 @@ function performanceMoveAccuracy(node, side) {
     if (allowedMate) loss = Math.max(loss, PERFORMANCE_SCORE.missedMateLoss);
   }
 
-  if (isBest && !missedMate && !missedOpportunity) loss = 0;
+  if (isBest && !missedMate && !missedOpportunity && !allowedMate) loss = 0;
   loss = Math.min(loss, PERFORMANCE_SCORE.lossCap);
 
   const raw = clamp(
