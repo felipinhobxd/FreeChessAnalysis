@@ -159,7 +159,27 @@ td,th{text-align:center;border-bottom:1px solid var(--soft-line);padding:6px 4px
 .move-row>span{padding-left:5px;font:11px var(--mono);color:var(--muted)}
 .move-row button,.pv button{display:inline-flex;align-items:center;gap:6px;border-radius:4px;text-align:left;font-weight:650;padding:4px 7px}
 .move-row button:hover,.pv button:hover{background:#454b3e}.move-row button[aria-current="step"],.pv button[aria-current="step"]{background:#c5dcb0;color:#21301a}
-.move-row .badge,.branch .badge{width:17px;height:17px}
+.move-row .badge,.branch .badge{width:20px;height:20px;min-width:20px;flex:0 0 20px}
+.move-row button .move-classification{margin-right:1px;vertical-align:middle}
+.move-row button{min-height:29px;gap:7px}
+.rating-title{margin-top:17px}
+.rating-estimates{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:8px}
+.rating-estimate{display:grid;gap:4px;min-width:0;padding:10px;border:1px solid var(--line);border-radius:7px;background:#30352d}
+.rating-player{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:11px}
+.rating-estimate strong{font-size:21px;line-height:1.2;font-variant-numeric:tabular-nums;color:var(--accent)}
+.rating-estimate small{font-size:10px;line-height:1.4;color:var(--muted)}
+.variant-analysis{margin-top:12px;padding:12px;border:1px solid #657a51;border-left:3px solid var(--accent);border-radius:8px;background:#252b22}
+.variant-analysis h4{margin-bottom:8px}
+.variant-summary{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.variant-score{font:700 22px var(--mono);color:var(--accent)}
+.variant-summary span{font-size:12px;color:var(--ink)}
+.variant-analysis .coach-line{margin-top:8px;color:#d3dbc9}
+.puzzle-last-move{padding:7px 9px;border:1px solid #54634a;border-radius:6px;background:#303a2a;color:#d6e8c3;font-size:12px;font-weight:650}
+.puzzle-navigation{display:flex;align-items:center;gap:5px;margin-top:10px}
+.puzzle-nav-button{display:inline-flex;align-items:center;justify-content:center;width:34px;height:31px;padding:0}
+.puzzle-nav-button .ui-icon{width:16px;height:16px}
+.puzzle-position-count{margin-left:auto;color:var(--muted);font:11px var(--mono)}
+
 .pv-lines,.puzzle-list,#remote-games,.share-actions,#archive-list{display:grid;gap:7px}
 .pv{display:flex;align-items:flex-start;gap:8px;padding:8px}
 .pv>strong{font:650 12px/1.6 var(--mono);min-width:44px;padding:3px}
@@ -168,6 +188,7 @@ td,th{text-align:center;border-bottom:1px solid var(--soft-line);padding:6px 4px
 .branch{margin:6px 0;flex-wrap:wrap}.branch p{width:100%}
 #puzzle-lives{display:flex;gap:3px;color:#f29c86}#puzzle-lives .ui-icon{width:17px;height:17px;fill:currentColor}
 #puzzle-lives .lost{color:#747b6c}#puzzle-lives .lost .ui-icon{fill:none}
+.puzzle-navigation button:disabled{opacity:.35;cursor:default}
 .puzzle-list,#remote-games{margin-top:10px}.game-option{width:100%;text-align:left;justify-content:flex-start}
 .puzzle-option{justify-content:space-between}.puzzle-option[aria-current=true]{border-color:var(--accent)}.puzzle-state{color:var(--muted);font-size:12px}.puzzle-done{color:var(--accent)}.puzzle-failed{color:#ffb1a3}
 /* Dialogs and board focus mode */

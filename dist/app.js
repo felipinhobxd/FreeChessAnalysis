@@ -31,6 +31,7 @@ const BOOK_REPLY = {
   g1f3: ['d7d5', 'g8f6', 'c7c5', 'g7g6', 'e7e6', 'b7b6'],
 };
 const PREFS = ['review-depth', 'line-depth', 'multi-pv', 'show-arrow', 'show-coordinates', 'engine-mode', 'piece-set', 'sound-enabled', 'sound-volume', 'animation-speed', 'mate-enabled'];
+const MOVE_DOT_CLASSES = new Set(['brilliant', 'critical', 'inaccuracy', 'mistake', 'blunder', 'theory']);
 const TABS = ['import', 'report', 'lines', 'puzzles'];
 
 let Chess;
@@ -209,7 +210,8 @@ function activeChallenge() {
 
 function shownPosition() {
   const puzzle = activeChallenge();
-  return puzzle ? puzzle.result ?? puzzle.node.parent : cursor;
+  if (!puzzle) return cursor;
+  return puzzle.reviewPath?.[puzzle.reviewIndex] ?? puzzle.result ?? puzzle.node.parent;
 }
 
 function pieceGraphic(piece, square, playable) {
@@ -368,35 +370,38 @@ function drawBoardArrow(context, from, to, color, width, height, preview = false
   const cell = Math.min(width, height) / 8;
   const [x1, y1] = boardPoint(from, width, height);
   const [x2, y2] = boardPoint(to, width, height);
-  const dx = x2 - x1, dy = y2 - y1;
-  const angle = Math.atan2(dy, dx);
-  const distance = Math.hypot(dx, dy);
-  const head = cell * .34;
-  const half = cell * .19;
-  const tipX = x2 - Math.cos(angle) * cell * .08;
-  const tipY = y2 - Math.sin(angle) * cell * .08;
-  const baseX = tipX - Math.cos(angle) * head;
-  const baseY = tipY - Math.sin(angle) * head;
+  const fileDelta = to.charCodeAt(0) - from.charCodeAt(0);
+  const rankDelta = Number(to[1]) - Number(from[1]);
+  const knightMove = (Math.abs(fileDelta) === 1 && Math.abs(rankDelta) === 2) ||
+    (Math.abs(fileDelta) === 2 && Math.abs(rankDelta) === 1);
+  const elbow = knightMove ? (Math.abs(fileDelta) === 1 ? [x1, y2] : [x2, y1]) : null;
+  const finalDx = elbow ? x2 - elbow[0] : x2 - x1;
+  const finalDy = elbow ? y2 - elbow[1] : y2 - y1;
+  const length = Math.hypot(finalDx, finalDy) || 1;
+  const dirX = finalDx / length, dirY = finalDy / length;
+  const head = cell * .34, half = cell * .19;
+  const tipX = x2 - dirX * cell * .1, tipY = y2 - dirY * cell * .1;
+  const baseX = tipX - dirX * head, baseY = tipY - dirY * head;
   context.save();
-  context.globalAlpha = preview ? .62 : .78;
+  context.globalAlpha = preview ? .7 : .86;
   context.strokeStyle = color;
   context.fillStyle = color;
-  context.lineWidth = cell * .14;
+  context.lineWidth = cell * .13;
   context.lineCap = 'round';
   context.lineJoin = 'round';
   context.beginPath();
   context.moveTo(x1, y1);
+  if (elbow) context.lineTo(elbow[0], elbow[1]);
   context.lineTo(baseX, baseY);
   context.stroke();
   context.beginPath();
   context.moveTo(tipX, tipY);
-  context.lineTo(baseX - Math.sin(angle) * half, baseY + Math.cos(angle) * half);
-  context.lineTo(baseX + Math.sin(angle) * half, baseY - Math.cos(angle) * half);
+  context.lineTo(baseX - dirY * half, baseY + dirX * half);
+  context.lineTo(baseX + dirY * half, baseY - dirX * half);
   context.closePath();
   context.fill();
   context.restore();
 }
-
 function drawBoardCircle(context, square, color, width, height, preview = false) {
   if (!square) return;
   const cell = Math.min(width, height) / 8;
@@ -482,7 +487,7 @@ function renderScore() {
 function selectSquare(square) {
   const puzzle = activeChallenge();
   const position = shownPosition();
-  if (position.terminal || (tab === 'puzzles' && puzzle?.status !== 'active')) return;
+  if (position.terminal || (tab === 'puzzles' && (puzzle?.status !== 'active' || puzzle.reviewIndex !== puzzle.decisionIndex))) return;
   const board = new Chess(position.fen);
   const piece = board.get(square);
   if (selected && selected !== square && tryMove(selected, square)) return;
@@ -496,7 +501,7 @@ function selectSquare(square) {
 function tryMove(from, to) {
   const puzzle = activeChallenge();
   const position = shownPosition();
-  if (position.terminal || (tab === 'puzzles' && puzzle?.status !== 'active') || !/^[a-h][1-8]$/.test(from)) return false;
+  if (position.terminal || (tab === 'puzzles' && (puzzle?.status !== 'active' || puzzle.reviewIndex !== puzzle.decisionIndex)) || !/^[a-h][1-8]$/.test(from)) return false;
   const board = boardAt(position);
   const available = board.moves({ square: from, verbose: true }).filter(move => move.to === to);
   if (!available.length) return false;
@@ -531,8 +536,11 @@ function commitMoves(moves) {
       parent = addChild(parent, board, move);
     }
   } catch { return; }
+  parent.userEdited = true;
+  if (review) stopReview(false);
   if (tab === 'import') setTab('lines');
   goTo(parent);
+  if (tab === 'report') queueLive();
 }
 
 function badge(key) {
@@ -548,7 +556,11 @@ function badge(key) {
 function moveButton(node) {
   const button = element('button');
   button.dataset.ply = node.id;
-  if (node.classification) button.append(badge(node.classification));
+  if (MOVE_DOT_CLASSES.has(node.classification)) {
+    const marker = badge(node.classification);
+    marker.classList.add('move-classification');
+    button.append(marker);
+  }
   button.append(document.createTextNode(node.move.san));
   if (node === cursor) button.setAttribute('aria-current', 'step');
   return button;
@@ -735,6 +747,103 @@ function renderMoments(path) {
   }
   target.replaceChildren(fragment);
 }
+
+function estimatePlayerPerformance(path, side) {
+  const records = [];
+  const playerMoves = path.slice(1).filter(node => node.move?.color === side && node.evaluation && node.parent?.evaluation);
+  for (const node of playerMoves) {
+    const before = node.coach?.before ?? node.parent.evaluation;
+    const after = node.evaluation;
+    const sign = side === 'w' ? 1 : -1;
+    const loss = Math.max(0, sign * (winPercent(before) - winPercent(after)));
+    const quality = Math.exp(-loss / 11);
+    let legalCount = 20;
+    try { legalCount = new Chess(node.parent.fen).moves().length; } catch { /* Neutral complexity. */ }
+    const candidates = node.parent.lines ?? [];
+    const gap = candidates.length > 1 ? Math.abs(winPercent(candidates[0]) - winPercent(candidates[1])) : 0;
+    const difficulty = Math.max(.55, Math.min(1, .55 + .25 * Math.min(1, legalCount / 40) + .2 * Math.min(1, gap / 30)));
+    records.push({ node, loss, quality, difficulty, weight: .85 + difficulty * .3 });
+  }
+  if (records.length < 5) return { moves: records.length, rating: null, low: null, high: null, depth: 0 };
+  const weightTotal = records.reduce((sum, item) => sum + item.weight, 0);
+  const weightedQuality = records.reduce((sum, item) => sum + item.quality * item.weight, 0) / weightTotal;
+  const meanLoss = records.reduce((sum, item) => sum + item.loss, 0) / records.length;
+  const deviation = Math.sqrt(records.reduce((sum, item) => sum + (item.loss - meanLoss) ** 2, 0) / records.length);
+  const consistency = 1 / (1 + deviation / 18);
+  const errors = records.reduce((counts, item) => {
+    counts[item.node.classification] = (counts[item.node.classification] || 0) + 1;
+    return counts;
+  }, {});
+  const tacticalQuality = Math.max(.2, Math.min(1,
+    1 - ((errors.blunder || 0) + (errors.mistake || 0) * .7 + (errors.inaccuracy || 0) * .3) / records.length
+  ));
+  const hardest = [...records].sort((a, b) => b.difficulty - a.difficulty).slice(0, Math.max(3, Math.ceil(records.length / 2)));
+  const complexPositionQuality = hardest.reduce((sum, item) => sum + item.quality, 0) / hardest.length;
+  const performance = Math.max(.12, Math.min(1,
+    weightedQuality * .63 + consistency * .14 + tacticalQuality * .15 + complexPositionQuality * .08
+  ));
+  const rating = Math.max(600, Math.min(2400, Math.round((600 + 1800 * performance ** 2.25) / 50) * 50));
+  const depth = Math.round(records.reduce((sum, item) => sum + (item.node.depth || 0), 0) / records.length);
+  const uncertainty = Math.max(180, Math.min(380, Math.round((390 - records.length * 4 - depth * 3) / 50) * 50));
+  return { moves: records.length, rating, low: Math.max(600, rating - uncertainty), high: Math.min(2400, rating + uncertainty), depth };
+}
+
+function renderRatingEstimates(path) {
+  const target = $('rating-estimates');
+  target.replaceChildren();
+  for (const side of ['w', 'b']) {
+    const estimate = estimatePlayerPerformance(path, side);
+    const card = element('div', undefined, 'rating-estimate');
+    card.append(element('span', displayName(side), 'rating-player'));
+    if (estimate.rating === null) {
+      card.append(element('strong', '—'));
+      card.append(element('small', estimate.moves + ' lances analisados; são necessários pelo menos 5.', 'muted'));
+    } else {
+      const number = value => new Intl.NumberFormat('pt-BR').format(value);
+      card.append(element('strong', '≈ ' + number(estimate.rating)));
+      card.append(element('small', 'Faixa indicativa: ' + number(estimate.low) + '–' + number(estimate.high) + ' · ' + estimate.moves + ' lances', 'muted'));
+    }
+    target.append(card);
+  }
+}
+
+function variationText(fen, pv) {
+  if (!pv?.length) return '';
+  const chess = new Chess(fen);
+  const captions = [];
+  for (const [index, command] of pv.slice(0, 10).entries()) {
+    const side = chess.turn();
+    const number = chess.fen().split(' ')[5];
+    let move;
+    try { move = chess.move(moveFromUci(command)); } catch { break; }
+    captions.push((side === 'w' ? number + '. ' : index === 0 ? number + '… ' : '') + move.san);
+  }
+  return captions.join(' ');
+}
+
+function renderVariantEvaluation(node) {
+  const target = $('variant-analysis');
+  target.replaceChildren();
+  target.hidden = !node?.userEdited;
+  if (!node?.userEdited) return;
+  target.append(element('h4', 'Análise da variante editada'));
+  if (!node.evaluation) {
+    target.append(element('p', 'Aguardando a avaliação do Stockfish para esta nova posição…', 'muted'));
+    return;
+  }
+  const percentage = winPercent(node.evaluation);
+  const advantage = percentage > 55
+    ? 'Vantagem das brancas · ' + Math.round(percentage) + '%'
+    : percentage < 45
+      ? 'Vantagem das pretas · ' + Math.round(100 - percentage) + '%'
+      : 'Posição equilibrada · ' + Math.round(Math.max(percentage, 100 - percentage)) + '%';
+  const summary = element('div', undefined, 'variant-summary');
+  summary.append(element('strong', evaluationLabel(node.evaluation), 'variant-score'), element('span', advantage));
+  target.append(summary, element('p', 'Stockfish 19 · profundidade ' + (node.depth || '…'), 'muted'));
+  if (node.lines?.[0]?.pv?.length) appendCoachLine(target, 'Melhor linha', variationText(node.fen, node.lines[0].pv));
+  else target.append(element('p', 'O motor ainda não encontrou uma continuação completa.', 'muted'));
+}
+
 function renderReport() {
   renderChart();
   if (!root) return;
@@ -754,6 +863,8 @@ function renderReport() {
   $('black-accuracy-label').textContent = displayName('b');
   $('white-acc').textContent = average('w');
   $('black-acc').textContent = average('b');
+  renderRatingEstimates(path);
+  renderVariantEvaluation(cursor);
   $('chart-end').textContent = path.length === 1 ? 'Fim' : (path.length - 1) + ' lances';
   renderMoments(path);
   $('review-btn').disabled = path.length === 1 && !review;
@@ -813,9 +924,19 @@ function moveNumber(node) {
 function startPuzzle(node) {
   if (!isTrainingMove(node)) return;
   if (!puzzleProgress.has(node.id)) {
-    puzzleProgress.set(node.id, { node: { ...node }, lives: 3, status: 'active', wrongSquare: null, lastAttempt: null, result: null });
+    const reviewPath = [root, ...pathTo(node.parent)];
+    const decisionIndex = reviewPath.length - 1;
+    puzzleProgress.set(node.id, {
+      node: { ...node }, lives: 3, status: 'active', wrongSquare: null, lastAttempt: null,
+      result: null, reviewPath, reviewIndex: decisionIndex, decisionIndex,
+    });
   }
   activePuzzle = puzzleProgress.get(node.id);
+  if (!activePuzzle.reviewPath) {
+    activePuzzle.reviewPath = [root, ...pathTo(activePuzzle.node.parent)];
+    activePuzzle.decisionIndex = activePuzzle.reviewPath.length - 1;
+    activePuzzle.reviewIndex = activePuzzle.decisionIndex;
+  }
   selected = null;
   if (matchMedia('(max-width: 820px)').matches) {
     requestAnimationFrame(() => $('board-area').scrollIntoView({ block: 'start' }));
@@ -824,8 +945,9 @@ function startPuzzle(node) {
 
 function submitPuzzleMove(command) {
   const puzzle = activeChallenge();
-  if (!puzzle || puzzle.status !== 'active') return;
-  const board = boardAt(puzzle.node.parent);
+  if (!puzzle || puzzle.status !== 'active' || puzzle.reviewIndex !== puzzle.decisionIndex) return;
+  const position = shownPosition();
+  const board = boardAt(position);
   let move;
   try { move = board.move(moveFromUci(command)); } catch { return; }
   playSound(move.captured ? 'capture' : 'move');
@@ -833,17 +955,21 @@ function submitPuzzleMove(command) {
   puzzle.wrongSquare = null;
   if (command !== uci(puzzle.node.move) && acceptedMove(puzzle.node.coach, command)) {
     puzzle.status = 'solved';
-    puzzle.result = createPosition(board, puzzle.node.parent, move);
+    puzzle.result = createPosition(board, position, move);
   } else {
     puzzle.lives -= 1;
     puzzle.lastAttempt = move.san;
     puzzle.wrongSquare = move.to;
     if (!puzzle.lives) {
       puzzle.status = 'failed';
-      const solution = boardAt(puzzle.node.parent);
+      const solution = boardAt(position);
       const answer = solution.move(moveFromUci(puzzle.node.coach.best));
-      puzzle.result = createPosition(solution, puzzle.node.parent, answer);
+      puzzle.result = createPosition(solution, position, answer);
     }
+  }
+  if (puzzle.result) {
+    puzzle.reviewPath.push(puzzle.result);
+    puzzle.reviewIndex = puzzle.reviewPath.length - 1;
   }
   render();
 }
@@ -870,8 +996,45 @@ function renderPuzzles() {
     }
     const color = puzzle.node.move.color === 'w' ? 'Brancas' : 'Pretas';
     const atMove = 'Lance ' + moveNumber(puzzle.node) + ' · ' + color;
+    const reviewIndex = puzzle.reviewIndex ?? puzzle.decisionIndex;
+    const decisionIndex = puzzle.decisionIndex ?? puzzle.reviewPath.length - 1;
+    const historyEnd = puzzle.reviewPath.length - 1;
+    const atDecision = reviewIndex === decisionIndex;
+    const previous = puzzle.node.parent;
+    card.append(element('p',
+      previous?.move ? 'Último lance do adversário: ' + moveNumber(previous) + previous.move.san : 'Posição inicial da partida.',
+      'puzzle-last-move'
+    ));
+    const navigation = element('div', undefined, 'puzzle-navigation');
+    const controls = [
+      { label: 'Voltar ao início', icon: 'first', index: 0 },
+      { label: 'Voltar um lance', icon: 'prev', index: Math.max(0, reviewIndex - 1) },
+      { label: 'Avançar um lance', icon: 'next', index: Math.min(historyEnd, reviewIndex + 1) },
+      { label: 'Ir ao final', icon: 'last', index: historyEnd },
+    ];
+    controls.forEach((control, controlIndex) => {
+      const button = element('button', undefined, 'mini puzzle-nav-button');
+      button.type = 'button';
+      button.append(icon(control.icon));
+      button.title = control.label;
+      button.setAttribute('aria-label', control.label);
+      button.disabled = control.index === reviewIndex ||
+        (controlIndex < 2 && reviewIndex === 0) ||
+        (controlIndex > 1 && reviewIndex === historyEnd);
+      button.onclick = () => {
+        puzzle.reviewIndex = control.index;
+        selected = null;
+        render();
+      };
+      navigation.append(button);
+    });
+    navigation.append(element('span', 'Posição ' + (reviewIndex + 1) + ' de ' + puzzle.reviewPath.length, 'puzzle-position-count'));
+    card.append(navigation);
     if (puzzle.status === 'active') {
-      card.append(element('h4', atMove), element('p', 'Encontre o melhor lance para ' + color.toLowerCase() + '.', 'muted'));
+      card.append(element('h4', atMove), element('p',
+        atDecision ? 'Encontre o melhor lance para ' + color.toLowerCase() + '.' : 'Revise a partida livremente. Avance até a posição final para resolver o puzzle.',
+        'muted'
+      ));
     } else {
       const guide = inspectMove(Chess, puzzle.node);
       card.append(element('h4', puzzle.status === 'solved' ? 'Puzzle resolvido' : 'Você ficou sem vidas', puzzle.status === 'solved' ? 'puzzle-done' : 'puzzle-failed'));
@@ -950,7 +1113,15 @@ function render() {
   const rating = puzzle || training ? null : CLASSIFICATIONS[cursor.classification];
   feedback.hidden = !puzzle && !rating;
   if (puzzle) {
-    feedback.textContent = puzzle.status === 'solved' ? 'Boa! ' + puzzle.result.move.san + ' resolve a posição.' : puzzle.status === 'failed' ? 'Fim das três vidas. A solução está no tabuleiro.' : puzzle.lastAttempt ? puzzle.lastAttempt + ' não resolve. ' + (puzzle.lives === 1 ? 'Resta uma vida.' : 'Restam duas vidas.') : 'Jogue a melhor opção no tabuleiro.';
+    feedback.textContent = puzzle.status === 'solved'
+      ? 'Boa! ' + puzzle.result.move.san + ' resolve a posição.'
+      : puzzle.status === 'failed'
+        ? 'Fim das três vidas. A solução está no tabuleiro.'
+        : puzzle.reviewIndex !== puzzle.decisionIndex
+          ? 'Você está revendo o histórico. Avance até a última posição para jogar.'
+          : puzzle.lastAttempt
+            ? puzzle.lastAttempt + ' não resolve. ' + (puzzle.lives === 1 ? 'Resta uma vida.' : 'Restam duas vidas.')
+            : 'Jogue a melhor opção no tabuleiro.';
   } else if (rating) {
     feedback.replaceChildren(badge(cursor.classification), document.createTextNode(cursor.move.san + ' · ' + rating[1]));
   }
@@ -1243,27 +1414,34 @@ function stopLive() {
 
 function queueLive() {
   stopLive();
-  if (!engineOn) { $('engine-status').textContent = 'Análise pausada'; return; }
-  if (cursor.terminal) { $('engine-status').textContent = 'Posição final'; return; }
+  const showInReport = tab === 'report' && Boolean(cursor?.userEdited);
+  if (review && cursor?.userEdited) stopReview(false);
+  const statusId = showInReport ? 'report-status' : 'engine-status';
+  if (!engineOn) { $(statusId).textContent = 'Análise pausada'; return; }
+  if (cursor.terminal) { $(statusId).textContent = 'Posição final'; renderVariantEvaluation(cursor); return; }
   if (review) { $('engine-status').textContent = 'O relatório está usando o motor'; return; }
-  $('engine-status').textContent = cursor.lines.length ? 'Refinando variantes…' : 'Preparando variantes…';
+  $(statusId).textContent = cursor.lines.length ? 'Refinando variante…' : 'Preparando variante…';
+  if (showInReport) renderVariantEvaluation(cursor);
   const position = cursor;
-  analysisTimer = setTimeout(() => runLive(position), 220);
+  analysisTimer = setTimeout(() => runLive(position, showInReport), 140);
 }
 
-async function runLive(position) {
+async function runLive(position, showInReport = false) {
   const depth = setting('line-depth');
   const count = setting('multi-pv');
   const task = { controller: new AbortController() };
+  const statusId = showInReport ? 'report-status' : 'engine-status';
+  const status = message => { $(statusId).textContent = message; };
   live = task;
   try {
-    const { engine, profile, cache } = await useEngine(text => { if (live === task) $('engine-status').textContent = text + '…'; });
+    const { engine, profile, cache } = await useEngine(text => { if (live === task) status(text + '…'); });
     if (live !== task) return;
     const engineLabel = 'Stockfish 19 ' + profile.name + ' · profundidade ';
     const key = cache + '/' + depth + '/' + count;
     if (position.liveKey === key) {
       readyEngine();
-      $('engine-status').textContent = engineLabel + position.depth;
+      status(engineLabel + position.depth);
+      if (showInReport) renderVariantEvaluation(position);
       return;
     }
     readyEngine();
@@ -1272,17 +1450,18 @@ async function runLive(position) {
       position.lines = lines.map(line => normalizeLine(line, position));
       position.evaluation = position.lines[0];
       position.depth = position.lines[0].depth;
-      $('engine-status').textContent = engineLabel + position.depth + ' / ' + depth;
+      status(engineLabel + position.depth + ' / ' + depth);
       renderScore();
-      renderLines();
+      if (tab === 'lines') renderLines();
+      if (showInReport) renderVariantEvaluation(position);
     }
     const result = await engine.search(root.fen, pathTo(position).map(item => uci(item.move)), depth, count, { update, signal: task.controller.signal });
     if (live !== task) return;
     update(result.lines);
     position.liveKey = key;
-    $('engine-status').textContent = engineLabel + position.depth;
+    status(engineLabel + position.depth);
   } catch (error) {
-    if (live === task) engineFailure(error, 'engine-status');
+    if (live === task) engineFailure(error, statusId);
   } finally {
     if (live === task) live = null;
   }
@@ -1312,14 +1491,14 @@ function reviewClass(node, before, after, previousBest, runnersUp, index) {
   return 'blunder';
 }
 
-function stopReview() {
+function stopReview(resumeLive = true) {
   if (!review) return;
   review.controller.abort();
   review = null;
   $('review-btn').textContent = 'Revisar';
   $('review-progress').hidden = true;
   $('report-status').textContent = 'Revisão interrompida.';
-  if (tab === 'lines') queueLive();
+  if (resumeLive && tab === 'lines') queueLive();
 }
 
 async function runReview() {
@@ -1553,9 +1732,9 @@ function boardSquareAtPoint(clientX, clientY) {
 
 function annotationColor(event) {
   if (event.altKey) return '#e6b84c';
-  if (event.ctrlKey || event.metaKey) return '#e56b68';
+  if (event.ctrlKey || event.metaKey) return '#45ad71';
   if (event.shiftKey) return '#5b9fe5';
-  return '#45ad71';
+  return '#e35a58';
 }
 
 function finishBoardMark(event) {

@@ -26,9 +26,9 @@ A aplicação é estática e executa a análise no navegador. Não exige conta, 
 | --- | --- |
 | **Importação** | Colar ou carregar arquivos PGN, analisar posições FEN e buscar partidas públicas pelo nome de usuário no Chess.com ou Lichess. |
 | **Análise ao vivo** | Consultar avaliação do Stockfish 19, linhas de continuação e múltiplas variantes. Ajustar profundidade e quantidade de linhas. |
-| **Revisão da partida** | Avaliar os lances, consultar classificações, comparar a jogada realizada com a melhor continuação e visualizar a evolução da avaliação com marcadores clicáveis e uma lista de momentos importantes. |
-| **Treino** | Resolver puzzles gerados a partir de imprecisões, erros e erros graves encontrados na revisão. Cada desafio começa com três vidas. |
-| **Tabuleiro** | Mover peças por seleção ou arrastar e soltar com destinos legais destacados, desenhar setas e círculos com o botão direito, navegar pelo histórico com animações, girar o tabuleiro e abrir o modo de tela cheia. |
+| **Revisão da partida** | Avaliar os lances, consultar classificações, comparar a jogada realizada com a melhor continuação, estimar o rating de cada jogador e analisar variantes editadas sem alterar a linha original. |
+| **Treino** | Resolver puzzles gerados a partir de imprecisões, erros e erros graves encontrados na revisão, com navegação livre pelo histórico e exibição do último lance do adversário. Cada desafio começa com três vidas. |
+| **Tabuleiro** | Mover peças por seleção ou arrastar e soltar com destinos legais destacados, desenhar setas vermelhas por padrão e setas em L para movimentos de cavalo, navegar pelo histórico com animações, girar o tabuleiro e abrir o modo de tela cheia. |
 | **Exportação** | Copiar PGN ou FEN, baixar a partida em PGN, criar um link compartilhável ou salvar a partida no arquivo local. |
 | **Personalização** | Usar Cburnett como conjunto padrão ou escolher outros temas, configurar o motor, ajustar parâmetros de análise, ativar ou silenciar sons, controlar o volume e escolher a velocidade das animações. Os efeitos usam variações locais para movimentos e capturas. |
 
