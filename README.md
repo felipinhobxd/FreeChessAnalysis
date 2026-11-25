@@ -113,7 +113,7 @@ Os cabeçalhos `Cross-Origin-Opener-Policy` e `Cross-Origin-Embedder-Policy` con
 | **G** | Ativar ou sair da tela cheia |
 | **Botão direito + arraste** | Desenhar uma seta entre duas casas |
 | **Clique direito** | Marcar ou desmarcar uma casa com um círculo |
-| **Shift / Ctrl / Alt + botão direito** | Desenhar em azul / vermelho / amarelo (verde é a cor padrão) |
+| **Shift / Ctrl / Alt + botão direito** | Desenhar em azul / verde / amarelo (vermelho é a cor padrão) |
 | **Clique esquerdo** | Limpar as marcações do tabuleiro |
 | **Clique ou arraste** | Selecionar e movimentar peças |
 
