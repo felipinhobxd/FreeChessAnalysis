@@ -646,7 +646,7 @@ function renderChart() {
   const markerRadius = Math.min(7.5, Math.max(5.2, (width - 10) / Math.max(1, nodes.length - 1) * .48));
   for (const [index, node] of nodes.entries()) {
     const color = chartColors[node.classification];
-    if (!node.evaluation || !color || index === 0) continue;
+    if (!node.evaluation || !MOVE_DOT_CLASSES.has(node.classification) || !color || index === 0) continue;
     const marker = { node, index, x: x(index), y: y(node.evaluation), color };
     chartMarkers.push(marker);
     context.beginPath();
@@ -724,7 +724,7 @@ function updateChartTooltip(event) {
 
 function renderMoments(path) {
   const target = $('key-moments');
-  const moments = path.slice(1).filter(node => node.evaluation && chartColors[node.classification]);
+  const moments = path.slice(1).filter(node => node.evaluation && MOVE_DOT_CLASSES.has(node.classification) && chartColors[node.classification]);
   $('moment-count').textContent = moments.length + (moments.length === 1 ? ' lance' : ' lances');
   if (!moments.length) {
     target.replaceChildren(element('p', 'Os momentos importantes aparecerão aqui depois que a revisão da partida for concluída.', 'muted moments-empty'));
@@ -876,7 +876,8 @@ function renderReport() {
   const rows = Object.entries(CLASSIFICATIONS).map(([key, [, label]]) => {
     const row = element('tr');
     const kind = element('td');
-    kind.append(badge(key), document.createTextNode(label));
+    if (MOVE_DOT_CLASSES.has(key)) kind.append(badge(key));
+    kind.append(document.createTextNode(label));
     row.append(kind, element('td', counts.w[key] ?? 0), element('td', counts.b[key] ?? 0));
     return row;
   });
@@ -891,7 +892,8 @@ function renderCoach(node) {
   if (detail.hidden) return;
   const guide = inspectMove(Chess, node);
   const head = element('div', undefined, 'move-detail-head');
-  head.append(badge(node.classification), element('h4', moveNumber(node) + ' ' + node.move.san + ' · ' + CLASSIFICATIONS[node.classification][1]));
+  if (MOVE_DOT_CLASSES.has(node.classification)) head.append(badge(node.classification));
+  head.append(element('h4', moveNumber(node) + ' ' + node.move.san + ' · ' + CLASSIFICATIONS[node.classification][1]));
   const flow = element('div', undefined, 'analysis-flow');
   flow.append(element('span', 'Antes ' + evaluationLabel(guide.before)), element('span', 'Depois ' + evaluationLabel(guide.after)));
   detail.append(head, flow, element('p', guide.reason, 'coach-reason'));
@@ -1111,7 +1113,7 @@ function render() {
   $('game-history').hidden = training;
   $('export').hidden = training;
   const feedback = $('board-feedback');
-  const rating = puzzle || training ? null : CLASSIFICATIONS[cursor.classification];
+  const rating = !puzzle && !training && MOVE_DOT_CLASSES.has(cursor.classification) ? CLASSIFICATIONS[cursor.classification] : null;
   feedback.hidden = !puzzle && !rating;
   if (puzzle) {
     feedback.textContent = puzzle.status === 'solved'
