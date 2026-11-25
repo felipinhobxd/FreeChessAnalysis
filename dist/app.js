@@ -951,7 +951,7 @@ function submitPuzzleMove(command) {
   const board = boardAt(position);
   let move;
   try { move = board.move(moveFromUci(command)); } catch { playSound('illegal'); return; }
-  playSound(move.captured ? 'capture' : 'move');
+  playMoveSound(move, { fen: board.fen(), terminal: null });
   selected = null;
   puzzle.wrongSquare = null;
   if (command !== uci(puzzle.node.move) && acceptedMove(puzzle.node.coach, command)) {
