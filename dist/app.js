@@ -54,6 +54,8 @@ let sharedEngine;
 let engineProfile;
 let activePuzzle;
 let mateTimer;
+let navigationTimer;
+let navigationToken = 0;
 let fullscreenFallback = false;
 const puzzleProgress = new Map();
 const positions = new Map();
@@ -167,9 +169,13 @@ function setGame({ pgn, fen, ply } = {}, shouldReview = false) {
     parent.children.push(child);
     newPositions.push(child);
   }
+  clearTimeout(navigationTimer);
+  navigationTimer = null;
+  navigationToken += 1;
   stopReview();
   stopLive();
   stopPlayback();
+  cancelBoardAnimations();
   hideMate();
   activePuzzle = null;
   puzzleProgress.clear();
@@ -956,11 +962,15 @@ function animateCapture(step, reversed, ghost, duration, easing) {
   }
 }
 
+function moveAnimationDuration() {
+  const speeds = { slow: 420, normal: 235, fast: 125, natural: 205 };
+  return speeds[setting('animation-speed')] ?? speeds.natural;
+}
+
 function animateBoardMove(step, reversed, ghost) {
   if (!step || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  const speeds = { slow: 420, normal: 235, fast: 125, natural: 205 };
   const speed = setting('animation-speed');
-  const duration = speeds[speed] ?? speeds.natural;
+  const duration = moveAnimationDuration();
   const easing = speed === 'natural' ? 'cubic-bezier(.22,.75,.32,1)' : 'cubic-bezier(.2,.65,.3,1)';
   animateCapture(step, reversed, ghost, duration, easing);
   animatePiece(reversed ? step.to : step.from, reversed ? step.from : step.to, duration, easing);
@@ -982,12 +992,45 @@ function playMoveSound(step, node) {
   else playSound('move');
 }
 
-function goTo(node) {
-  if (!node || node === cursor) return;
-  hideMate();
+function routeBetween(from, target) {
+  const fromPath = [root, ...pathTo(from)];
+  const targetPath = [root, ...pathTo(target)];
+  let common = 0;
+  while (common < fromPath.length && common < targetPath.length && fromPath[common] === targetPath[common]) common++;
+  const route = [];
+  for (let index = fromPath.length - 1; index >= common; index--) route.push(fromPath[index].parent);
+  for (let index = common; index < targetPath.length; index++) route.push(targetPath[index]);
+  return route.filter(Boolean);
+}
+
+function goTo(node, continuation = false) {
+  if (!node) return;
+  if (!continuation) {
+    clearTimeout(navigationTimer);
+    navigationTimer = null;
+    navigationToken += 1;
+  }
+  if (node === cursor) return;
   const movedForward = node.parent === cursor;
   const reversed = cursor.parent === node;
   const step = movedForward ? node.move : reversed ? cursor.move : null;
+  if (!step) {
+    const route = routeBetween(cursor, node);
+    if (route.length) {
+      const token = navigationToken;
+      goTo(route[0], true);
+      if (route.length > 1) {
+        navigationTimer = setTimeout(() => {
+          if (token !== navigationToken) return;
+          navigationTimer = null;
+          goTo(node, true);
+        }, moveAnimationDuration() + 24);
+      }
+      return;
+    }
+  }
+
+  hideMate();
   cancelBoardAnimations();
   const captureGhost = step && movedForward && step.captured ? snapshotCapturedPiece(step) : null;
   cursor = node;
