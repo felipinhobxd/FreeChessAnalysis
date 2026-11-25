@@ -58,145 +58,83 @@ export function icon(name) {
   return svg;
 }
 
-let audio;
-let masterGain;
-let noiseBuffer;
+const SOUND_FILES = {
+  select: ['select.mp3'],
+  move: ['move-self.mp3', 'move-self-1.mp3', 'move-self-2.mp3', 'move-self-3.mp3', 'move-self-4.mp3'],
+  check: ['move-self.mp3', 'move-self-1.mp3', 'move-self-2.mp3', 'move-self-3.mp3', 'move-self-4.mp3'],
+  capture: ['capture.mp3', 'capture-1.mp3', 'capture-2.mp3', 'capture-3.mp3', 'capture-4.mp3', 'capture-5.mp3', 'capture-6.mp3', 'capture-7.mp3', 'capture-8.mp3'],
+  castle: ['castle.mp3'],
+  promotion: ['promote.mp3'],
+  mate: ['game-win.mp3'],
+  end: ['game-draw.mp3'],
+  start: ['game-start.mp3'],
+  win: ['game-win.mp3'],
+  lose: ['game-lose.mp3'],
+  illegal: ['illegal.mp3'],
+  notify: ['notify.mp3'],
+};
 
-function audioConstructor() {
-  return window.AudioContext || window.webkitAudioContext;
-}
-
-function createNoiseBuffer() {
-  if (!audio || noiseBuffer) return noiseBuffer;
-  const length = Math.ceil(audio.sampleRate * .12);
-  noiseBuffer = audio.createBuffer(1, length, audio.sampleRate);
-  const data = noiseBuffer.getChannelData(0);
-  for (let index = 0; index < length; index += 1) {
-    const fade = 1 - index / length;
-    data[index] = (Math.random() * 2 - 1) * fade;
-  }
-  return noiseBuffer;
-}
-
+const soundPlayers = new Map();
+const soundPositions = new Map();
 let outputVolume = .65;
+let soundEnabled = true;
+
+function prepareSoundPlayers() {
+  for (const file of new Set(Object.values(SOUND_FILES).flat())) {
+    if (soundPlayers.has(file)) continue;
+    const players = Array.from({ length: 3 }, () => {
+      const player = new Audio('/sounds/' + file);
+      player.preload = 'auto';
+      player.volume = outputVolume;
+      player.setAttribute('playsinline', '');
+      return player;
+    });
+    soundPlayers.set(file, players);
+    players.forEach(player => player.load());
+  }
+}
 
 export function setBoardVolume(volume) {
   outputVolume = Math.max(0, Math.min(1, Number(volume) || 0));
-  if (audio && masterGain && audio.state !== 'closed') {
-    masterGain.gain.setTargetAtTime(outputVolume, audio.currentTime, .018);
+  for (const players of soundPlayers.values()) {
+    for (const player of players) player.volume = outputVolume;
   }
 }
 
 export function unlockSound(enabled) {
-  if (!enabled) { setBoardVolume(0); return; }
-  const Audio = audioConstructor();
-  if (!Audio) return;
-  try {
-    audio ??= new Audio();
-    if (!masterGain) {
-      masterGain = audio.createGain();
-      masterGain.gain.value = outputVolume;
-      masterGain.connect(audio.destination);
+  soundEnabled = Boolean(enabled);
+  if (!soundEnabled) {
+    for (const players of soundPlayers.values()) {
+      for (const player of players) player.pause();
     }
-    if (audio.state === 'suspended') audio.resume().catch(() => {});
-  } catch { /* Audio is optional and must never interrupt a move. */ }
-}
-
-function playTap(time, strength = .7, pitch = 175, brightness = 1750) {
-  if (!audio || !masterGain) return;
-  const duration = .075;
-  const source = audio.createBufferSource();
-  const filter = audio.createBiquadFilter();
-  const noiseEnvelope = audio.createGain();
-  source.buffer = createNoiseBuffer();
-  filter.type = 'lowpass';
-  filter.frequency.setValueAtTime(brightness, time);
-  filter.frequency.exponentialRampToValueAtTime(Math.max(500, brightness * .42), time + .05);
-  noiseEnvelope.gain.setValueAtTime(.0001, time);
-  noiseEnvelope.gain.exponentialRampToValueAtTime(.23 * strength, time + .003);
-  noiseEnvelope.gain.exponentialRampToValueAtTime(.0001, time + duration);
-  source.connect(filter).connect(noiseEnvelope).connect(masterGain);
-  source.start(time);
-  source.stop(time + duration);
-
-  const body = audio.createOscillator();
-  const bodyEnvelope = audio.createGain();
-  body.type = 'sine';
-  body.frequency.setValueAtTime(pitch, time);
-  body.frequency.exponentialRampToValueAtTime(Math.max(48, pitch * .62), time + .09);
-  bodyEnvelope.gain.setValueAtTime(.0001, time);
-  bodyEnvelope.gain.exponentialRampToValueAtTime(.105 * strength, time + .004);
-  bodyEnvelope.gain.exponentialRampToValueAtTime(.0001, time + .095);
-  body.connect(bodyEnvelope).connect(masterGain);
-  body.start(time);
-  body.stop(time + .1);
-  source.onended = () => { source.disconnect(); filter.disconnect(); noiseEnvelope.disconnect(); };
-  body.onended = () => { body.disconnect(); bodyEnvelope.disconnect(); };
-}
-
-function playNote(time, frequency, duration = .2, strength = .12) {
-  if (!audio || !masterGain) return;
-  const oscillator = audio.createOscillator();
-  const envelope = audio.createGain();
-  oscillator.type = 'sine';
-  oscillator.frequency.setValueAtTime(frequency, time);
-  oscillator.frequency.exponentialRampToValueAtTime(frequency * .985, time + duration);
-  envelope.gain.setValueAtTime(.0001, time);
-  envelope.gain.exponentialRampToValueAtTime(strength, time + .018);
-  envelope.gain.exponentialRampToValueAtTime(.0001, time + duration);
-  oscillator.connect(envelope).connect(masterGain);
-  oscillator.start(time);
-  oscillator.stop(time + duration + .01);
-  oscillator.onended = () => { oscillator.disconnect(); envelope.disconnect(); };
+    return;
+  }
+  try { prepareSoundPlayers(); } catch { /* Audio is optional and must never interrupt a move. */ }
 }
 
 export function boardSound(name, enabled, volume = 65) {
-  if (!enabled || !audio || !masterGain || audio.state === 'closed') return;
-  const amount = Math.max(0, Math.min(100, Number(volume) || 0)) / 100;
-  const now = audio.currentTime;
-  masterGain.gain.setTargetAtTime(amount, now, .018);
-  if (!amount) return;
+  if (!enabled || !soundEnabled) return;
+  const files = SOUND_FILES[name];
+  if (!files?.length) return;
 
-  switch (name) {
-    case 'select':
-      playTap(now, .28, 260, 2400);
-      break;
-    case 'move':
-      playTap(now, .68, 175, 1900);
-      break;
-    case 'capture':
-      playTap(now, 1, 112, 1350);
-      playTap(now + .025, .34, 235, 2600);
-      break;
-    case 'castle':
-      playTap(now, .72, 165, 1750);
-      playTap(now + .085, .66, 205, 2050);
-      break;
-    case 'check':
-      playTap(now, .65, 190, 1900);
-      playNote(now + .025, 560, .13, .075);
-      playNote(now + .105, 690, .16, .065);
-      break;
-    case 'promotion':
-      playTap(now, .58, 190, 1900);
-      playNote(now + .035, 440, .18, .075);
-      playNote(now + .12, 554, .2, .085);
-      playNote(now + .22, 659, .24, .09);
-      break;
-    case 'mate':
-      playTap(now, .8, 125, 1450);
-      playNote(now + .035, 392, .31, .12);
-      playNote(now + .12, 494, .34, .105);
-      playNote(now + .205, 587, .42, .095);
-      break;
-    case 'end':
-      playTap(now, .52, 145, 1350);
-      playNote(now + .045, 349, .3, .075);
-      playNote(now + .11, 440, .26, .06);
-      break;
-    default:
-      break;
+  const next = soundPositions.get(name) || 0;
+  soundPositions.set(name, (next + 1) % files.length);
+  const file = files[next % files.length];
+  if (!soundPlayers.has(file)) {
+    try { prepareSoundPlayers(); } catch { return; }
   }
+  const pool = soundPlayers.get(file);
+  if (!pool?.length) return;
+
+  const poolIndex = soundPositions.get('pool:' + file) || 0;
+  soundPositions.set('pool:' + file, (poolIndex + 1) % pool.length);
+  const player = pool[poolIndex % pool.length];
+  const amount = Math.max(0, Math.min(100, Number(volume) || 0)) / 100;
+  if (!amount) return;
+  player.volume = amount;
+  try { player.currentTime = 0; } catch { /* Metadata may still be loading. */ }
+  const playback = player.play();
+  if (playback?.catch) playback.catch(() => {});
 }
 export function mateCelebration(layer) {
   const colors = ['#b7ed80', '#f7cb76', '#f0f5cb', '#72d7c2'];
