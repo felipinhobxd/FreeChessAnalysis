@@ -59,7 +59,7 @@ const puzzleProgress = new Map();
 const positions = new Map();
 const chartColors = {
   brilliant: '#63d5cc', critical: '#8cb9e0', best: '#a6d579', excellent: '#86c8a0',
-  good: '#b4c899', inaccuracy: '#edce69', mistake: '#f3a464', blunder: '#ef7d78', theory: '#c4b499',
+  good: '#b4c899', inaccuracy: '#edce69', mistake: '#f3a464', blunder: '#ef7d78',
 };
 let chartMarkers = [];
 let boardAnimations = new Set();
