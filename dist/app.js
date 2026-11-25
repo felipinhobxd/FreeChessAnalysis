@@ -115,6 +115,8 @@ let turnCounter = 0;
 let selected;
 let flipped = false;
 let tab = 'import';
+let reviewMode = 'summary';
+let reviewReturn = null;
 let source = 'pgn';
 let engineOn = true;
 let live;
@@ -263,12 +265,15 @@ function setGame({ pgn, fen, ply } = {}, shouldReview = false) {
   activeBoardMark = null;
   for (const child of newPositions) positions.set(child.id, child);
   root = nextRoot;
+  reviewMode = "summary";
+  reviewReturn = null;
   originalPgn = pgn;
   originalPath = pgn !== undefined ? newPositions : null;
   resumeReview = false;
   resetSprites();
   lastMate = null;
   cursor = newPositions[Math.min(Math.max(Number(ply) || 0, 0), newPositions.length - 1)];
+  if (shouldReview && cursor !== root) reviewMode = 'guided';
   gameHeaders = loader.getHeaders();
   selected = null;
   $('panel-sub').textContent = gameHeaders.Event && gameHeaders.Event !== '?' ? gameHeaders.Event : moves.length ? displayName('w') + ' × ' + displayName('b') : fen ? 'Posição importada' : 'Posição inicial';
@@ -651,6 +656,7 @@ function renderHistory() {
   const fragments = [];
   const list = $('move-list');
   const scroll = list.scrollTop;
+  const focusedPly = list.contains(document.activeElement) ? document.activeElement.dataset.ply : null;
   $('ply-count').textContent = (main.length - 1) + (main.length === 2 ? ' lance' : ' lances');
   if (main.length === 1 && !cursor.userEdited && !root.children.length) {
     list.replaceChildren(element('p', 'Jogue no tabuleiro ou importe uma partida.', 'history-empty muted'));
@@ -679,6 +685,7 @@ function renderHistory() {
     list.replaceChildren(...fragments);
     list.scrollTop = scroll;
     const current = list.querySelector('[aria-current="step"]');
+    if (focusedPly) list.querySelector('[data-ply="' + focusedPly + '"]')?.focus({ preventScroll: true });
     if (current) {
       const item = current.getBoundingClientRect();
       const bounds = list.getBoundingClientRect();
@@ -807,7 +814,7 @@ function renderMoments(path) {
     }
     row.append(details, icon('next'));
     row.title = 'Ir para ' + moveNumber(node) + node.move.san;
-    row.onclick = () => goTo(node);
+    row.onclick = () => selectReviewMove(node);
     fragment.append(row);
   }
   target.replaceChildren(fragment);
@@ -987,6 +994,47 @@ function renderVariantEvaluation(node) {
   else target.append(element('p','O motor ainda não encontrou uma continuação completa.','muted'));
 }
 
+function placeReviewTransport() {
+  const docked = tab === 'report' && reviewMode === 'guided' &&
+    document.fullscreenElement !== $('board-area') && !fullscreenFallback;
+  const target = $(docked ? 'review-transport' : 'board-bottom');
+  const transport = $('transport');
+  $('review-transport').hidden = !docked;
+  if (transport.parentElement !== target) target.append(transport);
+}
+
+function syncReviewLayout() {
+  const reviewing = tab === 'report';
+  const guided = reviewing && reviewMode === 'guided';
+  const report = $('report');
+  report.dataset.reviewMode = reviewMode;
+  $('review-summary').hidden = guided;
+  $('review-guided').hidden = !guided;
+  $('review-start').hidden = guided;
+  $('review-overview-link').hidden = !guided;
+  const chart = $('chart-wrap');
+  const chartSlot = $(guided ? 'review-timeline' : 'review-summary-chart');
+  if (chart.parentElement !== chartSlot) chartSlot.append(chart);
+  const history = $('game-history');
+  const historySlot = guided ? $('review-history') : report.closest('.inspector');
+  if (history.parentElement !== historySlot) historySlot.append(history);
+  history.hidden = reviewing && !guided || tab === 'puzzles';
+  placeReviewTransport();
+}
+
+function selectReviewMove(node) {
+  if (!node) return;
+  if (tab === 'report' && node !== root) reviewMode = 'guided';
+  if (node === cursor) render();
+  else goTo(node);
+}
+
+function startGuidedReview() {
+  const path = mainPath();
+  selectReviewMove(path.find(isTrainingMove) || path[1]);
+  $('move-detail').querySelector('h4')?.focus({ preventScroll: true });
+}
+
 function renderReport() {
   renderChart();
   if (!root) return;
@@ -1005,10 +1053,12 @@ function renderReport() {
   $('black-acc').textContent = blackGameAccuracy === null ? '—' : blackGameAccuracy.toFixed(1).replace('.', ',') + '%';
   renderRatingEstimates(path);
   renderPhaseReport(path);
-  renderVariantEvaluation(cursor);
+  if (reviewReturn) $('variant-analysis').hidden = true;
+  else renderVariantEvaluation(cursor);
   $('chart-end').textContent = path.length === 1 ? 'Fim' : (path.length - 1) + ' lances';
   renderMoments(path);
   $('review-btn').disabled = path.length === 1 && !review;
+  $('review-start').disabled = !path.some(node => node.classification) || Boolean(review);
   renderCoach(cursor, path);
   const count = path.filter(isTrainingMove).length;
   $('practice-from-report').hidden = !count;
@@ -1032,50 +1082,91 @@ function renderReport() {
 
 function renderCoach(node, path) {
   const detail = $('move-detail');
-  const wasOpen = detail.querySelector('details')?.open && detail.dataset.ply === String(node.id);
-  detail.dataset.ply = node.id;
-  detail.className = 'move-detail' + (node.classification ? ' class-' + node.classification : '');
-  detail.hidden = !node.classification || !node.coach?.best;
+  if (reviewMode !== 'guided') return;
+  const reviewed = reviewReturn || node;
+  const showingBest = Boolean(reviewReturn);
+  const wasOpen = detail.querySelector('#coach-explanation')?.hidden === false && detail.dataset.ply === String(reviewed.id);
+  const focusedAction = document.activeElement?.dataset.coachAction;
+  detail.dataset.ply = reviewed.id;
+  detail.className = 'move-detail' + (reviewed.classification ? ' class-' + reviewed.classification : '');
   detail.replaceChildren();
-  if (detail.hidden) return;
-  const guide = inspectMove(Chess, node);
-  const heading = element('h4', moveNumber(node) + ' ' + node.move.san + ' · ' + CLASSIFICATIONS[node.classification][1]);
+
+  const headingText = reviewed.move ? moveNumber(reviewed) + ' ' + reviewed.move.san : 'Posição inicial';
+  const classification = CLASSIFICATIONS[reviewed.classification];
+  const heading = element('h4', headingText + (classification ? ' · ' + classification[1] : ''));
   heading.tabIndex = -1;
   const head = element('div', undefined, 'move-detail-head');
-  head.append(badge(node.classification), heading, element('span', evaluationLabel(guide.after), 'move-detail-eval'));
-  detail.append(head, element('p', guide.reason, 'coach-reason'));
+  head.append(classification ? badge(reviewed.classification) : icon('chart'), heading,
+    element('span', evaluationLabel(reviewed.evaluation), 'move-detail-eval'));
+  detail.append(head);
+
+  const guide = reviewed.coach?.best ? inspectMove(Chess, reviewed) : null;
+  const reason = guide?.reason || (reviewed.move
+    ? 'A explicação aparece quando esta posição for revisada.'
+    : 'Selecione um lance no histórico ou no gráfico.');
+  detail.append(element('p', reason, 'coach-reason'));
+  if (showingBest && cursor.move) {
+    detail.append(element('p', 'No tabuleiro: ' + moveNumber(cursor) + ' ' + cursor.move.san, 'coach-preview'));
+  }
 
   const actions = element('div', undefined, 'coach-actions');
-  if (guide.proposal && guide.played !== guide.proposal) {
-    const inspect = element('button', 'Ver melhor lance', 'mini coach-best');
-    inspect.onclick = () => { goTo(node.parent); setTab('lines'); commitMoves([node.coach.best]); };
-    actions.append(inspect);
-    if (isTrainingMove(node)) {
-      const train = element('button', 'Tentar como puzzle', 'mini');
-      train.onclick = () => { startPuzzle(node); setTab('puzzles'); };
-      actions.append(train);
-    }
-  }
-  const position = path.indexOf(node);
-  const next = position >= 0 ? path.slice(position + 1).find(entry => entry.chanceLost) : null;
-  if (next) {
-    const advance = element('button', 'Próxima oportunidade', 'mini');
-    advance.onclick = () => {
-      goTo(next);
-      detail.querySelector('h4')?.focus({ preventScroll: true });
-    };
-    actions.append(advance);
-  }
-  if (actions.childElementCount) detail.append(actions);
+  const action = (id, label, handler) => {
+    const button = element('button', label, 'mini');
+    button.type = 'button';
+    button.dataset.coachAction = id;
+    button.onclick = handler;
+    actions.append(button);
+    return button;
+  };
 
-  if (guide.proposal && guide.played !== guide.proposal) {
-    const lines = element('details', undefined, 'coach-variations');
-    lines.open = Boolean(wasOpen);
-    lines.append(element('summary', 'Comparar linhas'));
-    appendCoachLine(lines, 'Na partida', guide.chosen);
-    appendCoachLine(lines, 'Melhor linha', guide.recommended);
-    detail.append(lines);
+  let explanation;
+  if (guide) {
+    explanation = element('div', undefined, 'coach-variations');
+    explanation.id = 'coach-explanation';
+    explanation.hidden = !wasOpen;
+    const toggle = action('explain', 'Explicar', () => {
+      explanation.hidden = !explanation.hidden;
+      toggle.setAttribute('aria-expanded', String(!explanation.hidden));
+    });
+    toggle.setAttribute('aria-controls', explanation.id);
+    toggle.setAttribute('aria-expanded', String(!explanation.hidden));
+    const flow = element('div', undefined, 'analysis-flow');
+    flow.append(element('span', 'Antes ' + evaluationLabel(guide.before)),
+      element('span', 'Depois ' + evaluationLabel(guide.after)));
+    explanation.append(flow);
+    appendCoachLine(explanation, 'Na partida', guide.chosen);
+    appendCoachLine(explanation, 'Melhor linha', guide.recommended);
   }
+  if (showingBest) {
+    action('best', 'Voltar ao lance', () => {
+      goTo(reviewed);
+      $('move-detail').querySelector('h4')?.focus({ preventScroll: true });
+    }).classList.add('coach-best');
+  } else if (guide?.proposal && guide.played !== guide.proposal) {
+    const preview = action('best', 'Melhor lance', () => {
+      stopPlayback();
+      goTo(reviewed.parent);
+      commitMoves([reviewed.coach.best]);
+      if (cursor !== reviewed.parent && cursor !== reviewed) reviewReturn = reviewed;
+      renderReport();
+      $('move-detail').querySelector('[data-coach-action="best"]')?.focus({ preventScroll: true });
+    });
+    preview.classList.add('coach-best');
+    preview.disabled = Boolean(review);
+  }
+  const index = path.indexOf(reviewed);
+  const next = index >= 0 ? path.slice(index + 1).find(isTrainingMove) || path[index + 1] : null;
+  if (next) action('next', 'Próximo destaque', () => {
+    goTo(next);
+    detail.querySelector('h4')?.focus({ preventScroll: true });
+  });
+  if (isTrainingMove(reviewed)) action('puzzle', 'Tentar como puzzle', () => {
+    startPuzzle(reviewed);
+    setTab('puzzles');
+  });
+  if (actions.childElementCount) detail.append(actions);
+  if (explanation) detail.append(explanation);
+  if (focusedAction) detail.querySelector('[data-coach-action="' + focusedAction + '"]')?.focus({ preventScroll: true });
 }
 
 function appendCoachLine(target, label, variation) {
@@ -1277,7 +1368,7 @@ function render() {
   const training = tab === 'puzzles';
   const puzzle = activeChallenge();
   $('transport').hidden = training;
-  $('game-history').hidden = training;
+  syncReviewLayout();
   $('export').hidden = training;
   const feedback = $('board-feedback');
   const rating = !puzzle && !training && CLASSIFICATIONS[cursor.classification] ? CLASSIFICATIONS[cursor.classification] : null;
@@ -1295,8 +1386,8 @@ function render() {
   } else if (rating) {
     feedback.replaceChildren(badge(cursor.classification), document.createTextNode(cursor.move.san + ' · ' + rating[1]));
   }
-  if (!training) renderHistory();
   if (tab === 'report') renderReport();
+  if (!training) renderHistory();
   if (tab === 'lines') renderLines();
   if (training) renderPuzzles();
 }
@@ -1335,6 +1426,7 @@ function endResult(node) {
 
 function goTo(node) {
   if (!node || node === cursor) return;
+  reviewReturn = null;
   const previous = cursor;
   if (node.parent === previous) preferred.set(previous,node);
   if (previous.parent === node) preferred.set(node,previous);
@@ -1356,12 +1448,6 @@ function goTo(node) {
     else if (step && previous.parent !== node) playSound(moveSound(step, endResult(node)));
     else playSound('move');
   }, duration * .77);
-  if (tab === 'report') {
-    const pane = $('inspector-scroll');
-    const chart = $('chart-wrap');
-    pane.scrollTop = $('move-detail').hidden ? 0
-      : pane.scrollTop + chart.getBoundingClientRect().top - pane.getBoundingClientRect().top - 8;
-  }
   if (resumeReview && !node.userEdited) { resumeReview = false; runReview(); }
   else if (tab === 'lines' || (tab === 'report' && node.userEdited)) queueLive();
 }
@@ -1409,6 +1495,7 @@ function announceMate() {
 
 function syncBoardTools() {
   const full = document.fullscreenElement === $('board-area') || fullscreenFallback;
+  placeReviewTransport();
   $('fullscreen').replaceChildren(icon(full ? 'contract' : 'expand'));
   $('fullscreen').setAttribute('aria-pressed', String(full));
   $('fullscreen').title = full ? 'Sair da tela cheia (Esc)' : 'Tela cheia (G)';
@@ -1652,6 +1739,7 @@ async function runReview() {
       $('review-btn').textContent = completed ? 'Revisar de novo' : 'Revisar';
       if (tab === 'lines') queueLive();
       if (tab === 'puzzles') renderPuzzles();
+      if (tab === 'report') renderReport();
       if (completed) announceMate();
     }
   }
@@ -1937,13 +2025,13 @@ function bindEvents() {
   });
   $('move-list').addEventListener('click', event => {
     const button = event.target.closest('[data-ply]');
-    if (button) goTo(positions.get(Number(button.dataset.ply)));
+    if (button) selectReviewMove(positions.get(Number(button.dataset.ply)));
   });
   $('chart').addEventListener('click', event => {
     const { width, left } = $('chart').getBoundingClientRect();
     const fraction = Math.max(0, Math.min(1, (event.clientX - left - CHART_INSET) / (width - 2 * CHART_INSET)));
     const nodes = mainPath();
-    goTo(nodes[Math.round(fraction * (nodes.length - 1))]);
+    selectReviewMove(nodes[Math.round(fraction * (nodes.length - 1))]);
   });
   $('chart-markers').addEventListener('click', event => {
     const button = event.target.closest('[data-chart-ply]');
@@ -1967,7 +2055,9 @@ function bindEvents() {
         }
       }
     }
-    goTo(positions.get(Number(selected.dataset.chartPly)));
+    const id = Number(selected.dataset.chartPly);
+    selectReviewMove(positions.get(id));
+    $('chart-markers').querySelector('[data-chart-ply="' + id + '"]')?.focus({ preventScroll: true });
   });
   $('first').onclick = () => goTo(root);
   $('prev').onclick = () => goTo(cursor.parent);
@@ -1980,7 +2070,20 @@ function bindEvents() {
   $('nav-puzzles').onclick = () => setTab('puzzles');
   $('nav-library').onclick = () => { renderArchive(); $('archive').showModal(); };
   $('export').onclick = () => $('share').showModal();
-  $('review-btn').onclick = () => review ? stopReview() : runReview();
+  $('review-btn').onclick = () => {
+    if (review) { stopReview(); renderReport(); }
+    else runReview();
+  };
+  $('review-start').onclick = startGuidedReview;
+  $('review-overview-link').onclick = () => {
+    stopPlayback();
+    const back = reviewReturn;
+    reviewMode = 'summary';
+    if (back) goTo(back);
+    else render();
+    $('review-summary').scrollTop = 0;
+    $('review-heading').focus({ preventScroll: true });
+  };
   $('practice-from-report').onclick = () => {
     const candidates = mainPath().filter(isTrainingMove);
     const next = candidates.find(node => (puzzleProgress.get(node.id)?.status ?? 'active') === 'active');

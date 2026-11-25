@@ -543,6 +543,75 @@ Object.assign(MESSAGES, {
   ]
 });
 
+Object.assign(MESSAGES, {
+  "Começar revisão": [
+    "Start review",
+    "Começar revisão",
+    "Empezar revisión",
+    "Commencer la revue",
+    "Analyse starten",
+    "Avvia revisione",
+    "Analyse starten",
+    "Начать разбор",
+    "开始复盘",
+    "振り返りを始める",
+    "리뷰 시작",
+    "İncelemeyi başlat",
+    "ابدأ المراجعة",
+    "समीक्षा शुरू करें"
+  ],
+  "Ver resumo": [
+    "See summary",
+    "Ver resumo",
+    "Ver resumen",
+    "Voir le résumé",
+    "Übersicht ansehen",
+    "Vedi riepilogo",
+    "Bekijk overzicht",
+    "Показать сводку",
+    "查看摘要",
+    "概要を見る",
+    "요약 보기",
+    "Özeti gör",
+    "عرض الملخص",
+    "सारांश देखें"
+  ],
+  "Próximo destaque": [
+    "Next highlight",
+    "Próximo destaque",
+    "Siguiente momento",
+    "Moment suivant",
+    "Nächster Schlüsselmoment",
+    "Prossimo momento",
+    "Volgende moment",
+    "Следующий момент",
+    "下一个关键着法",
+    "次のポイント",
+    "다음 주요 수",
+    "Sonraki kritik hamle",
+    "اللحظة التالية",
+    "अगला अहम क्षण"
+  ],
+  "Voltar ao lance": [
+    "Back to move",
+    "Voltar ao lance"
+  ],
+  "A explicação aparece quando esta posição for revisada.": [
+    "The explanation appears once this position is reviewed.",
+    "A explicação aparece quando esta posição for revisada."
+  ],
+  "Selecione um lance no histórico ou no gráfico.": [
+    "Select a move in the list or chart.",
+    "Selecione um lance no histórico ou no gráfico."
+  ],
+  "Explicar": [
+    "Explain",
+    "Explicar"
+  ]
+});
+
+MESSAGES['No tabuleiro: '] = ['On the board: ', 'No tabuleiro: '];
+
 function languageIndex() {
   const index = CODES.indexOf(activeLanguage);
   return index < 0 ? 0 : index;

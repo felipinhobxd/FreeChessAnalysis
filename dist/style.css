@@ -529,3 +529,151 @@ body.focus-board{overflow:hidden}.board-column:fullscreen,body.focus-board .boar
   #chart { height: 74px; }
   .rating-details .rating-estimates { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Review workspace */
+.inspector:has(#report:not([hidden])) {
+  --review-body: #24292f;
+  --review-surface: #2d343c;
+  --review-line: #424c57;
+  --review-accent: #efb684;
+  --review-text: #f3efeb;
+  background: var(--review-body);
+  border-color: var(--review-line);
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+.inspector:has(#report:not([hidden])) .inspector-head { padding-block: 12px; }
+.inspector:has(#report:not([hidden])) .inspector-head > .ui-icon {
+  border-color: #5c5149;
+  color: var(--review-accent);
+  background: #3b3634;
+}
+.inspector:has(#report:not([hidden])) .tabs { background: #262a30; border-color: var(--review-line); }
+.inspector:has(#report:not([hidden])) .tabs button[aria-selected="true"] {
+  border-color: var(--review-accent);
+  color: var(--review-text);
+  background: #373337;
+}
+.inspector:has(#report:not([hidden])) .inspector-scroll { overflow: hidden; }
+#report {
+  --review-card: var(--review-surface);
+  --review-edge: var(--review-line);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+}
+#report .muted { color: #bbc3ca; }
+.review-top { padding: 9px 15px; border-bottom: 1px solid var(--review-line); }
+.review-top .section-head { min-height: 38px; }
+.review-top h3 { color: var(--review-text); font-size: 15px; }
+.review-top #report-status { font-size: 11px; }
+#report #review-progress { height: 4px; margin: 5px 0 0; accent-color: var(--review-accent); }
+.review-summary { min-height: 0; overflow: auto; padding: 12px 15px; scrollbar-width: thin; }
+.review-guided {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  min-height: 0;
+  padding: 10px 12px 0;
+}
+#report .chart-stage { background: #3a414a; border-color: #596671; }
+#report .chart-key[open] .chart-legend { background: #282e36; }
+#review-timeline .chart-key[open] .chart-legend { top: auto; bottom: 100%; margin: 0 0 5px; }
+#review-timeline { grid-row: 4; padding-top: 7px; }
+#review-timeline .chart-wrap { padding: 5px 7px; border-radius: 7px; }
+#review-timeline #chart { height: 66px; }
+#review-timeline .chart-label { margin-bottom: 4px; font-size: 11px; }
+#review-timeline .chart-foot { margin-top: 3px; font-size: 10px; }
+#report .review-overview { margin: 10px 0 14px; }
+#report .review-totals strong { background: #414c58; color: #fff4e9; }
+#report .review-totals .game-rating-value { color: #f9c7a2; }
+#report .review-totals :is(th, td) { border-color: var(--review-line); }
+#report .move-detail {
+  margin: 0 0 8px;
+  max-height: min(225px, 31dvh);
+  overflow: auto;
+  padding: 10px 11px 9px;
+  background: #333a44;
+  border: 1px solid #4c5864;
+  border-inline-start: 3px solid var(--badge, var(--review-accent));
+  border-radius: 8px;
+  scrollbar-width: thin;
+}
+#report .move-detail-head h4 { color: var(--review-text); font-size: 14px; }
+#report .move-detail-head > .ui-icon { color: var(--review-accent); }
+#report .move-detail-eval { background: #242a32; color: #f5ddc9; }
+#report .coach-reason { color: #e2e5e9; font-size: 12px; }
+#report .coach-actions { display: flex; flex-wrap: wrap; gap: 5px; }
+#report .coach-actions .mini {
+  color: #e9edf1;
+  background: #272e37;
+  border-color: #505e6b;
+  border-radius: 5px;
+}
+#report .coach-actions .mini:hover { background: #43505e; }
+#report .coach-actions .coach-best { color: #35271e; background: var(--review-accent); border-color: transparent; }
+#report .coach-actions .coach-best:hover { background: #f8caa3; }
+#report .coach-preview { margin-top: 5px; color: #f8caa3; font-size: 11px; font-weight: 700; }
+#report .coach-variations .analysis-flow span { background: #252b33; color: #dce4ec; }
+#report .variant-analysis { margin: 0 0 6px; padding: 8px; max-height: 110px; overflow: auto; }
+.review-history { grid-row: 3; min-height: 0; }
+.review-history .history {
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  border: 1px solid var(--review-line);
+  border-radius: 7px;
+  padding: 6px;
+  background: #20252b;
+}
+.review-history .history-head { padding: 0 4px; margin-bottom: 4px; }
+.review-history .history-head h3 { font-size: 12px; }
+.review-history #move-list { max-height: none; min-height: 0; }
+.review-history .move-row { background: #2c343d; grid-template-columns: 32px minmax(0, 1fr) minmax(0, 1fr); }
+.review-history .move-row:nth-child(even) { background: transparent; }
+.review-history .move-row button:hover { background: #44505b; }
+.review-history .move-row button[aria-current="step"] { color: #241b16; background: #edbe9b; }
+.review-dock {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  padding: 9px 12px;
+  background: #262c34;
+  border-top: 1px solid var(--review-line);
+}
+.review-start {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 9px 12px;
+  color: #2b1f17;
+  background: var(--review-accent);
+  border-radius: 6px;
+  font-weight: 750;
+}
+.review-start:not(:disabled):hover { background: #f8caa3; }
+.review-start .ui-icon { width: 16px; height: 16px; }
+.review-back { flex: none; padding: 6px 2px; color: #efd1b8; font-size: 11px; font-weight: 700; }
+.review-back:hover { color: #fff2e9; text-decoration: underline; }
+.review-dock .transport { width: auto; }
+.review-dock .transport-group { background: #313943; border-color: var(--review-line); }
+.review-dock .transport button { color: #f2e7dc; }
+.review-dock .transport button:hover { color: #f7cfae; background: #424c58; }
+.board-column:has(+ .inspector #report:not([hidden])[data-review-mode="guided"]) .board-feedback:not([hidden]) { display: none; }
+@media (max-width: 820px) {
+  .inspector:has(#report:not([hidden])) { grid-template-rows: auto auto auto; }
+  .inspector:has(#report:not([hidden])) .inspector-scroll { overflow: visible; }
+  #report { height: auto; }
+  #report .move-detail { max-height: none; }
+  .review-summary { max-height: 62dvh; }
+  .review-history #move-list { max-height: 220px; }
+}
+@media (max-width: 430px) {
+  .review-back { font-size: 10px; white-space: normal; }
+  .review-dock .transport { gap: 4px; }
+  .review-dock .transport button { min-width: 26px; }
+}

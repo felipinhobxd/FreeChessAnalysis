@@ -78,7 +78,7 @@
             <div class="mate-effect" id="mate-effect" aria-hidden="true" hidden><div class="mate-title"><span id="mate-icon"></span><strong>Xeque-mate</strong><span id="mate-winner"></span></div></div>
           </div>
         </div>
-        <div class="board-bottom"><div class="player bottom" id="bottom-player"></div>
+        <div class="board-bottom" id="board-bottom"><div class="player bottom" id="bottom-player"></div>
         <div class="transport" id="transport">
           <div class="transport-group" aria-label="Navegação pelos lances">
             <button id="first" title="Primeiro lance (Home)" aria-label="Primeiro lance"></button>
@@ -120,10 +120,14 @@
           <button id="example" class="example-card" type="button"><span class="study-diagram" aria-hidden="true"><img src="/pieces/atelier/bK.svg" alt=""><img src="/pieces/atelier/wQ.svg" alt=""></span><span><small>Partida de exemplo</small><strong>Mate do Pastor</strong></span><i data-icon="next" aria-hidden="true"></i></button>
           <button class="secondary" id="free-board"><i data-icon="board" aria-hidden="true"></i> Analisar o tabuleiro atual<i data-icon="next" aria-hidden="true"></i></button></div>
         </section>
-        <section id="report" class="panel" role="tabpanel" aria-labelledby="tab-report" hidden>
-          <div class="section-head"><div><h3>Revisão da partida</h3><p class="muted" id="report-status" role="status">Carregue ou jogue uma partida.</p></div><button id="review-btn" class="mini">Revisar</button></div>
-          <progress id="review-progress" max="1" value="0" hidden></progress>
-          <span id="variant-status" aria-live="polite" class="sr-only"></span>
+        <section id="report" class="panel" data-review-mode="summary" role="tabpanel" aria-labelledby="tab-report" hidden>
+          <div class="review-top">
+            <div class="section-head"><div><h3 id="review-heading" tabindex="-1">Revisão da partida</h3><p class="muted" id="report-status" role="status">Carregue ou jogue uma partida.</p></div><button id="review-btn" class="mini">Revisar</button></div>
+            <progress id="review-progress" max="1" value="0" hidden></progress>
+            <span id="variant-status" aria-live="polite" class="sr-only"></span>
+          </div>
+          <div id="review-summary" class="review-summary">
+            <div id="review-summary-chart">
           <div class="chart-wrap" id="chart-wrap">
             <div class="chart-label"><strong>Equilíbrio da partida</strong><span id="chart-value">—</span></div>
             <div class="chart-stage">
@@ -136,7 +140,7 @@
               <span id="chart-end">Fim</span>
             </div>
           </div>
-          <section class="move-detail" id="move-detail" aria-label="Detalhes do lance" hidden></section>
+            </div>
           <section class="review-overview" aria-labelledby="review-overview-title">
             <h4 id="review-overview-title">Resumo da partida</h4>
             <table id="class-table">
@@ -154,7 +158,6 @@
               <a href="/methodology.html">Método e validação</a>
             </details>
           </section>
-          <section class="variant-analysis" id="variant-analysis" hidden></section>
           <section class="moments-section" aria-labelledby="moments-title">
             <div class="moments-head"><h4 id="moments-title">Momentos importantes</h4><span id="moment-count">0 lances</span></div>
             <div id="key-moments" class="key-moments"><p class="muted moments-empty">Os momentos importantes aparecerão depois da revisão.</p></div>
@@ -162,6 +165,18 @@
           <h4 class="accuracy-title">Desempenho por área</h4>
           <div id="phase-insights" class="phase-insights"><p class="muted">A revisão mostrará abertura, táticas, estratégia, final e princípios.</p></div>
           <button class="secondary practice-button" id="practice-from-report" hidden></button>
+          </div>
+          <div id="review-guided" class="review-guided" hidden>
+            <section class="move-detail" id="move-detail" aria-label="Detalhes do lance"></section>
+            <section class="variant-analysis" id="variant-analysis" hidden></section>
+            <div id="review-history" class="review-history"></div>
+            <div id="review-timeline" class="review-timeline"></div>
+          </div>
+          <footer class="review-dock">
+            <button id="review-start" class="review-start" type="button"><span>Começar revisão</span><i data-icon="forward" aria-hidden="true"></i></button>
+            <button id="review-overview-link" class="review-back" type="button" hidden>Ver resumo</button>
+            <div id="review-transport" hidden></div>
+          </footer>
         </section>
         <section id="lines" class="panel" role="tabpanel" aria-labelledby="tab-lines" hidden>
           <div class="section-head"><div><h3>Análise da posição</h3><p class="muted" id="engine-status" role="status">Motor aguardando análise</p></div><button id="engine-toggle" class="mini" aria-pressed="true">Pausar</button></div>
