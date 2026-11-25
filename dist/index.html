@@ -120,8 +120,8 @@
     
   </main>
   <dialog id="settings"><form method="dialog"><div class="dialog-head"><h2>Configurações</h2><button class="icon-button" aria-label="Fechar"><i data-icon="close" aria-hidden="true"></i></button></div></form><div class="dialog-body">
-    <label class="option">Modo do Stockfish <select id="engine-mode"><option value="full">Completo (recomendado)</option><option value="lite">Leve</option></select></label>
-    <p class="muted engine-hint">O modo completo baixa cerca de 95 MB na primeira análise.</p>
+    <label class="option">Modo do Stockfish <select id="engine-mode"><option value="lite" selected>Lite (recomendado)</option><option value="full">Completo · mais forte (~95 MB)</option></select></label>
+    <p class="muted engine-hint">O Lite é carregado por padrão. O Completo continua disponível para análises mais exigentes e baixa cerca de 95 MB.</p>
     <label class="option">Profundidade da revisão <select id="review-depth"><option>8</option><option>10</option><option>12</option><option selected>14</option><option>16</option><option>18</option><option>20</option><option>22</option></select></label>
     <label class="option">Profundidade das variantes <select id="line-depth"><option>10</option><option>14</option><option>16</option><option selected>18</option><option>20</option><option>22</option><option>24</option></select></label>
     <label class="option">Linhas simultâneas <select id="multi-pv"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select></label>
