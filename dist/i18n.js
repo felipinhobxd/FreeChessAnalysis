@@ -251,6 +251,20 @@ Object.assign(MESSAGES, {
   ' Ir para ': [' Go to ',' Ir para ',' Ir a ',' Aller à ',' Gehe zu ',' Vai a ',' Ga naar ',' Перейти к ',' 跳转到 ',' に移動 ',' 이동: ',' Şuraya git: ',' الانتقال إلى ',' जाएँ: ']
 });
 
+
+Object.assign(MESSAGES, {
+  'Variações': ['Variations','Variações','Variantes','Variantes','Varianten','Varianti','Varianten','Варианты','变化','変化','수순','Varyantlar','التحليلات','विकल्प'],
+  'Posição ': ['Position ','Posição ','Posición ','Position ','Stellung ','Posizione ','Positie ','Позиция ','局面 ','局面 ','포지션 ','Konum ','الوضعية ','स्थिति '],
+  'Você jogou ': ['You played ','Você jogou ','Jugaste ','Vous avez joué ','Du hast ','Hai giocato ','Je speelde ','Вы сыграли ','你走了','あなたは','당신이 둔 수: ','Şunu oynadınız: ','لقد لعبت ','आपने खेला '],
+  ' resolve a posição.': [' solves the position.',' resolve a posição.',' resuelve la posición.',' résout la position.',' löst die Stellung.',' risolve la posizione.',' lost de stelling op.',' решает позицию.',' 可以解决局面。',' で局面を解決できます。',' 포지션을 해결합니다.',' konumu çözer.',' يحل الوضعية.',' स्थिति हल करता है।'],
+  ' não resolve.': [' does not solve it.',' não resolve.',' no resuelve.',' ne résout pas la position.',' löst die Stellung nicht.',' non risolve.',' lost de stelling niet op.',' не решает позицию.',' 无法解决局面。',' では解決できません。',' 해결하지 못합니다.',' çözmüyor.',' لا يحل الوضعية.',' हल नहीं करता।'],
+  'lances analisados; são necessários pelo menos 5.': ['moves analyzed; at least 5 are required.','lances analisados; são necessários pelo menos 5.','jugadas analizadas; se necesitan al menos 5.','coups analysés ; 5 au minimum sont nécessaires.','Züge analysiert; mindestens 5 sind erforderlich.','mosse analizzate; ne servono almeno 5.','zetten geanalyseerd; minstens 5 vereist.','ходов проанализировано; требуется не менее 5.','步已分析；至少需要 5 步。','手を分析済み。最低5手必要です。','수 분석됨; 최소 5수가 필요합니다.','hamle analiz edildi; en az 5 gerekli.','نقلة تم تحليلها؛ يلزم 5 على الأقل.','चालों का विश्लेषण; कम से कम 5 आवश्यक हैं।'],
+  'posições…': ['positions…','posições…','posiciones…','positions…','Positionen…','posizioni…','posities…','позиций…','个局面…','局面…','포지션…','konum…','وضعيات…','स्थितियाँ…'],
+  'fullscreen indisponível': ['fullscreen unavailable','fullscreen indisponível','pantalla completa no disponible','plein écran indisponible','Vollbild nicht verfügbar','schermo intero non disponibile','volledig scherm niet beschikbaar','полноэкранный режим недоступен','全屏不可用','全画面表示は利用できません','전체 화면을 사용할 수 없습니다','tam ekran kullanılamıyor','ملء الشاشة غير متاح','पूर्ण स्क्रीन उपलब्ध नहीं है'],
+  'Primeiro lance': ['First move','Primeiro lance','Primera jugada','Premier coup','Erster Zug','Prima mossa','Eerste zet','Первый ход','第一步','最初の手','첫 수','İlk hamle','النقلة الأولى','पहली चाल'],
+  'Último lance': ['Last move','Último lance','Última jugada','Dernier coup','Letzter Zug','Ultima mossa','Laatste zet','Последний ход','最后一步','最後の手','마지막 수','Son hamle','النقلة الأخيرة','आखिरी चाल']
+});
+
 let activeLanguage = 'en';
 const textSources = new WeakMap();
 const textRendered = new WeakMap();
