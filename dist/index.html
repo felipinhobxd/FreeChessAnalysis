@@ -83,11 +83,21 @@
           <div class="section-head"><div><h3>Revisão da partida</h3><p class="muted" id="report-status" role="status">Carregue ou jogue uma partida.</p></div><button id="review-btn" class="mini">Revisar</button></div>
           <progress id="review-progress" max="1" value="0" hidden></progress>
           <div class="move-detail" id="move-detail" hidden></div>
-          <div class="chart-wrap">
+          <div class="chart-wrap" id="chart-wrap">
             <div class="chart-label"><strong>Equilíbrio da partida</strong><span id="chart-value">—</span></div>
-            <canvas id="chart" aria-label="Gráfico da avaliação ao longo da partida" tabindex="0"></canvas>
+            <canvas id="chart" aria-label="Gráfico da avaliação ao longo da partida. Os marcadores coloridos identificam lances classificados e podem ser selecionados para navegar até eles." tabindex="0"></canvas>
+            <div id="chart-tooltip" class="chart-tooltip" role="tooltip" hidden></div>
+            <div class="chart-legend" aria-label="Legenda das classificações">
+              <span class="class-brilliant">Brilhante</span><span class="class-excellent">Excelente</span>
+              <span class="class-best">Melhor</span><span class="class-good">Bom</span>
+              <span class="class-inaccuracy">Imprecisão</span><span class="class-mistake">Erro</span><span class="class-blunder">Blunder</span>
+            </div>
             <div class="chart-foot"><span>Início</span><span id="chart-end">Fim</span></div>
           </div>
+          <section class="moments-section" aria-labelledby="moments-title">
+            <div class="moments-head"><h4 id="moments-title">Momentos importantes</h4><span id="moment-count">0 lances</span></div>
+            <div id="key-moments" class="key-moments"><p class="muted moments-empty">Os momentos importantes aparecerão depois da revisão.</p></div>
+          </section>
           <h4 class="accuracy-title">Precisão por jogador</h4><div class="accuracies"><div><span id="white-accuracy-label">Brancas</span><strong id="white-acc">—</strong></div><div><span id="black-accuracy-label">Pretas</span><strong id="black-acc">—</strong></div></div>
           
           <button class="secondary practice-button" id="practice-from-report" hidden></button>
@@ -117,6 +127,8 @@
     <label class="option">Linhas simultâneas <select id="multi-pv"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select></label>
     <label class="option">Conjunto de peças <select id="piece-set"><option value="atelier">Ateliê</option><option value="classicas">Clássicas · Cburnett</option><option value="chessnut">Chessnut</option></select></label>
     <label class="option">Sons do tabuleiro <input type="checkbox" id="sound-enabled" checked></label>
+    <label class="option" for="sound-volume">Volume dos sons <span class="range-value"><input type="range" id="sound-volume" min="0" max="100" step="5" value="65"><output id="sound-volume-value" for="sound-volume">65%</output></span></label>
+    <label class="option">Velocidade das animações <select id="animation-speed"><option value="natural" selected>Natural</option><option value="slow">Lenta</option><option value="normal">Normal</option><option value="fast">Rápida</option></select></label>
     <label class="option">Animação de xeque-mate <input type="checkbox" id="mate-enabled" checked></label>
     <label class="option">Mostrar melhor lance <input type="checkbox" id="show-arrow" checked></label>
     <label class="option">Mostrar coordenadas <input type="checkbox" id="show-coordinates" checked></label>
