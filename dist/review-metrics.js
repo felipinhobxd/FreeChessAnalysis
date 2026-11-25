@@ -130,21 +130,132 @@ function invertCurve(rows, column, accuracy) {
   return { value: last[0], bound: null };
 }
 
-export function estimatePerformance(path, side, headers = {}) {
-  const moves = path.slice(1).filter(node =>
-    node?.move?.color === side && Number.isFinite(node.accuracy));
-  if (moves.length < 10 || path.length - 1 < 20) {
-    return { available: false, reason: 'short', moves: moves.length };
+// Dedicated rating-performance score. The public rating curves below were
+// built from Chess.com's published per-game accuracy, so this score is kept
+// separate from the app's provisional review accuracy/CAPS2 display.
+//
+// Based on Ginzoh/chess-review's measured Stockfish 19 calibration:
+// - 0.8 centipawn rescale for SF19;
+// - at least 4 accuracy-loss points per pawn lost;
+// - explicit missed/allowed-mate penalties and an 80 cap while already mated;
+// - arithmetic mean followed by the published linear map (1.944x - 93.5).
+// Their accuracy fit used 34 games / 68 player-sides, so this is a useful
+// public calibration, not an official Chess.com formula or a large validation.
+const PERFORMANCE_SCORE = Object.freeze({
+  winK: 0.00368208,
+  engineCpScale: 0.8,
+  cpLossPerPawn: 4,
+  missedMateLoss: 25,
+  missedOpportunityLoss: 23,
+  lossCap: 60,
+  alreadyMatedAccuracyCap: 80,
+  calibrationSlope: 1.944,
+  calibrationIntercept: -93.5
+});
+
+function performanceWinScore(evaluation, side) {
+  if (!evaluation) return 50;
+  const sign = side === 'w' ? 1 : -1;
+  const value = Number(evaluation.white ?? evaluation.value ?? 0) * sign;
+  if (evaluation.type === 'mate') return value > 0 ? 100 : value < 0 ? 0 : 50;
+  const cp = clamp(value * PERFORMANCE_SCORE.engineCpScale, -1000, 1000);
+  return 100 / (1 + Math.exp(-PERFORMANCE_SCORE.winK * cp));
+}
+
+function performanceMoveAccuracy(node, side) {
+  const beforeNode = node?.parent;
+  const before = beforeNode?.evaluation;
+  const after = node?.evaluation;
+  if (!before || !after) return null;
+
+  const sign = side === 'w' ? 1 : -1;
+  const beforeForMover = Number(before.white ?? before.value ?? 0) * sign;
+  const afterForMover = Number(after.white ?? after.value ?? 0) * sign;
+  const beforeChance = performanceWinScore(before, side);
+  const afterChance = performanceWinScore(after, side);
+  const playedUci = node.move
+    ? node.move.from + node.move.to + (node.move.promotion || '')
+    : '';
+  const bestUci = beforeNode.best || beforeNode.lines?.[0]?.pv?.[0] || null;
+  const isBest = Boolean(bestUci && playedUci === bestUci);
+
+  const alreadyMated = before.type === 'mate' && beforeForMover < 0;
+  const hadForcedMate = before.type === 'mate' && beforeForMover > 0;
+  const keptForcedMate = after.type === 'mate' && afterForMover > 0;
+  const missedMate = hadForcedMate && !keptForcedMate && !isBest;
+  const allowedMate = after.type === 'mate' && afterForMover < 0 && !alreadyMated;
+  const missedOpportunity = Boolean(node.chanceLost);
+
+  let loss = Math.max(0, beforeChance - afterChance);
+  if (missedMate || node.chanceLost?.kind === 'mate') {
+    loss = Math.max(loss, PERFORMANCE_SCORE.missedMateLoss);
+  } else if (missedOpportunity) {
+    loss = Math.max(loss, PERFORMANCE_SCORE.missedOpportunityLoss);
+  } else {
+    const beforeCp = clamp(beforeForMover * PERFORMANCE_SCORE.engineCpScale, -1500, 1500);
+    const afterCp = clamp(afterForMover * PERFORMANCE_SCORE.engineCpScale, -1500, 1500);
+    const cpLoss = Math.max(0, beforeCp - afterCp);
+    loss = Math.max(loss, cpLoss / 100 * PERFORMANCE_SCORE.cpLossPerPawn);
+    if (allowedMate) loss = Math.max(loss, PERFORMANCE_SCORE.missedMateLoss);
   }
+
+  if (isBest && !missedMate && !missedOpportunity) loss = 0;
+  loss = Math.min(loss, PERFORMANCE_SCORE.lossCap);
+
+  const raw = clamp(
+    103.1668 * Math.exp(-0.04354 * loss) - 3.1669,
+    0,
+    100
+  );
+  return alreadyMated
+    ? Math.min(raw, PERFORMANCE_SCORE.alreadyMatedAccuracyCap)
+    : raw;
+}
+
+function performanceAccuracyForGame(path, side) {
+  const scores = path.slice(1)
+    .filter(node => node?.move?.color === side)
+    .map(node => performanceMoveAccuracy(node, side))
+    .filter(Number.isFinite);
+  if (!scores.length) return null;
+  const raw = mean(scores);
+  return {
+    raw,
+    calibrated: clamp(
+      PERFORMANCE_SCORE.calibrationSlope * raw + PERFORMANCE_SCORE.calibrationIntercept,
+      0,
+      100
+    ),
+    moves: scores.length
+  };
+}
+
+export function estimatePerformance(path, side, headers = {}) {
   const timeClass = gameTimeClass(headers);
-  if (!timeClass) return { available: false, reason: 'time-control', moves: moves.length };
-  if (timeClass === 'bullet') return { available: false, reason: 'bullet', moves: moves.length };
-  if (timeClass === 'classical') return { available: false, reason: 'classical', moves: moves.length };
-  const accuracy = aggregateGameAccuracy(path, side);
+  const sideMoveCount = path.slice(1).filter(node => node?.move?.color === side).length;
+  if (sideMoveCount < 10 || path.length - 1 < 20) {
+    return { available: false, reason: 'short', moves: sideMoveCount };
+  }
+  if (!timeClass) return { available: false, reason: 'time-control', moves: sideMoveCount };
+  if (timeClass === 'bullet') return { available: false, reason: 'bullet', moves: sideMoveCount };
+  if (timeClass === 'classical') return { available: false, reason: 'classical', moves: sideMoveCount };
+
+  const score = performanceAccuracyForGame(path, side);
+  if (!score || score.moves < 10) {
+    return { available: false, reason: 'short', moves: score?.moves || 0 };
+  }
+  const accuracy = score.calibrated;
   const table = RATING_CURVES[timeClass];
   if (accuracy < table[0][2] || accuracy > table.at(-1)[2]) {
-    return { available: false, reason: 'outside-range', moves: moves.length, accuracy };
+    return {
+      available: false,
+      reason: 'outside-range',
+      moves: score.moves,
+      accuracy,
+      rawAccuracy: score.raw
+    };
   }
+
   const median = invertCurve(table, 2, accuracy);
   const low = invertCurve(table, 3, accuracy);
   const high = invertCurve(table, 1, accuracy);
@@ -158,9 +269,12 @@ export function estimatePerformance(path, side, headers = {}) {
     highBound: high.bound,
     timeClass,
     accuracy,
-    moves: moves.length,
+    rawAccuracy: Math.round(score.raw * 10) / 10,
+    moves: score.moves,
     typicalAbsoluteError: TYPICAL_ABSOLUTE_ERROR[timeClass],
-    dataSourcePlayerGameSamples: 16000
+    dataSourcePlayerGameSamples: 16000,
+    calibrationSamplePlayerGames: 68,
+    method: 'sf19-cp-floor-public-accuracy-calibration'
   };
 }
 
