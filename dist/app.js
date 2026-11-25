@@ -31,16 +31,23 @@ function configureLanguageGate() {
   });
   $('language-enter').addEventListener('click', () => {
     setLanguage(languageSelect.value);
+    const previousProfile = readChessProfile();
     const profile = {
       platform: profilePlatform.value,
       username: profileUsername.value.trim().slice(0, 40),
     };
+    const profileChanged = !previousProfile ||
+      previousProfile.platform !== profile.platform ||
+      previousProfile.username !== profile.username;
     try { localStorage.setItem(profileStorageKey, JSON.stringify(profile)); } catch { /* Profile is optional. */ }
     $('language-gate').hidden = true;
     $('app-content').hidden = false;
-    if (['chesscom', 'lichess'].includes(profile.platform) && profile.username) {
+    if (profileChanged && ['chesscom', 'lichess'].includes(profile.platform)) {
       setSource(profile.platform);
       $('game-input').value = profile.username;
+    } else if (profileChanged && ['chesscom', 'lichess'].includes(previousProfile?.platform) &&
+      source === previousProfile.platform) {
+      setSource('pgn');
     }
     render();
   });
