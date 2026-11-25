@@ -38,6 +38,14 @@ References: [Chess.com accuracy methodology](https://support.chess.com/en/articl
 | Export and archive | Copy PGN or FEN, download PGN, create a shareable game link, and store games locally in the browser. |
 | Personalization | Piece sets, engine settings, sound controls, animation speed, board coordinates, and 14 interface languages. |
 
+## Study and storage
+
+Paste a finished Chess.com game or public Lichess game URL using the Link input. A Chess.com player name can help the importer find the game in public monthly archives when game metadata is unavailable.
+
+In the review, filter highlights to one side, replay the move and the engine response on the board, and practice alternatives with progressively available hints. Completed reviews, the last position, and puzzle attempts are saved in IndexedDB. Older archive items are still accessible.
+
+The archive can optionally sync across devices with a private code. The Vercel app uses a Supabase publishable key. The migration in supabase/migrations provisions a locked table and an RPC restricted to records matching the supplied code's hash. Only explicit sync sends archive data. Each cloud archive supports up to 40 entries and about 1.6 MB.
+
 ## Getting started
 
 ### Requirements

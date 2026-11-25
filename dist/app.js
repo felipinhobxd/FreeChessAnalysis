@@ -1,3 +1,6 @@
+import { parseGameLink, reviewHighlights, mergeStudies, validStudy } from './study-tools.js';
+import { gameFingerprint, listStudies, getStudy, putStudy } from './study-storage.js';
+import { syncArchive, newSyncCode, syncCodeKey, validCode } from './study-cloud.js';
 import { missedOpportunity, shortMateAfter, aspectEvidence, aspectGrade } from './review-evidence.js';
 import { syncSprites, resetSprites } from './board-motion.js';
 import { Engine } from './engine.js';
@@ -104,6 +107,15 @@ const PREFS = ['review-depth', 'line-depth', 'multi-pv', 'show-arrow', 'show-coo
 const REVIEW_CHART_MARKERS = new Set(['brilliant', 'great', 'inaccuracy', 'mistake', 'chance-lost', 'blunder']);
 const TABS = ['import', 'report', 'lines', 'puzzles'];
 
+let reviewSide = 'all';
+let demo;
+let studyId;
+let studyAnalysis;
+let studyTimer;
+let archiveRun = 0;
+let cloudBusy = false;
+let generatedSyncCode;
+
 let Chess;
 let root;
 let cursor;
@@ -116,7 +128,6 @@ let selected;
 let flipped = false;
 let tab = 'import';
 let reviewMode = 'summary';
-let reviewReturn = null;
 let source = 'pgn';
 let engineOn = true;
 let live;
@@ -222,7 +233,7 @@ function addChild(parent, board, move) {
   return node;
 }
 
-function setGame({ pgn, fen, ply } = {}, shouldReview = false) {
+function setGame({ pgn, fen, ply, side } = {}, shouldReview = false) {
   const loader = new Chess();
   let moves = [];
   let first;
@@ -253,6 +264,10 @@ function setGame({ pgn, fen, ply } = {}, shouldReview = false) {
     parent.children.push(child);
     newPositions.push(child);
   }
+  flushStudy();
+  stopDemo();
+  studyId = undefined;
+  studyAnalysis = undefined;
   stopReview();
   stopLive();
   stopPlayback();
@@ -266,7 +281,6 @@ function setGame({ pgn, fen, ply } = {}, shouldReview = false) {
   for (const child of newPositions) positions.set(child.id, child);
   root = nextRoot;
   reviewMode = "summary";
-  reviewReturn = null;
   originalPgn = pgn;
   originalPath = pgn !== undefined ? newPositions : null;
   resumeReview = false;
@@ -275,6 +289,9 @@ function setGame({ pgn, fen, ply } = {}, shouldReview = false) {
   cursor = newPositions[Math.min(Math.max(Number(ply) || 0, 0), newPositions.length - 1)];
   if (shouldReview && cursor !== root) reviewMode = 'guided';
   gameHeaders = loader.getHeaders();
+  const username = readChessProfile()?.username?.toLowerCase();
+  reviewSide = ['w','b'].includes(side) ? side : username && gameHeaders.White?.toLowerCase() === username ? 'w'
+    : username && gameHeaders.Black?.toLowerCase() === username ? 'b' : 'all';
   selected = null;
   $('panel-sub').textContent = gameHeaders.Event && gameHeaders.Event !== '?' ? gameHeaders.Event : moves.length ? displayName('w') + ' × ' + displayName('b') : fen ? 'Posição importada' : 'Posição inicial';
   $('chart-end').textContent = 'Fim';
@@ -285,7 +302,7 @@ function setGame({ pgn, fen, ply } = {}, shouldReview = false) {
   if (!shouldReview || !moves.length) announceMate();
   if (shouldReview && moves.length) {
     setTab('report');
-    runReview();
+    openSavedReview(Number.isFinite(Number(ply)) && ply !== undefined);
   } else if (shouldReview) {
     setTab('lines');
   }
@@ -297,7 +314,7 @@ function activeChallenge() {
 
 function shownPosition() {
   const puzzle = activeChallenge();
-  if (!puzzle) return cursor;
+  if (!puzzle) return demo?.frames[demo.index] ?? cursor;
   return puzzle.reviewPath?.[puzzle.reviewIndex] ?? puzzle.result ?? puzzle.node.parent;
 }
 
@@ -371,7 +388,7 @@ function renderPieces() {
       if (rating) button.title = rating;
       button.tabIndex = square === (focused || selected || files[0] + ranks[0]) ? 0 : -1;
       if (piece) {
-        button.append(...pieceGraphic(piece, square, piece.color === board.turn() && !position.terminal && (!puzzle || puzzle.status === 'active')));
+        button.append(...pieceGraphic(piece, square, piece.color === board.turn() && !position.terminal && !demo && (!puzzle || puzzle.status === 'active')));
         if (rating) {
           const mark = badge(position.classification);
           mark.classList.add('board-badge');
@@ -554,7 +571,7 @@ function renderBestArrow(context, best, width, height) {
 function renderScore() {
   $('evalbar').classList.toggle('puzzle-hidden', Boolean(activeChallenge()));
   if (!activeChallenge()) {
-    const evaluation = cursor.evaluation;
+    const evaluation = shownPosition().evaluation;
     const percent = winPercent(evaluation);
     $('eval-value').textContent = evaluationLabel(evaluation);
     $('eval-value').title = evaluationLabel(evaluation);
@@ -568,10 +585,11 @@ function renderScore() {
   const surface = canvasContext($('arrows'));
   if (!surface) return;
   const { context, width, height } = surface;
-  renderBestArrow(context, cursor.lines[0]?.pv[0], width, height);
+  if (!demo) renderBestArrow(context, cursor.lines[0]?.pv[0], width, height);
   renderBoardMarks(context, width, height);
 }
 function selectSquare(square) {
+  if (demo) { stopDemo(); render(); return; }
   const puzzle = activeChallenge();
   const position = shownPosition();
   if (position.terminal || (tab === 'puzzles' && (puzzle?.status !== 'active' || puzzle.reviewIndex !== puzzle.decisionIndex))) return;
@@ -585,6 +603,7 @@ function selectSquare(square) {
 }
 
 function tryMove(from, to) {
+  if (demo) return false;
   const puzzle = activeChallenge();
   const position = shownPosition();
   if (position.terminal || (tab === 'puzzles' && (puzzle?.status !== 'active' || puzzle.reviewIndex !== puzzle.decisionIndex)) || !/^[a-h][1-8]$/.test(from)) return false;
@@ -789,7 +808,9 @@ function renderChartMarkers(points, current) {
 
 function renderMoments(path) {
   const target = $('key-moments');
-  const moments = path.slice(1).filter(node => node.coach && (node.terminal || ['blunder','mistake','brilliant','great','chance-lost'].includes(node.classification)));
+  const moments = reviewSide === 'all'
+    ? path.slice(1).filter(node => node.coach && (node.terminal || ['blunder','mistake','brilliant','great','chance-lost'].includes(node.classification)))
+    : reviewHighlights(path, reviewSide, winPercent);
   $('moment-count').textContent = moments.length + (moments.length === 1 ? ' lance' : ' lances');
   if (!moments.length) {
     target.replaceChildren(element('p', 'Nenhum momento destacado na análise disponível.', 'muted moments-empty'));
@@ -1031,7 +1052,7 @@ function selectReviewMove(node) {
 
 function startGuidedReview() {
   const path = mainPath();
-  selectReviewMove(path.find(isTrainingMove) || path[1]);
+  selectReviewMove(reviewSide === 'all' ? path.find(isTrainingMove) || path[1] : reviewHighlights(path, reviewSide, winPercent)[0]);
   $('move-detail').querySelector('h4')?.focus({ preventScroll: true });
 }
 
@@ -1053,12 +1074,14 @@ function renderReport() {
   $('black-acc').textContent = blackGameAccuracy === null ? '—' : blackGameAccuracy.toFixed(1).replace('.', ',') + '%';
   renderRatingEstimates(path);
   renderPhaseReport(path);
-  if (reviewReturn) $('variant-analysis').hidden = true;
-  else renderVariantEvaluation(cursor);
+  renderVariantEvaluation(cursor);
   $('chart-end').textContent = path.length === 1 ? 'Fim' : (path.length - 1) + ' lances';
   renderMoments(path);
   $('review-btn').disabled = path.length === 1 && !review;
-  $('review-start').disabled = !path.some(node => node.classification) || Boolean(review);
+  $('review-side').value = reviewSide;
+  $('review-filter').hidden = path.length < 2;
+  $('review-start').disabled = Boolean(review) || (reviewSide === 'all'
+    ? !path.some(node => node.classification) : !reviewHighlights(path, reviewSide, winPercent).length);
   renderCoach(cursor, path);
   const count = path.filter(isTrainingMove).length;
   $('practice-from-report').hidden = !count;
@@ -1080,11 +1103,54 @@ function renderReport() {
   $('class-breakdown').replaceChildren(...rows);
 }
 
+function stopDemo() {
+  if (!demo) return;
+  clearTimeout(demo.timer);
+  demo = null;
+}
+
+function showDemo(node, better = false) {
+  if (!node?.parent || !node.coach?.best) return;
+  stopPlayback();
+  stopDemo();
+  clearTimeout(soundTimer);
+  hideMate();
+  const board = boardAt(node.parent);
+  const moves = better ? [node.coach.best] : [uci(node.move), node.coach.after?.pv?.[0]].filter(Boolean);
+  const frames = [node.parent];
+  for (const move of moves) {
+    try {
+      const played = board.move(moveFromUci(move));
+      const frame = createPosition(board, frames.at(-1), played);
+      frame.evaluation = better ? node.coach.before : node.coach.after;
+      if (!better && frames.length === 1) frame.classification = node.classification;
+      frames.push(frame);
+    } catch { break; }
+  }
+  selected = null;
+  const state = { frames, index: 0, timer: null, better };
+  demo = state;
+  render();
+  if (matchMedia('(max-width: 820px)').matches) $('board-area').scrollIntoView({ block: 'start', behavior: 'instant' });
+  const advance = () => {
+    if (demo !== state || state.index >= frames.length - 1) return;
+    state.index++;
+    render();
+    playSound(moveSound(frames[state.index].move));
+    if (state.index < frames.length - 1) state.timer = setTimeout(advance, 650);
+  };
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    state.index = frames.length - 1;
+    render();
+  } else {
+    state.timer = setTimeout(advance, 475);
+  }
+}
+
 function renderCoach(node, path) {
   const detail = $('move-detail');
   if (reviewMode !== 'guided') return;
-  const reviewed = reviewReturn || node;
-  const showingBest = Boolean(reviewReturn);
+  const reviewed = node;
   const wasOpen = detail.querySelector('#coach-explanation')?.hidden === false && detail.dataset.ply === String(reviewed.id);
   const focusedAction = document.activeElement?.dataset.coachAction;
   detail.dataset.ply = reviewed.id;
@@ -1105,8 +1171,9 @@ function renderCoach(node, path) {
     ? 'A explicação aparece quando esta posição for revisada.'
     : 'Selecione um lance no histórico ou no gráfico.');
   detail.append(element('p', reason, 'coach-reason'));
-  if (showingBest && cursor.move) {
-    detail.append(element('p', 'No tabuleiro: ' + moveNumber(cursor) + ' ' + cursor.move.san, 'coach-preview'));
+  if (demo) {
+    const frame = demo.frames[demo.index];
+    detail.append(element('p', frame === reviewed.parent ? 'Posição antes do lance' : 'No tabuleiro: ' + moveNumber(frame) + ' ' + frame.move.san, 'coach-preview'));
   }
 
   const actions = element('div', undefined, 'coach-actions');
@@ -1130,6 +1197,10 @@ function renderCoach(node, path) {
     });
     toggle.setAttribute('aria-controls', explanation.id);
     toggle.setAttribute('aria-expanded', String(!explanation.hidden));
+    const visual = action('demo', demo ? 'Encerrar demonstração' : 'Explicar no tabuleiro', () => {
+      if (demo) { stopDemo(); render(); } else showDemo(reviewed);
+    });
+    visual.disabled = Boolean(review);
     const flow = element('div', undefined, 'analysis-flow');
     flow.append(element('span', 'Antes ' + evaluationLabel(guide.before)),
       element('span', 'Depois ' + evaluationLabel(guide.after)));
@@ -1137,25 +1208,18 @@ function renderCoach(node, path) {
     appendCoachLine(explanation, 'Na partida', guide.chosen);
     appendCoachLine(explanation, 'Melhor linha', guide.recommended);
   }
-  if (showingBest) {
-    action('best', 'Voltar ao lance', () => {
-      goTo(reviewed);
-      $('move-detail').querySelector('h4')?.focus({ preventScroll: true });
-    }).classList.add('coach-best');
-  } else if (guide?.proposal && guide.played !== guide.proposal) {
-    const preview = action('best', 'Melhor lance', () => {
-      stopPlayback();
-      goTo(reviewed.parent);
-      commitMoves([reviewed.coach.best]);
-      if (cursor !== reviewed.parent && cursor !== reviewed) reviewReturn = reviewed;
-      renderReport();
-      $('move-detail').querySelector('[data-coach-action="best"]')?.focus({ preventScroll: true });
+  if (guide?.proposal && guide.played !== guide.proposal) {
+    const preview = action('best', demo?.better ? 'Voltar ao lance' : 'Melhor lance', () => {
+      if (demo?.better) { stopDemo(); render(); }
+      else showDemo(reviewed, true);
     });
     preview.classList.add('coach-best');
     preview.disabled = Boolean(review);
   }
   const index = path.indexOf(reviewed);
-  const next = index >= 0 ? path.slice(index + 1).find(isTrainingMove) || path[index + 1] : null;
+  const highlights = reviewSide === 'all' ? null : reviewHighlights(path, reviewSide, winPercent);
+  const next = index >= 0 ? highlights ? highlights.find(item => path.indexOf(item) > index)
+    : path.slice(index + 1).find(isTrainingMove) || path[index + 1] : null;
   if (next) action('next', 'Próximo destaque', () => {
     goTo(next);
     detail.querySelector('h4')?.focus({ preventScroll: true });
@@ -1180,22 +1244,50 @@ function moveNumber(node) {
   return node.parent.fen.split(' ')[5] + (node.move.color === 'w' ? '.' : '…');
 }
 
+function createPuzzleState(node, saved) {
+  const reviewPath = [root, ...pathTo(node.parent)];
+  const decisionIndex = reviewPath.length - 1;
+  const state = {
+    node: { ...node }, lives: 3, status: 'active', wrongSquare: null, lastAttempt: null,
+    result: null, reviewPath, reviewIndex: decisionIndex, decisionIndex,
+    attempts: Number.isInteger(saved?.attempts) ? Math.max(0, saved.attempts) : 0,
+    hint: Boolean(saved?.hint),
+  };
+  if (saved?.status === 'active' && Number.isInteger(saved.lives)) state.lives = Math.max(1, Math.min(3, saved.lives));
+  if (['solved', 'failed'].includes(saved?.status) && /^[a-h][1-8][a-h][1-8][qrbn]?$/.test(saved.answer)) {
+    try {
+      const board = boardAt(node.parent);
+      const move = board.move(moveFromUci(saved.answer));
+      state.result = createPosition(board, node.parent, move);
+      state.status = saved.status;
+      state.lives = saved.status === 'solved' ? Math.max(1, Math.min(3, Number(saved.lives) || 1)) : 0;
+      state.reviewPath.push(state.result);
+      state.reviewIndex++;
+    } catch { /* Keep the position available if a saved move is obsolete. */ }
+  }
+  return state;
+}
+
+function puzzleHint(node) {
+  if (node.chanceLost?.distance) {
+    return 'Procure um mate em ' + node.chanceLost.distance + '. Comece pelos xeques.';
+  }
+  const reply = node.coach.after?.pv?.[0];
+  if (reply) {
+    const board = boardAt(node);
+    const move = board.move(moveFromUci(reply));
+    if (move.san.endsWith('#')) return 'O adversário ameaçava mate imediato. Procure um jeito de evitar essa resposta.';
+    if (move.captured) return 'Na partida, o adversário podia capturar ' + NAMES[move.captured].toLowerCase() + ' em ' + move.to + '. Proteja essa peça ou crie uma ameaça mais forte.';
+    if (move.san.endsWith('+')) return 'Observe os xeques do adversário antes de escolher seu lance.';
+  }
+  return 'Compare os xeques, as capturas e as ameaças dos dois lados antes de jogar.';
+}
+
 function startPuzzle(node) {
   if (!isTrainingMove(node)) return;
-  if (!puzzleProgress.has(node.id)) {
-    const reviewPath = [root, ...pathTo(node.parent)];
-    const decisionIndex = reviewPath.length - 1;
-    puzzleProgress.set(node.id, {
-      node: { ...node }, lives: 3, status: 'active', wrongSquare: null, lastAttempt: null,
-      result: null, reviewPath, reviewIndex: decisionIndex, decisionIndex,
-    });
-  }
+  if (!puzzleProgress.has(node.id)) puzzleProgress.set(node.id, createPuzzleState(node));
   activePuzzle = puzzleProgress.get(node.id);
-  if (!activePuzzle.reviewPath) {
-    activePuzzle.reviewPath = [root, ...pathTo(activePuzzle.node.parent)];
-    activePuzzle.decisionIndex = activePuzzle.reviewPath.length - 1;
-    activePuzzle.reviewIndex = activePuzzle.decisionIndex;
-  }
+  scheduleStudy();
   selected = null;
   if (matchMedia('(max-width: 820px)').matches) {
     requestAnimationFrame(() => $('board-area').scrollIntoView({ block: 'start' }));
@@ -1210,6 +1302,7 @@ function submitPuzzleMove(command) {
   let move;
   try { move = board.move(moveFromUci(command)); } catch { playSound('illegal'); return; }
   playSound(moveSound(move));
+  puzzle.attempts += 1;
   selected = null;
   puzzle.wrongSquare = null;
   const correct = acceptedMove(puzzle.node.coach, command) ||
@@ -1233,6 +1326,7 @@ function submitPuzzleMove(command) {
     puzzle.reviewIndex = puzzle.reviewPath.length - 1;
   }
   render();
+  scheduleStudy();
 }
 
 function renderPuzzles() {
@@ -1296,18 +1390,45 @@ function renderPuzzles() {
         atDecision ? 'Encontre o melhor lance para ' + color.toLowerCase() + '.' : 'Revise a partida livremente. Avance até a posição final para resolver o puzzle.',
         'muted'
       ));
+      if (atDecision) {
+        const hint = element('button', puzzle.hint ? 'Ocultar dica' : 'Ver dica', 'mini puzzle-hint-button');
+        hint.type = 'button';
+        hint.setAttribute('aria-expanded', String(puzzle.hint));
+        hint.onclick = () => { puzzle.hint = !puzzle.hint; render(); scheduleStudy(); $('puzzle-content').querySelector('.puzzle-hint-button')?.focus(); };
+        card.append(hint);
+        if (puzzle.hint) {
+          let message;
+          try { message = puzzleHint(puzzle.node); }
+          catch { message = 'Compare os xeques, as capturas e as ameaças dos dois lados antes de jogar.'; }
+          card.append(element('p', message, 'puzzle-hint'));
+        }
+      }
     } else {
       const guide = inspectMove(Chess, puzzle.node);
       card.append(element('h4', puzzle.status === 'solved' ? 'Puzzle resolvido' : 'Você ficou sem vidas', puzzle.status === 'solved' ? 'puzzle-done' : 'puzzle-failed'));
-      card.append(element('p', puzzle.status === 'solved' ? 'Você jogou ' + puzzle.result.move.san + '.' : 'O melhor lance era ' + guide.proposal + '.', 'coach-reason'));
+      card.append(element('p', puzzle.status === 'solved' ? 'Seu lance ' + puzzle.result.move.san + ' funciona nesta posição.' : 'O melhor lance era ' + guide.proposal + '.', 'coach-reason'));
+      if (puzzle.status === 'solved' && uci(puzzle.result.move) !== puzzle.node.coach.best) {
+        card.append(element('p', puzzle.node.chanceLost?.distance
+          ? 'Esta alternativa também encontra o mate procurado.'
+          : 'Sua alternativa mantém a avaliação próxima da melhor linha do motor.', 'muted'));
+      }
       card.append(element('p', guide.reason, 'coach-reason'));
       appendCoachLine(card, 'Melhor continuação', guide.recommended);
       const next = training.find(node => node.id !== puzzle.node.id && (puzzleProgress.get(node.id)?.status ?? 'active') === 'active');
-      if (next) {
+      if (next || puzzle.status === 'failed') {
         const actions = element('div', undefined, 'coach-actions');
+        if (puzzle.status === 'failed') {
+          const retry = element('button', 'Tentar de novo', 'mini');
+          retry.onclick = () => {
+            puzzleProgress.set(puzzle.node.id, createPuzzleState(puzzle.node, { attempts: puzzle.attempts }));
+            startPuzzle(puzzle.node);
+            render();
+          };
+          actions.append(retry);
+        }
         const nextButton = element('button', 'Próximo puzzle', 'mini');
         nextButton.onclick = () => { startPuzzle(next); render(); };
-        actions.append(nextButton);
+        if (next) actions.append(nextButton);
         card.append(actions);
       }
     }
@@ -1372,8 +1493,18 @@ function render() {
   $('export').hidden = training;
   const feedback = $('board-feedback');
   const rating = !puzzle && !training && CLASSIFICATIONS[cursor.classification] ? CLASSIFICATIONS[cursor.classification] : null;
-  feedback.hidden = !puzzle && !rating;
-  if (puzzle) {
+  feedback.hidden = !puzzle && !rating && !demo;
+  feedback.dataset.demo = String(Boolean(demo));
+  if (demo) {
+    const frame = demo.frames[demo.index];
+    const back = element('button', 'Voltar à explicação', 'mini');
+    back.onclick = () => {
+      stopDemo();
+      render();
+      $('move-detail').scrollIntoView({ block: 'nearest' });
+    };
+    feedback.replaceChildren(element('span', frame.move?.san || 'Posição inicial'), back);
+  } else if (puzzle) {
     feedback.textContent = puzzle.status === 'solved'
       ? 'Boa! ' + puzzle.result.move.san + ' resolve a posição.'
       : puzzle.status === 'failed'
@@ -1393,6 +1524,7 @@ function render() {
 }
 
 function setTab(name) {
+  if (name !== tab) stopDemo();
   if (name === 'puzzles') { stopPlayback(); hideMate(); }
   if (tab !== name) selected = null;
   tab = name;
@@ -1409,6 +1541,7 @@ function setTab(name) {
   render();
   $('inspector-scroll').scrollTop = 0;
   if (name === 'lines' || (name === 'report' && cursor.userEdited)) queueLive();
+  scheduleStudy();
 }
 
 function moveAnimationDuration() {
@@ -1425,8 +1558,9 @@ function endResult(node) {
 }
 
 function goTo(node) {
-  if (!node || node === cursor) return;
-  reviewReturn = null;
+  if (!node) return;
+  if (demo) { stopDemo(); if (node === cursor) render(); }
+  if (node === cursor) return;
   const previous = cursor;
   if (node.parent === previous) preferred.set(previous,node);
   if (previous.parent === node) preferred.set(node,previous);
@@ -1441,6 +1575,7 @@ function goTo(node) {
   cursor = node;
   selected = null;
   render();
+  scheduleStudy();
   const duration = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : moveAnimationDuration();
   soundTimer = setTimeout(() => {
     if (cursor !== node || tab === 'puzzles') return;
@@ -1461,6 +1596,7 @@ function stopPlayback() {
 }
 
 function togglePlayback() {
+  if (demo) { stopDemo(); render(); }
   if (runningTimer) { stopPlayback(); return; }
   if (!cursor.children.length) return;
   $('play').replaceChildren(icon('pause'));
@@ -1728,6 +1864,8 @@ async function runReview() {
       }
     }
     completed = true;
+    studyAnalysis = { version: cacheVersion, depth, positions: path.map(node => ({ lines: node.lines, best: node.best })) };
+    scheduleStudy();
     $('report-status').textContent = 'Revisão concluída · profundidade ' + depth;
     readyEngine();
   } catch (error) {
@@ -1753,18 +1891,20 @@ function setSource(value) {
   reportError();
   $('remote-games').replaceChildren();
   $('remote-games').hidden = true;
+  const link = value === 'link';
+  $('link-options').hidden = !link;
   const external = value === 'chesscom' || value === 'lichess';
   const input = $('game-input');
   const profile = readChessProfile();
   input.value = external && profile?.platform === value ? profile.username : '';
-  input.classList.toggle('username', external);
-  input.rows = external ? 1 : 4;
-  input.placeholder = value === 'pgn' ? '1. e4 e5 2. Nf3 Nc6 …' : value === 'fen' ?
+  input.classList.toggle('username', external || link);
+  input.rows = external || link ? 1 : 4;
+  input.placeholder = link ? 'https://www.chess.com/game/live/…' : value === 'pgn' ? '1. e4 e5 2. Nf3 Nc6 …' : value === 'fen' ?
     'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1' : 'Nome de usuário';
-  $('input-label').textContent = value === 'pgn' ? 'PGN da partida' : value === 'fen' ? 'FEN da posição' : 'Nome de usuário';
-  $('submit-label').textContent = value === 'pgn' ? 'Analisar partida' : value === 'fen' ? 'Analisar posição' : 'Buscar partidas';
+  $('input-label').textContent = link ? 'Link da partida' : value === 'pgn' ? 'PGN da partida' : value === 'fen' ? 'FEN da posição' : 'Nome de usuário';
+  $('submit-label').textContent = link ? 'Abrir link' : value === 'pgn' ? 'Analisar partida' : value === 'fen' ? 'Analisar posição' : 'Buscar partidas';
   $('file-btn').hidden = value !== 'pgn';
-  $('example').hidden = external;
+  $('example').hidden = external || link;
   $('example').querySelector('small').textContent = value === 'fen' ? 'Posição de exemplo' : 'Partida de exemplo';
   $('example').querySelector('strong').textContent = value === 'fen' ? 'Posição de meio-jogo' : 'Mate do Pastor';
   document.querySelectorAll('[data-source]').forEach(button => button.setAttribute('aria-pressed', button.dataset.source === value ? 'true' : 'false'));
@@ -1803,6 +1943,33 @@ async function fetchGames(site, username, signal) {
   return games.sort((a, b) => b.timestamp - a.timestamp).slice(0, 12);
 }
 
+async function importGameLink(text, signal) {
+  const link = parseGameLink(text);
+  if (!link) throw new Error('Cole um link público de partida do Chess.com ou do Lichess.');
+  let pgn;
+  if (link.platform === 'lichess') {
+    const response = await fetch('https://lichess.org/game/export/' + link.id, {
+      signal, headers: { Accept: 'application/x-chess-pgn' },
+    });
+    if (!response.ok) throw new Error('Não encontrei essa partida pública do Lichess.');
+    pgn = await response.text();
+  } else {
+    const profile = readChessProfile();
+    const player = $('link-account').value.trim() || (profile?.platform === 'chesscom' ? profile.username : '');
+    const query = new URLSearchParams({ type: link.type, id: link.id });
+    if (player) query.set('account', player);
+    const response = await fetch('/api/import-pgn?' + query, { signal });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Não foi possível consultar a partida.');
+    pgn = result.pgn;
+  }
+  if (typeof pgn !== 'string' || !/^\s*\[/.test(pgn)) throw new Error('A partida não retornou um PGN válido.');
+  if (!/\[Result\s+"(?:1-0|0-1|1\/2-1\/2)"\]/.test(pgn)) {
+    throw new Error('Só dá para revisar pelo link depois que a partida termina.');
+  }
+  return { pgn, side: link.side };
+}
+
 async function submitImport(event) {
   event.preventDefault();
   if (!Chess) return;
@@ -1810,6 +1977,16 @@ async function submitImport(event) {
   const text = $('game-input').value.trim();
   let pending;
   try {
+    if (source === 'link' || (source === 'pgn' && parseGameLink(text))) {
+      remoteRequest?.abort();
+      pending = new AbortController();
+      remoteRequest = pending;
+      $('submit').disabled = true;
+      $('submit-label').textContent = 'Buscando…';
+      const game = await importGameLink(text, AbortSignal.any([pending.signal, AbortSignal.timeout(30000)]));
+      if (remoteRequest === pending) { setGame(game, true); playSound('start'); }
+      return;
+    }
     if (source === 'pgn' || source === 'fen') {
       setGame({ [source]: text }, true);
       playSound('start');
@@ -1833,14 +2010,15 @@ async function submitImport(event) {
     if (!games.length) reportError('Nenhuma partida de xadrez padrão encontrada.');
   } catch (error) {
     if (pending && remoteRequest !== pending) return;
-    if (source === 'pgn') reportError(!text ? error.message : 'PGN inválido. Confira a notação e tente de novo.');
+    if (source === 'link' || (source === 'pgn' && parseGameLink(text))) reportError(error.name === 'TimeoutError' ? 'A consulta demorou demais. Você também pode importar o PGN.' : error.message);
+    else if (source === 'pgn') reportError(!text ? error.message : 'PGN inválido. Confira a notação e tente de novo.');
     else if (source === 'fen') reportError(!text ? error.message : 'FEN inválido. Confira os campos da posição.');
     else reportError(error instanceof TypeError || error.name === 'TimeoutError' ? 'A consulta falhou. Você também pode importar um PGN.' : error.message);
   } finally {
     if (pending && remoteRequest === pending) {
       remoteRequest = null;
       $('submit').disabled = false;
-      $('submit-label').textContent = 'Buscar partidas';
+      $('submit-label').textContent = source === 'link' ? 'Abrir link' : source === 'pgn' ? 'Analisar partida' : 'Buscar partidas';
     }
   }
 }
@@ -1880,21 +2058,179 @@ async function copyText(text, confirmation) {
 }
 
 const archiveKey = 'livro-de-lances/arquivo/v1';
-function renderArchive() {
-  const games = readLocal(archiveKey, []);
-  $('archive-list').replaceChildren();
-  if (!games.length) $('archive-list').append(element('p', 'Use Compartilhar ou exportar para salvar uma partida aqui.', 'muted'));
+const cacheVersion = 1;
+
+function studyFingerprint() {
+  if (!studyId) {
+    const { White, Black, Date, Site, Link } = gameHeaders;
+    studyId = gameFingerprint(JSON.stringify([root.fen, mainPath().slice(1).map(node => uci(node.move)), White, Black, Date, Site, Link]));
+  }
+  return studyId;
+}
+
+function currentStudy() {
+  const path = mainPath();
+  const drills = {};
+  for (const [index, node] of path.entries()) {
+    const progress = puzzleProgress.get(node.id);
+    if (!progress) continue;
+    drills[index] = {
+      lives: progress.lives, status: progress.status, hint: Boolean(progress.hint),
+      attempts: progress.attempts || 0, answer: progress.result ? uci(progress.result.move) : null,
+    };
+  }
+  return {
+    name: displayName('w') + ' × ' + displayName('b'),
+    date: Date.now(), data: snapshotGame(), analysis: studyAnalysis,
+    side: reviewSide, drills, panel: tab === 'puzzles' ? 'puzzles' : 'report',
+    puzzle: path.findIndex(node => node.id === activePuzzle?.node.id),
+  };
+}
+
+async function persistStudy() {
+  if (!root || !cursor) return;
+  const entry = currentStudy();
+  const id = await studyFingerprint();
+  await putStudy({ ...entry, id });
+}
+
+function flushStudy() {
+  if (!studyTimer) return;
+  clearTimeout(studyTimer);
+  studyTimer = null;
+  return persistStudy().catch(() => {});
+}
+
+function scheduleStudy() {
+  if (!studyAnalysis) return;
+  clearTimeout(studyTimer);
+  studyTimer = setTimeout(flushStudy, 200);
+}
+
+function validEngineResult(result) {
+  return Array.isArray(result?.lines) && result.lines.length >= 1 && result.lines.length <= 3 &&
+    (result.best === null || /^[a-h][1-8][a-h][1-8][qrbn]?$/.test(result.best)) &&
+    result.lines.every(line => line && ['cp', 'mate'].includes(line.type) &&
+      Number.isFinite(line.value) && Number.isFinite(line.white) && Number.isFinite(line.depth) &&
+      Array.isArray(line.pv) && line.pv.every(move => /^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move)));
+}
+
+function restoreStudy(record, preservePly = false) {
+  const path = mainPath();
+  const saved = record?.analysis;
+  if (saved?.version !== cacheVersion || !Array.isArray(saved.positions) ||
+      saved.positions.length !== path.length || !saved.positions.every(validEngineResult)) return false;
+  studyId = Promise.resolve(record.id);
+  studyAnalysis = saved;
+  for (const [index, node] of path.entries()) {
+    const result = saved.positions[index];
+    node.lines = result.lines;
+    node.evaluation = result.lines[0];
+    node.best = result.best;
+    node.depth = node.evaluation.depth;
+    if (index) gradeMove(node, path[index - 1].lines, path[index - 1].best, index);
+    const progress = record.drills?.[index];
+    if (progress && isTrainingMove(node)) puzzleProgress.set(node.id, createPuzzleState(node, progress));
+  }
+  if (!preservePly && Number.isInteger(record.data?.ply)) cursor = path[record.data.ply] ?? root;
+  if (['all', 'w', 'b'].includes(record.side)) reviewSide = record.side;
+  reviewMode = cursor === root ? 'summary' : 'guided';
+  $('report-status').textContent = 'Revisão salva · profundidade ' + (Number(saved.depth) || '—');
+  $('review-btn').textContent = 'Reanalisar';
+  if (!preservePly && record.panel === 'puzzles' && path[record.puzzle]?.move && isTrainingMove(path[record.puzzle])) {
+    startPuzzle(path[record.puzzle]);
+    setTab('puzzles');
+  } else {
+    setTab('report');
+  }
+  return true;
+}
+
+async function openSavedReview(explicitPly) {
+  const currentRoot = root;
+  $('report-status').textContent = 'Buscando revisão salva…';
+  const id = await studyFingerprint().catch(() => null);
+  const record = id ? await getStudy(id).catch(() => null) : null;
+  if (root !== currentRoot || review || studyAnalysis) return;
+  if (!record || !restoreStudy(record, explicitPly)) runReview();
+}
+
+async function renderArchive() {
+  const request = ++archiveRun;
+  const target = $('archive-list');
+  target.replaceChildren(element('p', 'Carregando arquivo…', 'muted'));
+  const current = await listStudies().catch(() => []);
+  if (request !== archiveRun) return;
+  const archive = mergeStudies(current, []);
+  const legacy = readLocal(archiveKey, []);
+  const older = Array.isArray(legacy) ? legacy.filter(item => item?.data &&
+    !archive.some(entry => entry.data?.pgn && entry.data.pgn === item.data.pgn || entry.data?.fen && entry.data.fen === item.data.fen)) : [];
+  const games = [...archive, ...older];
+  const count = (value, singular, plural) => value + ' ' + (value === 1 ? singular : plural);
+  const drills = archive.flatMap(entry => Object.values(entry.drills || {}));
+  const solved = drills.filter(item => item?.status === 'solved').length;
+  const attempts = drills.reduce((total, item) => total + (Number.isInteger(item?.attempts) ? item.attempts : 0), 0);
+  $('archive-stats').textContent = games.length
+    ? [count(games.length, 'partida salva', 'partidas salvas'), count(solved, 'puzzle resolvido', 'puzzles resolvidos'),
+      count(attempts, 'tentativa', 'tentativas')].join(' · ') : '';
+  target.replaceChildren();
+  if (!games.length) {
+    target.append(element('p', 'As revisões concluídas aparecem aqui automaticamente.', 'muted'));
+    return;
+  }
   for (const game of games) {
-    const button = element('button', game.name + ' · ' + new Date(game.date).toLocaleDateString('pt-BR'), 'game-option');
+    const button = element('button', undefined, 'game-option saved-game');
+    button.type = 'button';
+    button.append(element('span', game.name),
+      element('small', game.analysis ? 'Abrir revisão salva' : 'Abrir partida', 'muted'));
     button.onclick = () => {
       try {
-        setGame(game.data, Boolean(game.data.pgn));
-        playSound('start');
-        if (!game.data.pgn) setTab('lines');
+        setGame(game.data, false);
+        if (validStudy(game) && restoreStudy(game)) {
+          playSound('start');
+        } else if (game.data.pgn) {
+          setTab('report');
+          openSavedReview(true);
+        } else {
+          setTab('lines');
+        }
         $('archive').close();
       } catch { toast('Não foi possível abrir essa partida.'); }
     };
-    $('archive-list').append(button);
+    target.append(button);
+  }
+}
+
+async function syncStudies() {
+  if (cloudBusy) return;
+  const code = $('cloud-code').value.trim().toLowerCase();
+  const status = $('cloud-status');
+  if (!validCode(code)) {
+    status.textContent = 'Crie ou cole um código de sincronização válido.';
+    return;
+  }
+  cloudBusy = true;
+  $('cloud-sync').disabled = true;
+  status.textContent = 'Sincronizando revisões…';
+  try {
+    await flushStudy();
+    const local = await listStudies();
+    const cached = await syncArchive(code);
+    if (!cached?.length && code !== generatedSyncCode && code !== readLocal(syncCodeKey, '')) {
+      status.textContent = 'Este código ainda não tem um arquivo. Sincronize primeiro no dispositivo em que ele foi criado.';
+      return;
+    }
+    const merged = mergeStudies(local, Array.isArray(cached) ? cached : []);
+    const synced = await syncArchive(code, merged);
+    for (const entry of mergeStudies([], Array.isArray(synced) ? synced : [])) await putStudy(entry);
+    writeLocal(syncCodeKey, code);
+    status.textContent = 'Arquivo sincronizado · ' + merged.length + (merged.length === 1 ? ' partida.' : ' partidas.');
+    renderArchive();
+  } catch (error) {
+    status.textContent = error.message || 'Não foi possível sincronizar suas revisões.';
+  } finally {
+    cloudBusy = false;
+    $('cloud-sync').disabled = false;
   }
 }
 
@@ -2075,12 +2411,12 @@ function bindEvents() {
     else runReview();
   };
   $('review-start').onclick = startGuidedReview;
+  $('review-side').onchange = () => { reviewSide = $('review-side').value; renderReport(); scheduleStudy(); };
   $('review-overview-link').onclick = () => {
     stopPlayback();
-    const back = reviewReturn;
+    stopDemo();
     reviewMode = 'summary';
-    if (back) goTo(back);
-    else render();
+    render();
     $('review-summary').scrollTop = 0;
     $('review-heading').focus({ preventScroll: true });
   };
@@ -2192,15 +2528,26 @@ function bindEvents() {
     link.click();
     setTimeout(() => URL.revokeObjectURL(address), 1000);
   };
-  $('save-game').onclick = () => {
+  $('save-game').onclick = async () => {
     try {
-      const games = readLocal(archiveKey, []);
-      games.unshift({ name: displayName('w') + ' × ' + displayName('b'), date: Date.now(), data: snapshotGame() });
-      writeLocal(archiveKey, games.slice(0, 50));
+      await persistStudy();
       $('share').close();
-      toast('Partida salva no arquivo local.');
+      toast('Partida salva no arquivo.');
     } catch { toast('Não foi possível salvar a partida neste navegador.'); }
   };
+  $('cloud-code').value = readLocal(syncCodeKey, '');
+  $('cloud-new').onclick = () => {
+    generatedSyncCode = newSyncCode();
+    $('cloud-code').value = generatedSyncCode;
+    $('cloud-status').textContent = 'Código criado. Copie e guarde em segredo.';
+  };
+  $('cloud-copy').onclick = () => {
+    const code = $('cloud-code').value.trim().toLowerCase();
+    if (validCode(code)) copyText(code, 'Código copiado. Guarde-o em segredo.');
+    else $('cloud-status').textContent = 'Crie ou cole um código de sincronização válido.';
+  };
+  $('cloud-sync').onclick = syncStudies;
+  addEventListener('pagehide', flushStudy);
   document.addEventListener('keydown', event => {
     if (event.key === 'Escape' && fullscreenFallback) { fallbackFullscreen(false); return; }
     if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.target.closest?.('input, select, textarea, dialog, [role=tab]')) return;

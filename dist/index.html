@@ -105,11 +105,12 @@
           <h3>Importar partida</h3>
           <p class="muted intro">Cole uma partida, carregue um arquivo ou busque um jogador.</p>
           <div class="sources" aria-label="Fonte da partida">
-            <button data-source="pgn" aria-pressed="true">PGN</button><button data-source="fen" aria-pressed="false">FEN</button><button data-source="chesscom" aria-pressed="false">Chess.com</button><button data-source="lichess" aria-pressed="false">Lichess</button>
+            <button data-source="pgn" aria-pressed="true">PGN</button><button data-source="link" aria-pressed="false">Link</button><button data-source="fen" aria-pressed="false">FEN</button><button data-source="chesscom" aria-pressed="false">Chess.com</button><button data-source="lichess" aria-pressed="false">Lichess</button>
           </div>
           <form id="import-form">
             <label id="input-label" for="game-input">PGN da partida</label>
             <textarea id="game-input" rows="4" spellcheck="false" placeholder="1. e4 e5 2. Nf3 Nc6 …"></textarea>
+            <div id="link-options" hidden><label for="link-account">Jogador do Chess.com (opcional)</label><input id="link-account" type="text" maxlength="30" autocomplete="off" spellcheck="false"></div>
             <div class="form-secondary"><button class="text-button" id="file-btn" type="button"><i data-icon="upload" aria-hidden="true"></i> Abrir arquivo PGN</button></div>
             <input id="pgn-file" type="file" accept=".pgn,.txt,application/x-chess-pgn,text/plain" hidden>
             <button id="submit" class="primary" type="submit"><span id="submit-label">Analisar partida</span><i data-icon="forward" aria-hidden="true"></i></button>
@@ -123,6 +124,9 @@
         <section id="report" class="panel" data-review-mode="summary" role="tabpanel" aria-labelledby="tab-report" hidden>
           <div class="review-top">
             <div class="section-head"><div><h3 id="review-heading" tabindex="-1">Revisão da partida</h3><p class="muted" id="report-status" role="status">Carregue ou jogue uma partida.</p></div><button id="review-btn" class="mini">Revisar</button></div>
+            <label class="review-filter" for="review-side" id="review-filter"><span>Meus erros</span>
+              <select id="review-side"><option value="all">Todos os lances</option><option value="w">Erros das brancas</option><option value="b">Erros das pretas</option></select>
+            </label>
             <progress id="review-progress" max="1" value="0" hidden></progress>
             <span id="variant-status" aria-live="polite" class="sr-only"></span>
           </div>
@@ -207,7 +211,18 @@
     <label class="option">Mostrar melhor lance <input type="checkbox" id="show-arrow" checked></label>
     <label class="option">Mostrar coordenadas <input type="checkbox" id="show-coordinates" checked></label>
   </div></dialog>
-  <dialog id="archive"><form method="dialog"><div class="dialog-head"><h2>Arquivo local</h2><button class="icon-button" aria-label="Fechar"><i data-icon="close" aria-hidden="true"></i></button></div></form><div class="dialog-body" id="archive-list"></div></dialog>
+  <dialog id="archive"><form method="dialog"><div class="dialog-head"><h2>Arquivo local</h2><button class="icon-button" aria-label="Fechar"><i data-icon="close" aria-hidden="true"></i></button></div></form><div class="dialog-body">
+      <p id="archive-stats" class="muted" role="status"></p>
+      <div id="archive-list" class="saved-studies"></div>
+      <details class="cloud-settings">
+        <summary>Sincronizar entre dispositivos</summary>
+        <p class="muted">A sincronização é opcional. Ela copia revisões, posições e progresso de treino para a nuvem. Guarde o código em segredo para abrir o seu arquivo em outro dispositivo.</p>
+        <label for="cloud-code">Código de sincronização</label>
+        <input id="cloud-code" type="password" spellcheck="false" autocomplete="off" maxlength="64">
+        <div class="cloud-actions"><button id="cloud-new" class="mini" type="button">Criar código</button><button id="cloud-copy" class="mini" type="button">Copiar código</button><button id="cloud-sync" class="mini" type="button">Sincronizar agora</button></div>
+        <p id="cloud-status" class="muted" role="status"></p>
+      </details>
+    </div></dialog>
   <dialog id="share"><form method="dialog"><div class="dialog-head"><h2>Compartilhar ou exportar</h2><button class="icon-button" aria-label="Fechar"><i data-icon="close" aria-hidden="true"></i></button></div></form><div class="dialog-body share-actions"><button id="copy-link" class="secondary">Copiar link da partida</button><button id="copy-fen" class="secondary">Copiar FEN atual</button><button id="copy-pgn" class="secondary">Copiar PGN</button><button id="download-pgn" class="secondary">Baixar PGN</button><button id="save-game" class="secondary">Salvar no arquivo local</button></div></dialog>
   <dialog id="promotion"><form method="dialog"><div class="dialog-head"><h2>Promover peão</h2><button class="icon-button" aria-label="Fechar"><i data-icon="close" aria-hidden="true"></i></button></div></form><div id="promotions" class="dialog-body"></div></dialog>
   <div id="toast" role="status" hidden></div>

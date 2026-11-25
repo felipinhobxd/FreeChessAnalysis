@@ -2,7 +2,7 @@ import { readdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
 const sources = ['serve.mjs'];
-for (const dir of ['dist', 'tools', 'tests']) {
+for (const dir of ['dist', 'tools', 'tests', 'api']) {
   for (const file of readdirSync(dir)) {
     if (/\.m?js$/.test(file)) sources.push(dir + '/' + file);
   }

@@ -612,6 +612,85 @@ Object.assign(MESSAGES, {
 
 MESSAGES['No tabuleiro: '] = ['On the board: ', 'No tabuleiro: '];
 
+Object.assign(MESSAGES, {
+  "Meus erros": [
+    "My mistakes",
+    "Meus erros"
+  ],
+  "Todos os lances": [
+    "All moves",
+    "Todos os lances"
+  ],
+  "Erros das brancas": [
+    "White mistakes",
+    "Erros das brancas"
+  ],
+  "Erros das pretas": [
+    "Black mistakes",
+    "Erros das pretas"
+  ],
+  "Link da partida": [
+    "Game link",
+    "Link da partida"
+  ],
+  "Abrir link": [
+    "Open link",
+    "Abrir link"
+  ],
+  "Explicar no tabuleiro": [
+    "Explain on the board",
+    "Explicar no tabuleiro"
+  ],
+  "Encerrar demonstração": [
+    "End demonstration",
+    "Encerrar demonstração"
+  ],
+  "Voltar à explicação": [
+    "Back to the explanation",
+    "Voltar à explicação"
+  ],
+  "Ver dica": [
+    "Show hint",
+    "Ver dica"
+  ],
+  "Ocultar dica": [
+    "Hide hint",
+    "Ocultar dica"
+  ],
+  "Tentar de novo": [
+    "Try again",
+    "Tentar de novo"
+  ],
+  "Revisão salva": [
+    "Saved review",
+    "Revisão salva"
+  ],
+  "Sincronizar entre dispositivos": [
+    "Sync across devices",
+    "Sincronizar entre dispositivos"
+  ],
+  "Sincronizar agora": [
+    "Sync now",
+    "Sincronizar agora"
+  ],
+  "Código de sincronização": [
+    "Sync code",
+    "Código de sincronização"
+  ],
+  "Criar código": [
+    "Create code",
+    "Criar código"
+  ],
+  "Copiar código": [
+    "Copy code",
+    "Copiar código"
+  ],
+  "Abrir revisão salva": [
+    "Open saved review",
+    "Abrir revisão salva"
+  ]
+});
+
 function languageIndex() {
   const index = CODES.indexOf(activeLanguage);
   return index < 0 ? 0 : index;
