@@ -1030,13 +1030,14 @@ function hideMate() {
 
 function announceMate() {
   if (!cursor || cursor.terminal?.type !== 'mate' || tab === 'puzzles' || review) return;
-  if (!setting('mate-enabled')) return;
-  const layer = $('mate-effect');
-  hideMate();
-  const winner = cursor.terminal.white > 0 ? 'w' : 'b';
-  $('mate-winner').textContent = displayName(winner) + ' · ' + (winner === 'w' ? '1–0' : '0–1');
-  $('board-area').classList.add('mate-highlight');
-  mateTimer = mateCelebration(layer);
+  if (setting('mate-enabled')) {
+    const layer = $('mate-effect');
+    hideMate();
+    const winner = cursor.terminal.white > 0 ? 'w' : 'b';
+    $('mate-winner').textContent = displayName(winner) + ' · ' + (winner === 'w' ? '1–0' : '0–1');
+    $('board-area').classList.add('mate-highlight');
+    mateTimer = mateCelebration(layer);
+  }
   playSound('mate');
 }
 
