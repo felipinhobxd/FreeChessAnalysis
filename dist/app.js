@@ -985,6 +985,7 @@ function animateBoardMove(step, reversed, ghost) {
 }
 
 function playMoveSound(step, node) {
+  if (node.terminal?.type === 'cp') { playSound('end'); return; }
   const position = new Chess(node.fen);
   if (step.flags?.includes('k') || step.flags?.includes('q')) playSound('castle');
   else if (step.promotion) playSound('promotion');
