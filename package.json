@@ -15,6 +15,7 @@
     "calibration:fit": "node tools/calibrate-caps2.mjs fit"
   },
   "devDependencies": {
-    "chess.js": "1.4.0"
+    "chess.js": "1.4.0",
+    "stockfish": "19.0.1"
   }
 }

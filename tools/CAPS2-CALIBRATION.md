@@ -36,7 +36,7 @@ You can also set your own seed accounts, one username per line:
 node tools/calibrate-caps2.mjs collect --seed-file .\calibration-users.txt --games 5000 --players 1500 --months 3
 ~~~
 
-Analyze the collected games with the same major engine version as the application. The default review depth is 14:
+Analyze the collected games with the same Stockfish.js 19.0.1 Lite single-threaded build as the application's default engine profile. The default review depth is 14:
 
 ~~~powershell
 npm run calibration:analyze

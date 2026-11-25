@@ -4,16 +4,17 @@
  * collect -> analyze -> fit. See tools/CAPS2-CALIBRATION.md.
  * CAPS2 is proprietary; this fits a transparent approximation to public game scores.
  */
-import { spawn } from 'node:child_process';
-import { createInterface } from 'node:readline';
+import { createRequire } from 'node:module';
 import { mkdir, readFile, writeFile, access } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 
+const require = createRequire(import.meta.url);
 const ROOT = process.cwd();
 const DIR = resolve(ROOT, '.calibration');
 const GAMES_FILE = resolve(DIR, 'caps2-games.json');
 const ANALYSIS_FILE = resolve(DIR, 'caps2-analysis.json');
+const ENGINE_LABEL = 'Stockfish 19 Lite single-threaded (npm 19.0.1)';
 const REPORT_FILE = resolve(ROOT, 'dist', 'caps2-calibration-report.json');
 const MODEL_FILE = resolve(ROOT, 'dist', 'caps2-model.js');
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
@@ -182,32 +183,42 @@ async function collect() {
   console.log('The API only exposes game-level accuracy for games where Chess.com has published that review value.');
 }
 class UciEngine {
-  constructor(binary) { this.binary = binary; this.child = null; this.rl = null; this.waiters = []; this.searching = null; this.idName = ''; }
-  send(command) {
-    if (!this.child || this.child.killed) throw new Error('Stockfish process is not running.');
-    this.child.stdin.write(command + '\n');
+  constructor() {
+    this.engine = null;
+    this.waiters = [];
+    this.searching = null;
+    this.idName = '';
   }
-  line(line) {
-    if (line.startsWith('id name ')) this.idName = line.slice(8);
-    if (this.searching) {
-      const match = /^info depth (\d+).*?\bscore (cp|mate) (-?\d+)(?: lowerbound| upperbound)?(?:\s|$)/.exec(line);
-      if (match && !/ lowerbound| upperbound/.test(line) && Number(match[1]) >= this.searching.depth) {
-        this.searching.score = { type: match[2], value: Number(match[3]) };
-        this.searching.seenDepth = Number(match[1]);
+  send(command) {
+    if (!this.engine) throw new Error('Stockfish.js engine is not running.');
+    this.engine.processCommand(command);
+  }
+  line(rawLine) {
+    const lines = String(rawLine).replace(/b\s*e\s*s\s*t\s*m\s*o\s*v\s*e/gi, 'bestmove').split(/\r?\n/);
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line) continue;
+      if (line.startsWith('id name ')) this.idName = line.slice(8);
+      if (this.searching) {
+        const match = /^info depth (\d+).*?\bscore (cp|mate) (-?\d+)(?: lowerbound| upperbound)?(?:\s|$)/.exec(line);
+        if (match && !/ lowerbound| upperbound/.test(line) && Number(match[1]) >= this.searching.depth) {
+          this.searching.score = { type: match[2], value: Number(match[3]) };
+          this.searching.seenDepth = Number(match[1]);
+        }
+        if (line.startsWith('bestmove ')) {
+          const pending = this.searching;
+          this.searching = null;
+          clearTimeout(pending.timer);
+          if (!pending.score) pending.reject(new Error('Stockfish returned no score for the requested depth.'));
+          else pending.resolve({ ...pending.score, depth: pending.seenDepth, bestMove: line.split(/\s+/)[1] });
+        }
       }
-      if (line.startsWith('bestmove ')) {
-        const pending = this.searching;
-        this.searching = null;
-        clearTimeout(pending.timer);
-        if (!pending.score) pending.reject(new Error('Stockfish returned no score for the requested depth.'));
-        else pending.resolve({ ...pending.score, depth: pending.seenDepth, bestMove: line.split(/\s+/)[1] });
-      }
-    }
-    for (const waiter of [...this.waiters]) {
-      if (waiter.predicate(line)) {
-        this.waiters.splice(this.waiters.indexOf(waiter), 1);
-        clearTimeout(waiter.timer);
-        waiter.resolve(line);
+      for (const waiter of [...this.waiters]) {
+        if (waiter.predicate(line)) {
+          this.waiters.splice(this.waiters.indexOf(waiter), 1);
+          clearTimeout(waiter.timer);
+          waiter.resolve(line);
+        }
       }
     }
   }
@@ -224,29 +235,27 @@ class UciEngine {
     });
   }
   async boot() {
-    this.child = spawn(this.binary, [], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
-    this.child.on('error', error => {
-      this.searching?.reject(error);
-      for (const waiter of this.waiters) waiter.reject(error);
-      this.waiters = [];
-    });
-    this.rl = createInterface({ input: this.child.stdout });
-    this.rl.on('line', line => this.line(line.trim()));
-    const ready = this.waitFor(line => line === 'uciok', 30000);
+    const factory = require('stockfish');
+    this.engine = factory('lite-single', line => this.line(line));
+    if (!this.engine || typeof this.engine.processCommand !== 'function') {
+      throw new Error('The installed stockfish package did not create a UCI engine.');
+    }
+    const ready = this.waitFor(line => line === 'uciok', 60000);
     this.send('uci');
     await ready;
-    if (!/^Stockfish 19(?:\b|$)/i.test(this.idName)) throw new Error('Expected Stockfish 19, received: ' + (this.idName || 'unknown engine'));
-    this.send('setoption name Threads value 1');
+    if (!/^Stockfish 19(?:\b|$)/i.test(this.idName)) {
+      throw new Error('Expected the app-matching Stockfish 19 Lite build, received: ' + (this.idName || 'unknown engine'));
+    }
     this.send('setoption name Hash value 128');
     this.send('setoption name MultiPV value 1');
-    const initialized = this.waitFor(line => line === 'readyok', 30000);
+    const initialized = this.waitFor(line => line === 'readyok', 60000);
     this.send('isready');
     await initialized;
     return this.idName;
   }
   async newGame() {
     this.send('ucinewgame');
-    const ready = this.waitFor(line => line === 'readyok', 30000);
+    const ready = this.waitFor(line => line === 'readyok', 60000);
     this.send('isready');
     await ready;
   }
@@ -270,7 +279,10 @@ class UciEngine {
       this.send('go depth ' + depth);
     });
   }
-  close() { try { this.send('quit'); } catch {} this.rl?.close(); this.child?.kill(); this.child = null; }
+  close() {
+    try { this.engine?.terminate(); } catch {}
+    this.engine = null;
+  }
 }
 async function analyze() {
   const sample = await readJson(GAMES_FILE);
@@ -280,10 +292,10 @@ async function analyze() {
   catch { throw new Error('Install local calibration tools first with: npm install'); }
   const depth = Math.max(8, Math.min(30, numberArg('depth', 14)));
   const limit = Math.max(0, numberArg('limit', 0));
-  const binary = String(args.stockfish || process.env.STOCKFISH_PATH || 'stockfish');
+  const binary = 'npm stockfish@19.0.1 lite-single';
   const existing = await exists(ANALYSIS_FILE) ? await readJson(ANALYSIS_FILE) : null;
   const results = new Map((existing?.engine === 'Stockfish 19' && existing.depth === depth ? existing.games : []).map(game => [game.url, game]));
-  const engine = new UciEngine(binary);
+  const engine = new UciEngine();
   const identity = await engine.boot();
   const pending = sample.games.filter(game => !results.has(game.url));
   const work = limit ? pending.slice(0, limit) : pending;
@@ -328,7 +340,7 @@ async function analyze() {
         }));
         results.set(game.url, {
           url: game.url, timeClass: game.timeClass, white: game.white, black: game.black,
-          moves: scoredMoves, depth, engine: 'Stockfish 19'
+          moves: scoredMoves, depth, engine: ENGINE_LABEL
         });
       } catch (error) {
         process.stderr.write('Skipped game ' + game.url + ': ' + error.message + '\n');
@@ -336,7 +348,7 @@ async function analyze() {
       if ((index + 1) % 10 === 0 || index + 1 === work.length) {
         await writeJson(ANALYSIS_FILE, {
           schema: 1, source: 'Chess.com Published Data API',
-          engine: 'Stockfish 19', engineIdentity: identity, depth,
+          engine: ENGINE_LABEL, engineIdentity: identity, depth,
           analyzedAt: new Date().toISOString(), games: [...results.values()]
         });
         process.stdout.write('Analyzed ' + (index + 1) + '/' + work.length + ' · cached total ' + results.size + '\n');
@@ -468,7 +480,7 @@ function fitTrain(train) {
 }
 async function fit() {
   const dataset = await readJson(ANALYSIS_FILE);
-  if (dataset.engine !== 'Stockfish 19' || !dataset.games?.length) throw new Error('No compatible Stockfish analysis cache found. Run analyze first.');
+  if (dataset.engine !== ENGINE_LABEL || !dataset.games?.length) throw new Error('No compatible Stockfish analysis cache found. Run analyze first.');
   const splits = prepareSplits(dataset.games);
   const baseline = { winK: 0.00368208, decay: 0.055, offset: 0, floor: 0, aggregation: 'mean', forcedPolicy: 'include' };
   const baselineTrain = metrics(splits.train, baseline), baselineTest = metrics(splits.test, baseline);
