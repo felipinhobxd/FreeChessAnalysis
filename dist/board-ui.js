@@ -78,6 +78,10 @@ const SOUND_FILES = Object.freeze({
 });
 
 const SOUND_BASE = '/sounds/sharechess/';
+const SOUND_GAINS = Object.freeze({
+  capture: 0.18,
+  enPassant: 0.3,
+});
 const soundPlayers = new Map();
 let outputVolume = 0.65;
 let soundEnabled = true;
@@ -88,7 +92,8 @@ function soundPlayer(name) {
   if (!soundPlayers.has(file)) {
     const player = new Audio(SOUND_BASE + file);
     player.preload = 'none';
-    player.volume = outputVolume;
+    player._boardSoundGain = SOUND_GAINS[name] ?? 1;
+    player.volume = outputVolume * player._boardSoundGain;
     soundPlayers.set(file, player);
   }
   return soundPlayers.get(file);
@@ -103,7 +108,7 @@ function stopSoundPlayers() {
 
 export function setBoardVolume(volume) {
   outputVolume = Math.max(0, Math.min(1, Number(volume) || 0));
-  for (const player of soundPlayers.values()) player.volume = outputVolume;
+  for (const player of soundPlayers.values()) player.volume = outputVolume * (player._boardSoundGain ?? 1);
 }
 
 export function unlockSound(enabled) {
@@ -118,7 +123,8 @@ export function boardSound(name, enabled, volume = 65) {
   try {
     const player = soundPlayer(name);
     if (!player) return;
-    player.volume = outputVolume;
+    player._boardSoundGain = SOUND_GAINS[name] ?? 1;
+    player.volume = outputVolume * player._boardSoundGain;
     try { player.currentTime = 0; } catch { /* Wait for the first audio frame. */ }
     const playback = player.play();
     playback?.catch(() => {});

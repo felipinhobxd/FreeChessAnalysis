@@ -6,22 +6,54 @@ import { aggregateGameAccuracy, estimatePerformance, moveAccuracyBetween, phaseF
 
 const $ = id => document.getElementById(id);
 const languageState = initLanguage();
+const profileStorageKey = 'move-by-move/chess-profile';
+function readChessProfile() {
+  try {
+    const value = JSON.parse(localStorage.getItem(profileStorageKey));
+    return value && typeof value === 'object'
+      ? { platform: value.platform || 'none', username: String(value.username || '') }
+      : null;
+  } catch { return null; }
+}
 function configureLanguageGate() {
   const languageSelect = $('language-select');
+  const profilePlatform = $('profile-platform');
+  const profileUsername = $('profile-username');
+  const applyProfile = profile => {
+    profilePlatform.value = profile?.platform || 'none';
+    profileUsername.value = profile?.username || '';
+  };
+  const savedProfile = readChessProfile();
   languageSelect.value = getLanguage();
+  applyProfile(savedProfile);
+  languageSelect.addEventListener('change', () => {
+    setLanguage(languageSelect.value);
+  });
   $('language-enter').addEventListener('click', () => {
     setLanguage(languageSelect.value);
+    const profile = {
+      platform: profilePlatform.value,
+      username: profileUsername.value.trim().slice(0, 40),
+    };
+    try { localStorage.setItem(profileStorageKey, JSON.stringify(profile)); } catch { /* Profile is optional. */ }
     $('language-gate').hidden = true;
     $('app-content').hidden = false;
+    if (['chesscom', 'lichess'].includes(profile.platform) && profile.username) {
+      setSource(profile.platform);
+      $('game-input').value = profile.username;
+    }
     render();
   });
   $('language-open').addEventListener('click', () => {
     languageSelect.value = getLanguage();
+    applyProfile(readChessProfile());
     $('language-gate').hidden = false;
     $('app-content').hidden = true;
   });
-  $('language-gate').hidden = languageState.saved;
-  $('app-content').hidden = !languageState.saved;
+  const profileReady = Boolean(savedProfile);
+  const showGate = !languageState.saved || !profileReady;
+  $('language-gate').hidden = !showGate;
+  $('app-content').hidden = showGate;
 }
 configureLanguageGate();
 const element = (tag, text, className) => {
@@ -1654,7 +1686,8 @@ function setSource(value) {
   $('remote-games').hidden = true;
   const external = value === 'chesscom' || value === 'lichess';
   const input = $('game-input');
-  input.value = '';
+  const profile = readChessProfile();
+  input.value = external && profile?.platform === value ? profile.username : '';
   input.classList.toggle('username', external);
   input.rows = external ? 1 : 4;
   input.placeholder = value === 'pgn' ? '1. e4 e5 2. Nf3 Nc6 …' : value === 'fen' ?

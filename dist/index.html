@@ -35,8 +35,23 @@
       <option value="ar">العربية</option>
       <option value="hi">हिन्दी</option>
     </select>
+    <div class="profile-setup">
+      <p class="profile-setup-title">Your chess profile</p>
+      <label for="profile-platform">Main chess platform</label>
+      <select id="profile-platform">
+        <option value="none">No account / skip</option>
+        <option value="chesscom">Chess.com</option>
+        <option value="lichess">Lichess</option>
+        <option value="fide">FIDE (FIDE ID)</option>
+        <option value="chess24">Chess24</option>
+        <option value="other">Other platform</option>
+      </select>
+      <label for="profile-username">Nickname or FIDE ID</label>
+      <input id="profile-username" type="text" maxlength="40" autocomplete="username" placeholder="Your nickname or FIDE ID (optional)">
+      <p class="profile-note">Chess.com and Lichess nicknames will be filled in automatically when you search for games. FIDE ID is saved to your local profile.</p>
+    </div>
     <button class="language-continue" id="language-enter" type="button">Continue to analysis</button>
-    <p class="language-note">You can change your language from the top navigation at any time.</p>
+    <p class="language-note">Your profile is stored only in this browser. You can edit it later from Profile &amp; language.</p>
   </section>
 </div>
 <div id="app-content" hidden>
@@ -47,7 +62,7 @@
       <button class="nav-button" id="nav-puzzles" type="button"><i data-icon="puzzle" aria-hidden="true"></i> Puzzles</button>
       <button class="nav-button" id="nav-library" type="button"><i data-icon="archive" aria-hidden="true"></i> Arquivo</button>
     </nav>
-    <div class="rail-bottom"><button class="nav-button" id="language-open" type="button" title="Change language">Language</button><button class="nav-button" id="settings-btn" title="Configurações"><i data-icon="settings" aria-hidden="true"></i> Ajustes</button>
+    <div class="rail-bottom"><button class="nav-button" id="language-open" type="button" title="Profile &amp; language">Profile &amp; language</button><button class="nav-button" id="settings-btn" title="Configurações"><i data-icon="settings" aria-hidden="true"></i> Ajustes</button>
     <a class="nav-button credits" href="/notices" title="Créditos e licenças"><i data-icon="info" aria-hidden="true"></i> Créditos</a></div>
   </header>
   <main class="shell">

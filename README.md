@@ -11,7 +11,7 @@
 
 Open the [Move by Move live demo](https://freechessanalysis.vercel.app/analysis) to start analyzing in your browser. No account or installation is required.
 
-The interface begins with a language selector. Choose from 14 languages before entering the analysis workspace, and change the selection later from the navigation rail.
+The first-visit setup lets players choose one of 14 languages and save a Chess.com, Lichess, FIDE, or other chess profile. Chess.com and Lichess usernames are prefilled in the matching game-import source. Language changes are applied immediately.
 
 ## Product overview
 
@@ -138,7 +138,7 @@ Available interface languages:
 - Board interaction, move validation, game review, and Stockfish analysis run in the browser.
 - The application does not require an account, application backend, or database for its core features.
 - Public game lookup communicates directly with Chess.com and Lichess APIs.
-- Preferences, language selection, and locally archived games are stored in browser localStorage.
+- Preferences, language selection, the optional chess profile, and locally archived games are stored in browser localStorage.
 - The local archive keeps up to 50 games.
 - Shareable links encode the selected game or position in the URL fragment. Share them only when you intend to make that game data available to the recipient.
 - Stockfish assets are downloaded from external CDNs when needed.
