@@ -76,8 +76,8 @@ h1{font-size:clamp(22px,1.62vw,30px);font-weight:690;letter-spacing:-.045em;line
 .square.selected{background:#efdc79;box-shadow:inset 0 0 0 3px #776832}.square.dark.selected{background:#d6c764}
 .square.check,.square.puzzle-wrong{background:#d9826b}.square.puzzle-right{background:#a8c674}
 .square:focus-visible{outline:3px solid #394d29;outline-offset:-3px;z-index:2}
-.square.legal::after{content:"";position:absolute;width:26%;aspect-ratio:1;border-radius:50%;background:#23301e52;pointer-events:none}
-.square.legal.occupied::after{width:88%;background:none;border:clamp(3px,.9cqw,8px) solid #29332366}
+.square.legal::after{content:"";position:absolute;width:34%;aspect-ratio:1;border-radius:50%;background:#1b281bb8;box-shadow:0 0 0 1px #f2f6df6b;pointer-events:none;z-index:2}
+.square.legal.occupied::after{width:91%;background:#1b281b24;border:clamp(4px,1.05cqw,9px) solid #1b281ba8;box-shadow:0 0 0 1.5px #f2f6df8a}
 .piece-art{width:92%;height:92%;object-fit:contain;display:block;user-select:none;filter:drop-shadow(0 1px 1px #13181144)}
 .square.moving{z-index:3}
 .piece.fallback{font:10cqw/1 "Segoe UI Symbol",serif;color:#21251f}.piece.fallback.w{color:#fffdf0;text-shadow:1px 1px 1px #161b15}
@@ -133,7 +133,7 @@ textarea::placeholder{color:#9a9f92}.username{min-height:42px;height:42px;resize
 progress{width:100%;height:5px;border:0;accent-color:var(--accent);margin-bottom:12px}
 .chart-wrap,.move-detail,.puzzle-card,.pv{background:#242720;border:1px solid var(--line);border-radius:8px;padding:12px}
 .chart-label{font-size:12px}.chart-label span,.player-elo,.history-head>span,.analysis-flow,.pv>strong,.chart-foot{font-variant-numeric:tabular-nums}
-#chart{display:block;width:100%;height:86px;margin:8px 0 4px;cursor:crosshair}
+#chart{display:block;width:100%;height:106px;margin:8px 0 4px;cursor:crosshair}
 .chart-foot,.footnote{font-size:11px;color:var(--muted)}.footnote{margin-top:12px}
 .accuracy-title{margin-top:15px}
 .accuracies{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-bottom:16px}
@@ -272,3 +272,17 @@ body.focus-board{overflow:hidden}.board-column:fullscreen,body.focus-board .boar
 @keyframes mateRing{0%{opacity:0;transform:translate(-50%,-50%) scale(.28)}18%{opacity:.8}100%{opacity:0;transform:translate(-50%,-50%) scale(1.5)}}
 @keyframes matePop{0%{opacity:0;transform:translateY(9px) scale(.84)}100%{opacity:1;transform:translateY(0) scale(1)}}
 @media(prefers-reduced-motion:reduce){.mate-effect::before,.mate-effect::after,.mate-title{animation:none}}
+
+
+/* Board annotations and larger move-classification markers */
+#board{cursor:default}
+#board .square{cursor:default}
+#board .square .piece-art[draggable=true]{cursor:grab}
+#board .square .piece-art[draggable=true]:active{cursor:grabbing}
+#arrows{z-index:3}
+.chart-legend span{font-size:11px}
+.moment-row .badge{width:25px;height:25px}
+@media(max-width:540px){
+  #chart{height:112px}
+  .chart-legend span{font-size:10px}
+}
