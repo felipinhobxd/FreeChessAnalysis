@@ -82,31 +82,24 @@ let soundEnabled = true;
 function prepareSoundPlayers() {
   for (const file of new Set(Object.values(SOUND_FILES).flat())) {
     if (soundPlayers.has(file)) continue;
-    const players = Array.from({ length: 3 }, () => {
-      const player = new Audio('/sounds/' + file);
-      player.preload = 'auto';
-      player.volume = outputVolume;
-      player.setAttribute('playsinline', '');
-      return player;
-    });
-    soundPlayers.set(file, players);
-    players.forEach(player => player.load());
+    const player = new Audio('/sounds/' + file);
+    player.preload = 'auto';
+    player.volume = outputVolume;
+    player.setAttribute('playsinline', '');
+    soundPlayers.set(file, player);
+    player.load();
   }
 }
 
 export function setBoardVolume(volume) {
   outputVolume = Math.max(0, Math.min(1, Number(volume) || 0));
-  for (const players of soundPlayers.values()) {
-    for (const player of players) player.volume = outputVolume;
-  }
+  for (const player of soundPlayers.values()) player.volume = outputVolume;
 }
 
 export function unlockSound(enabled) {
   soundEnabled = Boolean(enabled);
   if (!soundEnabled) {
-    for (const players of soundPlayers.values()) {
-      for (const player of players) player.pause();
-    }
+    for (const player of soundPlayers.values()) player.pause();
     return;
   }
   try { prepareSoundPlayers(); } catch { /* Audio is optional and must never interrupt a move. */ }
@@ -123,12 +116,8 @@ export function boardSound(name, enabled, volume = 65) {
   if (!soundPlayers.has(file)) {
     try { prepareSoundPlayers(); } catch { return; }
   }
-  const pool = soundPlayers.get(file);
-  if (!pool?.length) return;
-
-  const poolIndex = soundPositions.get('pool:' + file) || 0;
-  soundPositions.set('pool:' + file, (poolIndex + 1) % pool.length);
-  const player = pool[poolIndex % pool.length];
+  const player = soundPlayers.get(file);
+  if (!player) return;
   const amount = Math.max(0, Math.min(100, Number(volume) || 0)) / 100;
   if (!amount) return;
   player.volume = amount;
