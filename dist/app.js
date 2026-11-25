@@ -30,7 +30,7 @@ const BOOK_REPLY = {
   c2c4: ['e7e5', 'g8f6', 'c7c5', 'e7e6', 'c7c6', 'g7g6'],
   g1f3: ['d7d5', 'g8f6', 'c7c5', 'g7g6', 'e7e6', 'b7b6'],
 };
-const PREFS = ['review-depth', 'line-depth', 'multi-pv', 'show-arrow', 'show-coordinates', 'engine-mode', 'piece-set', 'sound-enabled', 'mate-enabled'];
+const PREFS = ['review-depth', 'line-depth', 'multi-pv', 'show-arrow', 'show-coordinates', 'engine-mode', 'piece-set', 'sound-enabled', 'sound-volume', 'animation-speed', 'mate-enabled'];
 const TABS = ['import', 'report', 'lines', 'puzzles'];
 
 let Chess;
@@ -57,9 +57,15 @@ let mateTimer;
 let fullscreenFallback = false;
 const puzzleProgress = new Map();
 const positions = new Map();
+const chartColors = {
+  brilliant: '#63d5cc', critical: '#8cb9e0', best: '#a6d579', excellent: '#86c8a0',
+  good: '#b4c899', inaccuracy: '#edce69', mistake: '#f3a464', blunder: '#ef7d78', theory: '#c4b499',
+};
+let chartMarkers = [];
+let boardAnimations = new Set();
 
-const setting = id => $(id).type === 'checkbox' ? $(id).checked : ['engine-mode', 'piece-set'].includes(id) ? $(id).value : Number($(id).value);
-const playSound = name => boardSound(name, setting('sound-enabled'));
+const setting = id => $(id).type === 'checkbox' ? $(id).checked : ['engine-mode', 'piece-set', 'animation-speed'].includes(id) ? $(id).value : Number($(id).value);
+const playSound = name => boardSound(name, setting('sound-enabled'), setting('sound-volume') / 100);
 const readLocal = (key, fallback) => {
   try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; }
 };
@@ -497,6 +503,7 @@ function renderHistory() {
 }
 
 function renderChart() {
+  chartMarkers = [];
   const surface = canvasContext($('chart'));
   if (!surface) return;
   const { context, width, height } = surface;
@@ -511,26 +518,39 @@ function renderChart() {
   context.stroke();
   context.setLineDash([]);
   const evaluated = nodes.flatMap((node, index) => node.evaluation ? [[x(index), y(node.evaluation)]] : []);
-  if (!evaluated.length) return;
-  context.beginPath();
-  evaluated.forEach(([px, py], index) => index ? context.lineTo(px, py) : context.moveTo(px, py));
-  context.lineTo(evaluated.at(-1)[0], height - 2);
-  context.lineTo(evaluated[0][0], height - 2);
-  context.closePath();
-  context.fillStyle = '#424f38';
-  context.fill();
-  context.beginPath();
-  evaluated.forEach(([px, py], index) => index ? context.lineTo(px, py) : context.moveTo(px, py));
-  context.strokeStyle = '#bad69b';
-  context.lineWidth = 2.2;
-  context.stroke();
-  for (const [i, node] of nodes.entries()) {
-    if (!node.evaluation || !['mistake', 'blunder'].includes(node.classification)) continue;
+  if (evaluated.length) {
     context.beginPath();
-    context.arc(x(i), y(node.evaluation), 3, 0, Math.PI * 2);
-    context.fillStyle = node.classification === 'blunder' ? '#ef7d78' : '#f3a464';
+    evaluated.forEach(([px, py], index) => index ? context.lineTo(px, py) : context.moveTo(px, py));
+    context.lineTo(evaluated.at(-1)[0], height - 2);
+    context.lineTo(evaluated[0][0], height - 2);
+    context.closePath();
+    context.fillStyle = '#424f38';
+    context.fill();
+    context.beginPath();
+    evaluated.forEach(([px, py], index) => index ? context.lineTo(px, py) : context.moveTo(px, py));
+    context.strokeStyle = '#bad69b';
+    context.lineWidth = 2.2;
+    context.stroke();
+  }
+
+  for (const [index, node] of nodes.entries()) {
+    const color = chartColors[node.classification];
+    if (!node.evaluation || !color || index === 0) continue;
+    const marker = { node, index, x: x(index), y: y(node.evaluation), color };
+    chartMarkers.push(marker);
+    context.beginPath();
+    context.arc(marker.x, marker.y, 4.2, 0, Math.PI * 2);
+    context.fillStyle = color;
+    context.fill();
+    context.lineWidth = 1.35;
+    context.strokeStyle = '#20261d';
+    context.stroke();
+    context.beginPath();
+    context.arc(marker.x, marker.y, 1.15, 0, Math.PI * 2);
+    context.fillStyle = '#f4f5e9';
     context.fill();
   }
+
   const index = nodes.indexOf(cursor);
   if (index >= 0 && cursor.evaluation) {
     context.strokeStyle = '#ffd382';
@@ -540,12 +560,78 @@ function renderChart() {
     context.lineTo(x(index), height - 1);
     context.stroke();
     context.beginPath();
-    context.arc(x(index), y(cursor.evaluation), 4, 0, Math.PI * 2);
+    context.arc(x(index), y(cursor.evaluation), 4.5, 0, Math.PI * 2);
     context.fillStyle = '#ffd382';
     context.fill();
+    context.strokeStyle = '#343b2d';
+    context.lineWidth = 1.2;
+    context.stroke();
   }
 }
 
+function chartMarkerAt(event) {
+  const rect = $('chart').getBoundingClientRect();
+  const px = event.clientX - rect.left;
+  const py = event.clientY - rect.top;
+  let closest = null;
+  let distance = 13;
+  for (const marker of chartMarkers) {
+    const candidate = Math.hypot(marker.x - px, marker.y - py);
+    if (candidate <= distance) {
+      closest = marker;
+      distance = candidate;
+    }
+  }
+  return closest;
+}
+
+function updateChartTooltip(event) {
+  const marker = chartMarkerAt(event);
+  const canvas = $('chart');
+  const tooltip = $('chart-tooltip');
+  canvas.style.cursor = marker ? 'pointer' : 'crosshair';
+  if (!marker) {
+    tooltip.hidden = true;
+    return;
+  }
+  const node = marker.node;
+  const label = CLASSIFICATIONS[node.classification]?.[1] ?? 'Lance analisado';
+  tooltip.textContent = displayName(node.move.color) + ' · ' + moveNumber(node) + node.move.san + ' · ' + label;
+  tooltip.hidden = false;
+  const chartRect = canvas.getBoundingClientRect();
+  const wrapRect = $('chart-wrap').getBoundingClientRect();
+  const left = chartRect.left - wrapRect.left + marker.x;
+  const top = chartRect.top - wrapRect.top + marker.y;
+  const maxLeft = Math.max(8, wrapRect.width - tooltip.offsetWidth - 8);
+  tooltip.style.left = Math.max(8, Math.min(maxLeft, left - tooltip.offsetWidth / 2)) + 'px';
+  tooltip.style.top = Math.max(7, top - tooltip.offsetHeight - 9) + 'px';
+}
+
+function renderMoments(path) {
+  const target = $('key-moments');
+  const moments = path.slice(1).filter(node => node.evaluation && chartColors[node.classification]);
+  $('moment-count').textContent = moments.length + (moments.length === 1 ? ' lance' : ' lances');
+  if (!moments.length) {
+    target.replaceChildren(element('p', 'Os momentos importantes aparecerão aqui depois que a revisão da partida for concluída.', 'muted moments-empty'));
+    return;
+  }
+  const fragment = document.createDocumentFragment();
+  for (const node of moments) {
+    const row = element('button', undefined, 'moment-row class-' + node.classification);
+    row.type = 'button';
+    row.append(badge(node.classification));
+    const details = element('span', undefined, 'moment-copy');
+    details.append(
+      element('strong', moveNumber(node) + node.move.san),
+      element('small', displayName(node.move.color) + ' · ' + CLASSIFICATIONS[node.classification][1])
+    );
+    row.append(details, icon('next'));
+    row.title = 'Ir para ' + moveNumber(node) + node.move.san;
+    row.onclick = () => goTo(node);
+    fragment.append(row);
+  }
+  target.replaceChildren(fragment);
+}
 function renderReport() {
   renderChart();
   if (!root) return;
@@ -566,6 +652,7 @@ function renderReport() {
   $('white-acc').textContent = average('w');
   $('black-acc').textContent = average('b');
   $('chart-end').textContent = path.length === 1 ? 'Fim' : (path.length - 1) + ' lances';
+  renderMoments(path);
   $('review-btn').disabled = path.length === 1 && !review;
   renderCoach(cursor);
   const count = path.filter(isTrainingMove).length;
@@ -789,39 +876,131 @@ function setTab(name) {
   if (name === 'lines') queueLive();
 }
 
+function cancelBoardAnimations() {
+  for (const animation of boardAnimations) {
+    try { animation.cancel(); } catch { /* Animação já finalizada. */ }
+  }
+  boardAnimations.clear();
+  $('board').querySelectorAll('.square.moving').forEach(square => square.classList.remove('moving'));
+  document.querySelectorAll('.capture-ghost').forEach(ghost => ghost.remove());
+}
+
+function captureSquare(step) {
+  return step.flags?.includes('e') ? step.to[0] + step.from[1] : step.to;
+}
+
+function snapshotCapturedPiece(step) {
+  if (!step.captured) return null;
+  const cell = $('board').querySelector('[data-square="' + captureSquare(step) + '"]');
+  const graphic = cell?.querySelector('.piece-art:not([hidden]), .fallback:not([hidden])');
+  if (!graphic) return null;
+  const rect = graphic.getBoundingClientRect();
+  const ghost = graphic.cloneNode(true);
+  ghost.classList.add('capture-ghost');
+  Object.assign(ghost.style, {
+    position: 'fixed', left: rect.left + 'px', top: rect.top + 'px',
+    width: rect.width + 'px', height: rect.height + 'px',
+    margin: '0', zIndex: '30', pointerEvents: 'none',
+  });
+  return ghost;
+}
+
+function trackBoardAnimation(animation, cleanup = () => {}) {
+  boardAnimations.add(animation);
+  const finish = () => {
+    boardAnimations.delete(animation);
+    cleanup();
+  };
+  animation.addEventListener('finish', finish, { once: true });
+  animation.addEventListener('cancel', finish, { once: true });
+}
+
+function animatePiece(from, to, duration, easing) {
+  const board = $('board');
+  const origin = board.querySelector('[data-square="' + from + '"]');
+  const destination = board.querySelector('[data-square="' + to + '"]');
+  const piece = destination?.querySelector('.piece-art:not([hidden]), .fallback:not([hidden])');
+  if (!origin || !destination || !piece || typeof piece.animate !== 'function') return;
+  const start = origin.getBoundingClientRect();
+  const end = destination.getBoundingClientRect();
+  const dx = start.left - end.left;
+  const dy = start.top - end.top;
+  destination.classList.add('moving');
+  const animation = piece.animate([
+    { transform: 'translate(' + dx + 'px,' + dy + 'px) scale(.96)' },
+    { transform: 'translate(0,0) scale(1)' },
+  ], { duration, easing, fill: 'both' });
+  trackBoardAnimation(animation, () => destination.classList.remove('moving'));
+}
+
+function animateCapture(step, reversed, ghost, duration, easing) {
+  const square = captureSquare(step);
+  if (!reversed && ghost) {
+    document.body.append(ghost);
+    const animation = ghost.animate([
+      { opacity: 1, transform: 'scale(1)' },
+      { opacity: 0, transform: 'scale(.58)' },
+    ], { duration: Math.max(110, duration * .72), easing, fill: 'forwards' });
+    trackBoardAnimation(animation, () => ghost.remove());
+    return;
+  }
+  if (reversed) {
+    const cell = $('board').querySelector('[data-square="' + square + '"]');
+    const restored = cell?.querySelector('.piece-art:not([hidden]), .fallback:not([hidden])');
+    if (!restored || typeof restored.animate !== 'function') return;
+    const animation = restored.animate([
+      { opacity: 0, transform: 'scale(.58)' },
+      { opacity: 1, transform: 'scale(1)' },
+    ], { duration: Math.max(110, duration * .72), easing, fill: 'both' });
+    trackBoardAnimation(animation);
+  }
+}
+
+function animateBoardMove(step, reversed, ghost) {
+  if (!step || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const speeds = { slow: 420, normal: 235, fast: 125, natural: 205 };
+  const speed = setting('animation-speed');
+  const duration = speeds[speed] ?? speeds.natural;
+  const easing = speed === 'natural' ? 'cubic-bezier(.22,.75,.32,1)' : 'cubic-bezier(.2,.65,.3,1)';
+  animateCapture(step, reversed, ghost, duration, easing);
+  animatePiece(reversed ? step.to : step.from, reversed ? step.from : step.to, duration, easing);
+  if (step.flags?.includes('k') || step.flags?.includes('q')) {
+    const rank = step.from[1];
+    const short = step.to[0] === 'g';
+    const rookFrom = (short ? 'h' : 'a') + rank;
+    const rookTo = (short ? 'f' : 'd') + rank;
+    animatePiece(reversed ? rookTo : rookFrom, reversed ? rookFrom : rookTo, duration, easing);
+  }
+}
+
+function playMoveSound(step, node) {
+  const position = new Chess(node.fen);
+  if (step.flags?.includes('k') || step.flags?.includes('q')) playSound('castle');
+  else if (step.promotion) playSound('promotion');
+  else if (position.isCheck()) playSound('check');
+  else if (step.captured) playSound('capture');
+  else playSound('move');
+}
+
 function goTo(node) {
   if (!node || node === cursor) return;
   hideMate();
   const movedForward = node.parent === cursor;
   const reversed = cursor.parent === node;
   const step = movedForward ? node.move : reversed ? cursor.move : null;
+  cancelBoardAnimations();
+  const captureGhost = step && movedForward && step.captured ? snapshotCapturedPiece(step) : null;
   cursor = node;
   selected = null;
   render();
-  if (step && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    const animatePiece = (from, to) => {
-      const origin = $('board').querySelector('[data-square="' + from + '"]').getBoundingClientRect();
-      const cell = $('board').querySelector('[data-square="' + to + '"]');
-      const dest = cell.getBoundingClientRect();
-      const piece = cell.querySelector('.piece-art');
-      if (!piece) return;
-      const motion = piece.animate([{ transform: 'translate(' + (origin.x - dest.x) + 'px,' + (origin.y - dest.y) + 'px)' }, { transform: 'none' }], { duration: 155, easing: 'cubic-bezier(.2,.65,.3,1)' });
-      cell.classList.add('moving');
-      motion.finished.finally(() => cell.classList.remove('moving')).catch(() => {});
-    };
-    animatePiece(reversed ? step.to : step.from, reversed ? step.from : step.to);
-    if (step.flags?.includes('k') || step.flags?.includes('q')) {
-      const rank = step.from[1], short = step.to[0] === 'g';
-      const from = (short ? 'h' : 'a') + rank, to = (short ? 'f' : 'd') + rank;
-      animatePiece(reversed ? to : from, reversed ? from : to);
-    }
+  if (step) {
+    animateBoardMove(step, reversed, captureGhost);
+    if (node.terminal?.type !== 'mate') playMoveSound(step, node);
   }
   if (tab === 'report') $('inspector-scroll').scrollTop = 0;
-  if (movedForward) playSound(node.move.captured ? 'capture' : 'move');
   announceMate();
   if (tab === 'lines') queueLive();
 }
-
 function stopPlayback() {
   clearInterval(runningTimer);
   runningTimer = null;
@@ -1304,7 +1483,14 @@ function bindEvents() {
     const button = event.target.closest('[data-ply]');
     if (button) goTo(positions.get(Number(button.dataset.ply)));
   });
+  $('chart').addEventListener('pointermove', updateChartTooltip);
+  $('chart').addEventListener('pointerleave', () => {
+    $('chart-tooltip').hidden = true;
+    $('chart').style.cursor = 'crosshair';
+  });
   $('chart').addEventListener('click', event => {
+    const marker = chartMarkerAt(event);
+    if (marker) { goTo(marker.node); return; }
     const { width, left } = $('chart').getBoundingClientRect();
     const fraction = Math.max(0, Math.min(1, (event.clientX - left - 5) / (width - 10)));
     const nodes = mainPath();
@@ -1369,8 +1555,10 @@ function bindEvents() {
     const value = savedPrefs[id];
     if (control.type === 'checkbox' && typeof value === 'boolean') control.checked = value;
     if (control.tagName === 'SELECT' && Array.from(control.options).some(option => option.value === String(value))) control.value = value;
+    if (control.type === 'range' && Number.isFinite(Number(value))) control.value = String(Math.max(Number(control.min), Math.min(Number(control.max), Number(value))));
     control.onchange = () => {
       try { writeLocal('livro-de-lances/preferencias/v1', Object.fromEntries(PREFS.map(key => [key, setting(key)]))); } catch { /* Private mode. */ }
+      if (id === 'sound-volume') $('sound-volume-value').textContent = control.value + '%';
       if (id === 'engine-mode') {
         stopReview();
         stopLive();
@@ -1386,6 +1574,8 @@ function bindEvents() {
       if (tab === 'lines' && (id === 'multi-pv' || id === 'line-depth')) queueLive();
     };
   }
+  $('sound-volume-value').textContent = setting('sound-volume') + '%';
+  $('sound-volume').oninput = () => { $('sound-volume-value').textContent = $('sound-volume').value + '%'; };
   syncBoardTools();
   $('copy-fen').onclick = () => copyText(cursor.fen, 'FEN copiado.');
   $('copy-pgn').onclick = () => copyText(exportPgn(), 'PGN copiado.');
