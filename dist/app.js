@@ -636,21 +636,25 @@ function renderChart() {
     context.stroke();
   }
 
-  const markerRadius = Math.min(4.2, Math.max(2.1, (width - 10) / Math.max(1, nodes.length - 1) * .36));
+  const markerRadius = Math.min(7.5, Math.max(5.2, (width - 10) / Math.max(1, nodes.length - 1) * .48));
   for (const [index, node] of nodes.entries()) {
     const color = chartColors[node.classification];
     if (!node.evaluation || !color || index === 0) continue;
     const marker = { node, index, x: x(index), y: y(node.evaluation), color };
     chartMarkers.push(marker);
     context.beginPath();
+    context.arc(marker.x, marker.y, markerRadius + 1.8, 0, Math.PI * 2);
+    context.fillStyle = '#1c211bdd';
+    context.fill();
+    context.beginPath();
     context.arc(marker.x, marker.y, markerRadius, 0, Math.PI * 2);
     context.fillStyle = color;
     context.fill();
-    context.lineWidth = 1.35;
-    context.strokeStyle = '#20261d';
+    context.lineWidth = 1.7;
+    context.strokeStyle = '#f3f5e7';
     context.stroke();
     context.beginPath();
-    context.arc(marker.x, marker.y, Math.max(.7, markerRadius * .28), 0, Math.PI * 2);
+    context.arc(marker.x, marker.y, Math.max(1.3, markerRadius * .3), 0, Math.PI * 2);
     context.fillStyle = '#f4f5e9';
     context.fill();
   }
@@ -678,7 +682,7 @@ function chartMarkerAt(event) {
   const px = event.clientX - rect.left;
   const py = event.clientY - rect.top;
   let closest = null;
-  let distance = 13;
+  let distance = 19;
   for (const marker of chartMarkers) {
     const candidate = Math.hypot(marker.x - px, marker.y - py);
     if (candidate <= distance) {
@@ -1645,6 +1649,7 @@ function bindEvents() {
     selected = null;
     activeBoardMark = { pointerId: event.pointerId, from: origin, to: origin, color: annotationColor(event) };
     try { $('board').setPointerCapture(event.pointerId); } catch { /* Pointer capture is an enhancement. */ }
+    renderPieces();
     renderScore();
   });
   $('board').addEventListener('pointermove', event => {
