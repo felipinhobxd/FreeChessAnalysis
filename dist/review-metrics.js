@@ -110,7 +110,7 @@ export function gameTimeClass(headers = {}) {
   const increment = Number(match[2] || 0);
   const estimated = base + increment * 40;
   if (estimated < 180) return 'bullet';
-  if (estimated < 480) return 'blitz';
+  if (estimated < 600) return 'blitz';
   if (estimated <= 1500) return 'rapid';
   return 'classical';
 }

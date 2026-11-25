@@ -790,7 +790,7 @@ function renderRatingEstimates(path){
    const control=estimate.timeClass==='blitz'?'Blitz':'Rapid';
    card.append(element('small','Chess.com '+control+' · Intervalo aproximado: '+formatRating(estimate.low,estimate.lowBound)+'–'+formatRating(estimate.high,estimate.highBound)+' · '+estimate.moves+' lances','muted'));
    card.append(element('small','Precisão média por lance: '+estimate.accuracy.toFixed(1).replace('.',',')+'%','muted'));
-   card.append(element('small','Erro mediano de referência em uma partida: ±'+estimate.typicalAbsoluteError+' pontos de rating.','muted'));
+   card.append(element('small','Erro absoluto mediano de referência em uma partida: '+estimate.typicalAbsoluteError+' pontos de rating.','muted'));
   }else{
    card.append(element('strong','—','rating-performance'));
    const reasons={short:'Partida curta demais para estimar.','time-control':'Ritmo não informado no PGN.',bullet:'Precisão isolada não estima bem rating bullet.',classical:'Sem curva de referência para partidas clássicas.','outside-range':'Precisão fora da faixa de referência; uma partida não permite estimar com segurança.'};
@@ -850,12 +850,11 @@ function findMissedChance(ChessClass,before,node){
  const side=node.move.color,sign=side==='w'?1:-1;
  const beforeWin=side==='w'?winPercent(before.evaluation):100-winPercent(before.evaluation);
  const afterWin=side==='w'?winPercent(node.evaluation):100-winPercent(node.evaluation);
- if(beforeWin-afterWin<2.5)return null;
  const hadMate=before.evaluation.type==='mate'&&before.evaluation.white*sign>0;
  const keptMate=node.evaluation.type==='mate'&&node.evaluation.white*sign>0;
  const bestMove=before.lines?.[0]?.pv?.[0]||before.best;
  if(hadMate&&!keptMate)return{kind:'mate',move:bestMove,san:moveSan(ChessClass,before.fen,bestMove)};
- if(!bestMove)return null;
+ if(beforeWin-afterWin<2.5||!bestMove)return null;
  const board=new ChessClass(before.fen),candidate=board.moves({verbose:true}).find(move=>uci(move)===bestMove);
  if(!candidate)return null;
  const targetValue=candidate.captured?material[candidate.captured]:0;

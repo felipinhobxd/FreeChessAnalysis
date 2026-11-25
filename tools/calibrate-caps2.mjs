@@ -484,6 +484,7 @@ async function fit() {
   if (dataset.engine !== ENGINE_LABEL || !dataset.games?.length) throw new Error('No compatible Stockfish analysis cache found. Run analyze first.');
   const splits = prepareSplits(dataset.games);
   const baseline = { winK: 0.00368208, decay: 0.055, offset: 0, floor: 0, aggregation: 'mean', forcedPolicy: 'include' };
+  if (!splits.train.length || !splits.test.length) throw new Error('The player-disjoint split is empty. Collect more unique public accounts and games.');
   const baselineTrain = metrics(splits.train, baseline), baselineTest = metrics(splits.test, baseline);
   console.log('Player-disjoint split: train ' + splits.train.length + ' games / ' + splits.trainPlayers.size + ' players; test ' + splits.test.length + ' games / ' + splits.testPlayers.size + ' players.');
   console.log('Cross-split games excluded: ' + splits.crossSplitGames);
