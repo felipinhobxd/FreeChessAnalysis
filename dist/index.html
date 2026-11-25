@@ -14,10 +14,7 @@
 <body>
 <div class="language-gate" id="language-gate" role="dialog" aria-modal="true" aria-labelledby="language-title">
   <section class="language-card">
-    <div class="language-brand"><img src="/favicon.svg" alt=""><span>MOVE BY MOVE</span></div>
-    <p class="language-eyebrow">CHESS ANALYSIS</p>
-    <h1 id="language-title">Welcome to Move by Move</h1>
-    <p class="language-description">Choose your interface language before getting started. You can change it at any time.</p>
+    <div class="language-brand"><img src="/favicon.svg" alt=""><h1 id="language-title">Move by Move</h1></div>
     <label for="language-select">Choose your language</label>
     <select id="language-select">
       <option value="en">English</option>
@@ -35,8 +32,8 @@
       <option value="ar">العربية</option>
       <option value="hi">हिन्दी</option>
     </select>
-    <div class="profile-setup">
-      <p class="profile-setup-title">Your chess profile</p>
+    <details class="profile-setup" id="profile-options">
+      <summary>Your chess profile</summary>
       <label for="profile-platform">Main chess platform</label>
       <select id="profile-platform">
         <option value="none">No account / skip</option>
@@ -49,7 +46,7 @@
       <label for="profile-username">Nickname or FIDE ID</label>
       <input id="profile-username" type="text" maxlength="40" autocomplete="username" placeholder="Your nickname or FIDE ID (optional)">
       <p class="profile-note">Chess.com and Lichess nicknames will be filled in automatically when you search for games. FIDE ID is saved to your local profile.</p>
-    </div>
+    </details>
     <button class="language-continue" id="language-enter" type="button">Continue to analysis</button>
     <p class="language-note">Your profile is stored only in this browser. You can edit it later from Profile &amp; language.</p>
   </section>
@@ -76,6 +73,7 @@
           <div id="evalbar" class="eval-bar" role="meter" aria-label="Vantagem das brancas" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50"><div id="eval-white"></div><span id="eval-value">—</span></div>
           <div class="board-frame">
             <div id="board" class="board" aria-label="Casas do tabuleiro" title="Botão direito: arraste para desenhar uma seta ou clique para marcar uma casa. Vermelho é o padrão. Shift: azul · Ctrl: verde · Alt: amarelo. Clique esquerdo limpa marcações."></div>
+            <div id="piece-layer" aria-hidden="true"></div>
             <canvas id="arrows" aria-hidden="true"></canvas>
             <div class="mate-effect" id="mate-effect" aria-hidden="true" hidden><div class="mate-title"><span id="mate-icon"></span><strong>Xeque-mate</strong><span id="mate-winner"></span></div></div>
           </div>
@@ -125,16 +123,14 @@
         <section id="report" class="panel" role="tabpanel" aria-labelledby="tab-report" hidden>
           <div class="section-head"><div><h3>Revisão da partida</h3><p class="muted" id="report-status" role="status">Carregue ou jogue uma partida.</p></div><button id="review-btn" class="mini">Revisar</button></div>
           <progress id="review-progress" max="1" value="0" hidden></progress>
+          <span id="variant-status" aria-live="polite" class="sr-only"></span>
+          <section class="variant-analysis" id="variant-analysis" hidden></section>
           <div class="move-detail" id="move-detail" hidden></div>
           <div class="chart-wrap" id="chart-wrap">
             <div class="chart-label"><strong>Equilíbrio da partida</strong><span id="chart-value">—</span></div>
             <canvas id="chart" aria-label="Gráfico da avaliação ao longo da partida. Os marcadores coloridos identificam lances classificados e podem ser selecionados para navegar até eles." tabindex="0"></canvas>
             <div id="chart-tooltip" class="chart-tooltip" role="tooltip" hidden></div>
-            <div class="chart-legend" aria-label="Legenda das classificações">
-              <span class="class-brilliant">Brilhante</span><span class="class-critical">Crítico</span>
-              <span class="class-inaccuracy">Imprecisão</span><span class="class-mistake">Erro</span>
-              <span class="class-blunder">Erro grave</span><span class="class-theory">Teoria</span>
-            </div>
+            <details class="chart-key"><summary>Legenda</summary><div class="chart-legend" id="chart-key"></div></details>
             <div class="chart-foot"><span>Início</span><span id="chart-end">Fim</span></div>
           </div>
           <section class="moments-section" aria-labelledby="moments-title">
@@ -144,10 +140,10 @@
           <h4 class="accuracy-title">Precisão por jogador</h4><div class="accuracies"><div><span id="white-accuracy-label">Brancas</span><strong id="white-acc">—</strong></div><div><span id="black-accuracy-label">Pretas</span><strong id="black-acc">—</strong></div></div>
           <h4 class="accuracy-title rating-title">Rating informado e desempenho estimado</h4>
           <div class="rating-estimates" id="rating-estimates"><p class="muted">Os dados de rating e desempenho aparecem após a revisão.</p></div>
-          <p class="muted footnote">Desempenho estimado com curvas de aproximadamente 16 mil observações de jogadores em partidas do Chess.com. É uma estimativa por partida, não o rating real do jogador.</p>
+          <p class="muted footnote">Faixa de referência Lichess. Uma partida tem alta incerteza. <a href="/methodology.html">Método e validação</a></p>
           <h4 class="accuracy-title">Desempenho por área</h4>
           <div id="phase-insights" class="phase-insights"><p class="muted">A revisão mostrará abertura, táticas, estratégia e final.</p></div>
-          <section class="variant-analysis" id="variant-analysis" hidden></section>
+          
           <button class="secondary practice-button" id="practice-from-report" hidden></button>
           <table id="class-table"><thead><tr><th>Classificação</th><th>Brancas</th><th>Pretas</th></tr></thead><tbody></tbody></table>
           <p class="muted footnote">Precisão estimada e classificações calculadas a partir da avaliação do motor.</p>
@@ -175,6 +171,7 @@
     <label class="option">Linhas simultâneas <select id="multi-pv"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select></label>
     <label class="option">Conjunto de peças <select id="piece-set"><option value="classicas" selected>Clássicas · Cburnett</option><option value="atelier">Ateliê</option><option value="chessnut">Chessnut</option></select></label>
     <label class="option">Sons do tabuleiro <input type="checkbox" id="sound-enabled" checked></label>
+    <label class="option">Som das peças <select id="sound-pack"><option value="wood">Madeira</option><option value="classic">ShareChess</option></select></label>
     <label class="option" for="sound-volume">Volume dos sons <span class="range-value"><input type="range" id="sound-volume" min="0" max="100" step="5" value="65"><output id="sound-volume-value" for="sound-volume">65%</output></span></label>
     <label class="option">Velocidade das animações <select id="animation-speed"><option value="natural" selected>Natural</option><option value="slow">Lenta</option><option value="normal">Normal</option><option value="fast">Rápida</option></select></label>
     <label class="option">Animação de xeque-mate <input type="checkbox" id="mate-enabled" checked></label>

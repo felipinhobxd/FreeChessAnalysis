@@ -1,3 +1,5 @@
+import { missedOpportunity, aspectEvidence } from './review-evidence.js';
+import { syncSprites, resetSprites } from './board-motion.js';
 import { Engine } from './engine.js';
 import { acceptedMove, inspectMove, isTrainingMove } from './coach.js';
 import { icon, unlockSound, boardSound, setBoardVolume, mateCelebration } from './board-ui.js';
@@ -87,8 +89,8 @@ const CLASSIFICATIONS = {
   good: ['○', 'Bom'],
   inaccuracy: ['?!', 'Imprecisão'],
   mistake: ['?', 'Erro'],
-  'chance-lost': ['✕', 'Chance Perdida'],
-  blunder: ['??', 'Erro grave'],
+  'chance-lost': ['X', 'Oportunidade perdida'],
+  blunder: ['!!', 'Erro grave'],
 };
 const BOOK = new Set(['e2e4', 'd2d4', 'c2c4', 'g1f3']);
 const BOOK_REPLY = {
@@ -97,14 +99,17 @@ const BOOK_REPLY = {
   c2c4: ['e7e5', 'g8f6', 'c7c5', 'e7e6', 'c7c6', 'g7g6'],
   g1f3: ['d7d5', 'g8f6', 'c7c5', 'g7g6', 'e7e6', 'b7b6'],
 };
-const PREFS = ['review-depth', 'line-depth', 'multi-pv', 'show-arrow', 'show-coordinates', 'engine-mode', 'piece-set', 'sound-enabled', 'sound-volume', 'animation-speed', 'mate-enabled'];
-const REVIEW_CHART_MARKERS = new Set(['brilliant', 'great', 'inaccuracy', 'mistake', 'blunder', 'theory']);
+const PREFS = ['review-depth', 'line-depth', 'multi-pv', 'show-arrow', 'show-coordinates', 'engine-mode', 'piece-set', 'sound-pack', 'sound-enabled', 'sound-volume', 'animation-speed', 'mate-enabled'];
+const REVIEW_CHART_MARKERS = new Set(Object.keys(CLASSIFICATIONS));
 const TABS = ['import', 'report', 'lines', 'puzzles'];
 
 let Chess;
 let root;
 let cursor;
 let gameHeaders = {};
+let originalPath, originalPgn, resumeReview = false;
+let soundTimer, lastMate;
+const preferred = new WeakMap();
 let turnCounter = 0;
 let selected;
 let flipped = false;
@@ -127,14 +132,14 @@ const puzzleProgress = new Map();
 const positions = new Map();
 const chartColors = {
   brilliant: '#63d5cc', great: '#8cb9e0', best: '#a6d579', excellent: '#86c8a0',
-  good: '#b4c899', inaccuracy: '#edce69', mistake: '#f3a464', blunder: '#ef7d78', 'chance-lost': '#e7b95f',
+  good: '#b4c899', inaccuracy: '#edce69', mistake: '#f3a464', blunder: '#ae3740', 'chance-lost': '#ffaaa1', theory: '#bca789',
 };
 let chartMarkers = [];
-let boardAnimations = new Set();
+
 let boardMarks = [];
 let activeBoardMark = null;
 
-const setting = id => $(id).type === 'checkbox' ? $(id).checked : ['engine-mode', 'piece-set', 'animation-speed'].includes(id) ? $(id).value : Number($(id).value);
+const setting = id => $(id).type === 'checkbox' ? $(id).checked : ['engine-mode', 'piece-set', 'animation-speed','sound-pack'].includes(id) ? $(id).value : Number($(id).value);
 const playSound = name => {
   if (!setting('sound-enabled')) return;
   unlockSound(true);
@@ -190,6 +195,7 @@ function pathTo(node) {
 }
 
 function mainPath() {
+  if (originalPath) return originalPath;
   const nodes = [root];
   while (nodes.at(-1).children[0]) nodes.push(nodes.at(-1).children[0]);
   return nodes;
@@ -197,7 +203,7 @@ function mainPath() {
 
 function linePath(node) {
   const path = [root, ...pathTo(node)];
-  while (path.at(-1).children[0]) path.push(path.at(-1).children[0]);
+  while (path.at(-1).children.length) path.push(preferred.get(path.at(-1)) || path.at(-1).children[0]);
   return path;
 }
 
@@ -208,9 +214,12 @@ function boardAt(node) {
 }
 
 function addChild(parent, board, move) {
-  const existing = parent.children.find(child => uci(child.move) === uci(move));
+  const exploring = Boolean(originalPath) || tab === 'report' || parent.userEdited;
+  if (exploring && !originalPath) originalPath = mainPath();
+  const existing = parent.children.find(child => uci(child.move) === uci(move) && (!exploring || child.userEdited));
   if (existing) return existing;
   const node = createPosition(board, parent, move);
+  node.userEdited = exploring;
   parent.children.push(node);
   positions.set(node.id, node);
   return node;
@@ -232,6 +241,12 @@ function setGame({ pgn, fen, ply } = {}, shouldReview = false) {
     first = loader.fen();
   }
   const position = new Chess(first);
+  const mover = position.turn();
+  const other = mover === 'w' ? 'b' : 'w';
+  const [otherKing] = position.findPiece({type:'k',color:other});
+  if (position.isAttacked(otherKing,mover)) {
+    throw new Error('Posição inválida. O lado que acabou de jogar está em xeque.');
+  }
   let nextRoot = createPosition(position);
   const newPositions = [nextRoot];
   for (const incoming of moves) {
@@ -244,7 +259,7 @@ function setGame({ pgn, fen, ply } = {}, shouldReview = false) {
   stopReview();
   stopLive();
   stopPlayback();
-  cancelBoardAnimations();
+  clearTimeout(soundTimer);
   hideMate();
   activePuzzle = null;
   puzzleProgress.clear();
@@ -253,6 +268,11 @@ function setGame({ pgn, fen, ply } = {}, shouldReview = false) {
   activeBoardMark = null;
   for (const child of newPositions) positions.set(child.id, child);
   root = nextRoot;
+  originalPgn = pgn;
+  originalPath = pgn !== undefined ? newPositions : null;
+  resumeReview = false;
+  resetSprites();
+  lastMate = null;
   cursor = newPositions[Math.min(Math.max(Number(ply) || 0, 0), newPositions.length - 1)];
   gameHeaders = loader.getHeaders();
   selected = null;
@@ -367,6 +387,7 @@ function renderPieces() {
     }
   }
   $('board').replaceChildren(fragment);
+  syncSprites(position, board, orientBlack, setting('piece-set'), moveAnimationDuration(), setting('animation-speed'));
   if (focused) $('board').querySelector('[data-square="' + focused + '"]')?.focus({ preventScroll: true });
 }
 
@@ -601,11 +622,9 @@ function commitMoves(moves) {
       parent = addChild(parent, board, move);
     }
   } catch { return; }
-  parent.userEdited = true;
-  if (review) stopReview(false);
+  if (review && parent.userEdited) { resumeReview = true; stopReview(false); }
   if (tab === 'import') setTab('lines');
   goTo(parent);
-  if (tab === 'report') queueLive();
 }
 
 function badge(key) {
@@ -638,7 +657,7 @@ function renderHistory() {
   const list = $('move-list');
   const scroll = list.scrollTop;
   $('ply-count').textContent = (main.length - 1) + (main.length === 2 ? ' lance' : ' lances');
-  if (main.length === 1) {
+  if (main.length === 1 && !cursor.userEdited && !root.children.length) {
     list.replaceChildren(element('p', 'Jogue no tabuleiro ou importe uma partida.', 'history-empty muted'));
   } else {
     const rows = [];
@@ -708,7 +727,7 @@ function renderChart() {
     context.stroke();
   }
 
-  const markerRadius = Math.min(7.5, Math.max(5.2, (width - 10) / Math.max(1, nodes.length - 1) * .48));
+  const markerRadius = Math.min(5.3, Math.max(1.65, (width - 10) / Math.max(1, nodes.length - 1) * .38));
   for (const [index, node] of nodes.entries()) {
     const color = chartColors[node.classification];
     if (!node.evaluation || !REVIEW_CHART_MARKERS.has(node.classification) || !color || index === 0) continue;
@@ -723,15 +742,12 @@ function renderChart() {
     context.fillStyle = color;
     context.fill();
     context.lineWidth = 1.7;
-    context.strokeStyle = '#f3f5e7';
+    context.strokeStyle = '#2d3029';
     context.stroke();
-    context.beginPath();
-    context.arc(marker.x, marker.y, Math.max(1.3, markerRadius * .3), 0, Math.PI * 2);
-    context.fillStyle = '#f4f5e9';
-    context.fill();
+
   }
 
-  const index = nodes.indexOf(cursor);
+  const index = nodes.indexOf(cursor.userEdited ? pathTo(cursor).reverse().find(n=>nodes.includes(n)) || root : cursor);
   if (index >= 0 && cursor.evaluation) {
     context.strokeStyle = '#ffd382';
     context.lineWidth = 1;
@@ -789,10 +805,10 @@ function updateChartTooltip(event) {
 
 function renderMoments(path) {
   const target = $('key-moments');
-  const moments = path.slice(1).filter(node => node.evaluation && CLASSIFICATIONS[node.classification] && chartColors[node.classification]);
+  const moments = path.slice(1).filter(node => node.coach && (node.terminal || ['blunder','mistake','brilliant','great','chance-lost'].includes(node.classification)));
   $('moment-count').textContent = moments.length + (moments.length === 1 ? ' lance' : ' lances');
   if (!moments.length) {
-    target.replaceChildren(element('p', 'Os momentos importantes aparecerão aqui depois que a revisão da partida for concluída.', 'muted moments-empty'));
+    target.replaceChildren(element('p', 'Nenhum momento destacado na análise disponível.', 'muted moments-empty'));
     return;
   }
   const fragment = document.createDocumentFragment();
@@ -805,6 +821,11 @@ function renderMoments(path) {
       element('strong', moveNumber(node) + node.move.san),
       element('small', displayName(node.move.color) + ' · ' + CLASSIFICATIONS[node.classification][1])
     );
+    if(node.coach?.best) {
+      const guide = node.momentCoach === node.coach ? node.momentGuide : inspectMove(Chess,node);
+      node.momentCoach=node.coach;node.momentGuide=guide;
+      details.append(element('small',guide.reason,'moment-reason'));
+    }
     row.append(details, icon('next'));
     row.title = 'Ir para ' + moveNumber(node) + node.move.san;
     row.onclick = () => goTo(node);
@@ -816,28 +837,22 @@ function renderMoments(path) {
 function formatRating(value,bound=null){
  const text=new Intl.NumberFormat().format(value);if(bound==='below')return'< '+text;if(bound==='above')return'≥ '+text;return text;
 }
-function renderRatingEstimates(path){
- const target=$('rating-estimates');target.replaceChildren();
- for(const side of ['w','b']){
-  const estimate=estimatePerformance(path,side,gameHeaders),actual=gameHeaders[side==='w'?'WhiteElo':'BlackElo'];
-  const card=element('div',undefined,'rating-estimate');card.append(element('span',displayName(side),'rating-player'));
-  card.append(element('small','Rating informado no PGN','rating-caption'));
-  card.append(element('strong',actual&&/^\d+$/.test(actual)?new Intl.NumberFormat().format(Number(actual)):'—'));
-  card.append(element('small','Desempenho equivalente','rating-caption'));
-  if(estimate.available){
-   card.append(element('strong','≈ '+formatRating(estimate.rating),'rating-performance'));
-   const control=estimate.timeClass==='blitz'?'Blitz':'Rapid';
-   card.append(element('small','Referência de partidas Chess.com '+control+' · faixa aproximada: '+formatRating(estimate.low,estimate.lowBound)+'–'+formatRating(estimate.high,estimate.highBound)+' · '+estimate.moves+' lances','muted'));
-   card.append(element('small','Acurácia proxy usada no cálculo: '+estimate.accuracy.toFixed(1).replace('.',',')+'% · não é a CAPS2 oficial','muted'));
-   card.append(element('small','Erro absoluto mediano reportado na base de referência: '+estimate.typicalAbsoluteError+' pontos em uma partida.','muted'));
-  }else{
-   card.append(element('strong','—','rating-performance'));
-   const reasons={short:'Partida curta demais para estimar.','time-control':'Ritmo não informado no PGN.',bullet:'Precisão isolada não estima bem rating bullet.',classical:'Sem curva de referência para partidas clássicas.','outside-range':'Precisão fora da faixa de referência; uma partida não permite estimar com segurança.'};
-   card.append(element('small',reasons[estimate.reason]||'Dados insuficientes para estimar.','muted'));
-  }
-  target.append(card);
- }
+function renderRatingEstimates(path) {
+  const cards=['w','b'].map(side=>{
+    const actual=gameHeaders[side==='w'?'WhiteElo':'BlackElo'];
+    const card=element('div',undefined,'rating-estimate');
+    card.append(element('b',displayName(side)),element('small','Rating informado no PGN'),element('strong',/^\d+$/.test(actual)?actual:'—'));
+    const estimate=estimatePerformance(path,side,gameHeaders);
+    card.append(element('small','Desempenho equivalente'));
+    if(estimate.available){
+      card.append(element('strong',estimate.low+'–'+estimate.high,'rating-performance'),
+        element('small','Lichess · '+estimate.timeClass+' · '+estimate.moves+' lances'));
+    } else card.append(element('strong','—'),element('small',estimate.reason==='pending'?'Revisão incompleta':estimate.reason==='short'?'Amostra curta':estimate.reason==='outside-range'?'Fora da amostra':'Ritmo sem calibração'));
+    return card;
+  });
+  $('rating-estimates').replaceChildren(...cards);
 }
+
 function tacticalPosition(before,node){
  if(node.move?.captured||node.move?.promotion||node.move?.san?.includes('+'))return true;
  const best=before.lines?.[0],second=before.lines?.[1],gap=best&&second?Math.abs(best.value-second.value):0;
@@ -849,66 +864,81 @@ function tacticalPosition(before,node){
  }
  return gap>=120;
 }
-function renderPhaseReport(path){
- const target=$('phase-insights');if(!target)return;target.replaceChildren();
- const moves=path.slice(1).filter(n=>n.evaluation&&n.parent?.evaluation&&n.move);
- if(!moves.length){target.append(element('p','Complete a revisão para ver o desempenho por área.','muted'));return}
- const entries=moves.map((node,index)=>({node,phase:phaseForPosition(node.parent.fen,index+1),tactical:tacticalPosition(node.parent,node)}));
- const areas=[
-  {label:'Abertura',filter:x=>x.phase==='opening'},
-  {label:'Táticas',filter:x=>x.tactical},
-  {label:'Estratégia',filter:x=>x.phase==='middlegame'&&!x.tactical},
-  {label:'Final',filter:x=>x.phase==='endgame'}
- ];
- const table=element('table',undefined,'phase-table'),thead=element('thead'),headRow=element('tr');
- headRow.append(element('th','Área'),element('th',displayName('w')),element('th',displayName('b')));thead.append(headRow);table.append(thead);
- const body=element('tbody');
- for(const area of areas){
-  const row=element('tr');row.append(element('th',area.label));
-  for(const side of ['w','b']){
-   const selected=entries.filter(x=>area.filter(x)&&x.node.move.color===side),cell=element('td');
-   if(selected.length){
-    const average=selected.reduce((sum,x)=>sum+x.node.accuracy,0)/selected.length;
-    cell.append(element('strong',average.toFixed(1).replace('.',',')+'%'),element('small',selected.length+' lances'));
-   }else cell.append(element('span','—'),element('small','Sem dados'));
-   if(area.label==='Táticas'){
-    const misses=selected.filter(x=>x.node.classification==='chance-lost').length;
-    if(misses)cell.append(element('small',misses+' oportunidades perdidas','phase-warning'));
-   }
-   row.append(cell);
-  }
-  body.append(row);
- }
- table.append(body);target.append(table);
- const opening=gameHeaders.Opening||(gameHeaders.ECO?'ECO '+gameHeaders.ECO:'');
- target.append(element('p',opening?'Abertura: '+opening:'Abertura não identificada nos dados do PGN.','muted phase-opening'));
- target.append(element('p','Táticas considera posições com capturas, xeques ou promoções nas principais linhas do motor. Estratégia considera lances tranquilos do meio-jogo.','muted phase-note'));
+function renderPhaseReport(path) {
+  const target = $('phase-insights');
+  const entries = path.slice(1).flatMap((node,i) => {
+    if (!node.coach || node.forced) return [];
+    const ply = (Number(node.parent.fen.split(' ')[5])-1)*2 + (node.move.color==='w'?1:2);
+    node.aspects ??= aspectEvidence(node,phaseForPosition(node.parent.fen,ply));
+    return [{node,tags:node.aspects}];
+  });
+  const sections = ['Abertura','Táticas','Estratégia','Final','Princípios'].map(label => {
+    const section = element('details',undefined,'aspect-row');
+    const summary = element('summary');
+    summary.append(element('strong',label));
+    const notes=element('div',undefined,'aspect-notes');
+    for(const side of ['w','b']){
+      const group=entries.filter(e=>e.node.move.color===side && e.tags.has(label));
+      const slips=group.filter(e=>isTrainingMove(e.node));
+      const grade=!group.length?'—':group.length<3?'Amostra curta':slips.length===0?'Consistente':slips.length*3>=group.length?'A rever':'Misto';
+      const column=element('span',grade);
+      column.title=displayName(side);
+      summary.append(column);
+      const note=element('div');note.append(element('b',displayName(side)));
+      if(!group.length)note.append(element('small','Sem posição relevante'));
+      else {
+        note.append(element('small',slips.length+' / '+group.length+' · Imprecisões ou erros'));
+        for(const item of Array.from(new Set([slips[0]||group[0],group.at(-1)])).slice(0,2)){
+          const link=element('button',moveNumber(item.node)+item.node.move.san+' · '+item.tags.get(label),'text-button');
+          link.onclick=()=>goTo(item.node);note.append(link);
+        }
+      }
+      notes.append(note);
+    }
+    section.append(summary,notes);return section;
+  });
+  // Preserve expansion across analysis updates even with translated headings.
+  const flags=[...target.querySelectorAll('details')].map(e=>e.open);
+  sections.forEach((section,i)=>section.open=Boolean(flags[i]));
+  const headings=element('div',undefined,'aspect-columns');
+  headings.append(element('span','Área'),element('span',displayName('w')),element('span',displayName('b')));
+  target.replaceChildren(headings,...sections);
 }
-function findMissedChance(ChessClass,before,node){
- if(!before?.evaluation||!node?.evaluation||!node.coach||acceptedMove(node.coach,uci(node.move)))return null;
- const side=node.move.color,sign=side==='w'?1:-1;
- const beforeWin=side==='w'?winPercent(before.evaluation):100-winPercent(before.evaluation);
- const afterWin=side==='w'?winPercent(node.evaluation):100-winPercent(node.evaluation);
- const hadMate=before.evaluation.type==='mate'&&before.evaluation.white*sign>0;
- const keptMate=node.evaluation.type==='mate'&&node.evaluation.white*sign>0;
- const bestMove=before.lines?.[0]?.pv?.[0]||before.best;
- if(hadMate&&!keptMate)return{kind:'mate',move:bestMove,san:moveSan(ChessClass,before.fen,bestMove)};
- if(beforeWin-afterWin<2.5||!bestMove)return null;
- const board=new ChessClass(before.fen),candidate=board.moves({verbose:true}).find(move=>uci(move)===bestMove);
- if(!candidate)return null;
- const targetValue=candidate.captured?material[candidate.captured]:0;
- if(candidate.captured&&targetValue>=3&&beforeWin-afterWin>=3.5)return{kind:'piece',move:bestMove,san:candidate.san,piece:candidate.captured};
- let forcing=candidate.san.includes('+')||candidate.san.includes('#');
- if(!forcing){
-  const lineBoard=new ChessClass(before.fen);
-  for(const command of(before.lines?.[0]?.pv||[]).slice(0,3)){
-   let move;try{move=lineBoard.move(moveFromUci(command))}catch{break}
-   if(move.captured||move.san.includes('+')||move.promotion){forcing=true;break}
+
+async function reviewExploration(node, engine, cache, depth, task) {
+  async function evaluate(position) {
+    if (position.terminal) return {lines:[position.terminal],best:null};
+    const saved = position.reviewData;
+    if (saved?.cache === cache && saved.depth === depth) return saved.result;
+    const raw = await engine.search(root.fen, pathTo(position).map(n => uci(n.move)), depth, 3, { signal:task.controller.signal });
+    if (live !== task) throw new DOMException('Cancelled','AbortError');
+    if (!raw.lines.length) throw new Error('O motor não retornou uma avaliação.');
+    const result = {...raw, lines:raw.lines.map(line => normalizeLine(line, position))};
+    position.reviewData = {cache,depth,result};
+    return result;
   }
- }
- if(forcing&&beforeWin-afterWin>=5)return{kind:'attack',move:bestMove,san:candidate.san};
- return null;
+  const parent = node.parent;
+  const before = await evaluate(parent);
+  if (live !== task) return;
+  const after = await evaluate(node);
+  if (live !== task || cursor !== node) return;
+  node.lines = after.lines;
+  node.evaluation = after.lines[0];
+  node.best = after.best;
+  node.depth = node.terminal ? depth : node.evaluation.depth;
+  gradeMove(node, before.lines, before.best, pathTo(node).length);
 }
+
+function gradeMove(node, choices, best, index) {
+  const before = choices[0];
+  node.coach = {before,after:node.evaluation,best,choices};
+  node.forced = new Chess(node.parent.fen).moves().length <= 1;
+  node.accuracy = moveAccuracyBetween(before,node.evaluation,node.move.color);
+  node.aspects = null;
+  node.chanceLost = missedOpportunity(Chess,node.parent,node);
+  node.classification = reviewClass(node,before,node.evaluation,best,choices,index);
+}
+
 function moveSan(ChessClass,fen,command){try{return new ChessClass(fen).move(moveFromUci(command)).san}catch{return command||''}}
 
 function variationText(fen, pv) {
@@ -930,6 +960,10 @@ function renderVariantEvaluation(node) {
   target.replaceChildren();
   target.hidden = !node?.userEdited;
   if (!node?.userEdited) return;
+  const original = pathTo(node).reverse().find(n=>!n.userEdited) || root;
+  const back = element('button','Voltar à partida','mini');
+  back.onclick=()=>{ goTo(original); if(original.children[0]) preferred.set(original,original.children[0]); };
+  target.append(back);
   target.append(element('h4', 'Análise da variante editada'));
   if (!node.evaluation) {
     target.append(element('p', 'Aguardando a avaliação do Stockfish para esta nova posição…', 'muted'));
@@ -1256,87 +1290,7 @@ function setTab(name) {
   $('nav-puzzles').classList.toggle('active', name === 'puzzles');
   $('nav-today').classList.toggle('active', name !== 'puzzles');
   render();
-  if (name === 'lines') queueLive();
-}
-
-function cancelBoardAnimations() {
-  for (const animation of boardAnimations) {
-    try { animation.cancel(); } catch { /* Animação já finalizada. */ }
-  }
-  boardAnimations.clear();
-  $('board').querySelectorAll('.square.moving').forEach(square => square.classList.remove('moving'));
-  document.querySelectorAll('.capture-ghost').forEach(ghost => ghost.remove());
-}
-
-function captureSquare(step) {
-  return step.flags?.includes('e') ? step.to[0] + step.from[1] : step.to;
-}
-
-function snapshotCapturedPiece(step) {
-  if (!step.captured) return null;
-  const cell = $('board').querySelector('[data-square="' + captureSquare(step) + '"]');
-  const graphic = cell?.querySelector('.piece-art:not([hidden]), .fallback:not([hidden])');
-  if (!graphic) return null;
-  const rect = graphic.getBoundingClientRect();
-  const ghost = graphic.cloneNode(true);
-  ghost.classList.add('capture-ghost');
-  Object.assign(ghost.style, {
-    position: 'fixed', left: rect.left + 'px', top: rect.top + 'px',
-    width: rect.width + 'px', height: rect.height + 'px',
-    margin: '0', zIndex: '30', pointerEvents: 'none',
-  });
-  return ghost;
-}
-
-function trackBoardAnimation(animation, cleanup = () => {}) {
-  boardAnimations.add(animation);
-  const finish = () => {
-    boardAnimations.delete(animation);
-    cleanup();
-  };
-  animation.addEventListener('finish', finish, { once: true });
-  animation.addEventListener('cancel', finish, { once: true });
-}
-
-function animatePiece(from, to, duration, easing) {
-  const board = $('board');
-  const origin = board.querySelector('[data-square="' + from + '"]');
-  const destination = board.querySelector('[data-square="' + to + '"]');
-  const piece = destination?.querySelector('.piece-art:not([hidden]), .fallback:not([hidden])');
-  if (!origin || !destination || !piece || typeof piece.animate !== 'function') return;
-  const start = origin.getBoundingClientRect();
-  const end = destination.getBoundingClientRect();
-  const dx = start.left - end.left;
-  const dy = start.top - end.top;
-  destination.classList.add('moving');
-  const animation = piece.animate([
-    { transform: 'translate(' + dx + 'px,' + dy + 'px) scale(.96)' },
-    { transform: 'translate(0,0) scale(1)' },
-  ], { duration, easing, fill: 'both' });
-  trackBoardAnimation(animation, () => destination.classList.remove('moving'));
-}
-
-function animateCapture(step, reversed, ghost, duration, easing) {
-  const square = captureSquare(step);
-  if (!reversed && ghost) {
-    document.body.append(ghost);
-    const animation = ghost.animate([
-      { opacity: 1, transform: 'scale(1)' },
-      { opacity: 0, transform: 'scale(.58)' },
-    ], { duration: Math.max(110, duration * .72), easing, fill: 'forwards' });
-    trackBoardAnimation(animation, () => ghost.remove());
-    return;
-  }
-  if (reversed) {
-    const cell = $('board').querySelector('[data-square="' + square + '"]');
-    const restored = cell?.querySelector('.piece-art:not([hidden]), .fallback:not([hidden])');
-    if (!restored || typeof restored.animate !== 'function') return;
-    const animation = restored.animate([
-      { opacity: 0, transform: 'scale(.58)' },
-      { opacity: 1, transform: 'scale(1)' },
-    ], { duration: Math.max(110, duration * .72), easing, fill: 'both' });
-    trackBoardAnimation(animation);
-  }
+  if (name === 'lines' || (name === 'report' && cursor.userEdited)) queueLive();
 }
 
 function moveAnimationDuration() {
@@ -1344,21 +1298,6 @@ function moveAnimationDuration() {
   return speeds[setting('animation-speed')] ?? speeds.natural;
 }
 
-function animateBoardMove(step, reversed, ghost) {
-  if (!step || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  const speed = setting('animation-speed');
-  const duration = moveAnimationDuration();
-  const easing = speed === 'natural' ? 'cubic-bezier(.22,.75,.32,1)' : 'cubic-bezier(.2,.65,.3,1)';
-  animateCapture(step, reversed, ghost, duration, easing);
-  animatePiece(reversed ? step.to : step.from, reversed ? step.from : step.to, duration, easing);
-  if (step.flags?.includes('k') || step.flags?.includes('q')) {
-    const rank = step.from[1];
-    const short = step.to[0] === 'g';
-    const rookFrom = (short ? 'h' : 'a') + rank;
-    const rookTo = (short ? 'f' : 'd') + rank;
-    animatePiece(reversed ? rookTo : rookFrom, reversed ? rookFrom : rookTo, duration, easing);
-  }
-}
 
 function playMoveSound(step, node) {
   if (node.terminal?.type === 'cp') { playSound('end'); return; }
@@ -1376,26 +1315,32 @@ function playMoveSound(step, node) {
 
 function goTo(node) {
   if (!node || node === cursor) return;
-  const movedForward = node.parent === cursor;
-  const reversed = cursor.parent === node;
-  const step = movedForward ? node.move : reversed ? cursor.move : null;
-
+  const previous = cursor;
+  if (node.parent === previous) preferred.set(previous,node);
+  if (previous.parent === node) preferred.set(node,previous);
+  if (!node.userEdited && previous.parent !== node && node.children[0]) preferred.set(node,node.children[0]);
+  const step = previous.parent === node ? previous.move : node.move;
+  stopLive();
   hideMate();
+  lastMate = null;
+  clearTimeout(soundTimer);
   boardMarks = [];
   activeBoardMark = null;
-  cancelBoardAnimations();
-  const captureGhost = step && movedForward && step.captured ? snapshotCapturedPiece(step) : null;
   cursor = node;
   selected = null;
   render();
-  if (step) {
-    animateBoardMove(step, reversed, captureGhost);
-    if (node.terminal?.type !== 'mate') playMoveSound(step, node);
-  }
+  const duration = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : moveAnimationDuration();
+  soundTimer = setTimeout(() => {
+    if (cursor !== node || tab === 'puzzles') return;
+    if (node.terminal?.type === 'mate') announceMate();
+    else if (step) playMoveSound(step,node);
+    else playSound('move');
+  }, duration * .77);
   if (tab === 'report') $('inspector-scroll').scrollTop = 0;
-  announceMate();
-  if (tab === 'lines') queueLive();
+  if (resumeReview && !node.userEdited) { resumeReview = false; runReview(); }
+  else if (tab === 'lines' || (tab === 'report' && node.userEdited)) queueLive();
 }
+
 function stopPlayback() {
   clearInterval(runningTimer);
   runningTimer = null;
@@ -1410,7 +1355,7 @@ function togglePlayback() {
   $('play').replaceChildren(icon('pause'));
   $('play').setAttribute('aria-pressed', 'true');
   runningTimer = setInterval(() => {
-    goTo(cursor.children[0]);
+    goTo(preferred.get(cursor) || cursor.children[0]);
     if (!cursor.children.length) stopPlayback();
   }, 780);
 }
@@ -1419,12 +1364,13 @@ function hideMate() {
   clearTimeout(mateTimer);
   const layer = $('mate-effect');
   layer.hidden = true;
-  for (const particle of layer.querySelectorAll('.mate-particle')) particle.remove();
   $('board-area').classList.remove('mate-highlight');
 }
 
 function announceMate() {
   if (!cursor || cursor.terminal?.type !== 'mate' || tab === 'puzzles' || review) return;
+  if (lastMate === cursor) return;
+  lastMate = cursor;
   if (setting('mate-enabled')) {
     const layer = $('mate-effect');
     hideMate();
@@ -1525,10 +1471,10 @@ function stopLive() {
 function queueLive() {
   stopLive();
   const showInReport = tab === 'report' && Boolean(cursor?.userEdited);
-  if (review && cursor?.userEdited) stopReview(false);
-  const statusId = showInReport ? 'report-status' : 'engine-status';
+  if (review && cursor?.userEdited) { resumeReview = true; stopReview(false); }
+  const statusId = showInReport ? 'variant-status' : 'engine-status';
   if (!engineOn) { $(statusId).textContent = 'Análise pausada'; return; }
-  if (cursor.terminal) { $(statusId).textContent = 'Posição final'; renderVariantEvaluation(cursor); return; }
+  if (cursor.terminal && !cursor.userEdited) { $(statusId).textContent = 'Posição final'; renderVariantEvaluation(cursor); return; }
   if (review) { $('engine-status').textContent = 'O relatório está usando o motor'; return; }
   $(statusId).textContent = cursor.lines.length ? 'Refinando variante…' : 'Preparando variante…';
   if (showInReport) renderVariantEvaluation(cursor);
@@ -1540,7 +1486,7 @@ async function runLive(position, showInReport = false) {
   const depth = setting('line-depth');
   const count = setting('multi-pv');
   const task = { controller: new AbortController() };
-  const statusId = showInReport ? 'report-status' : 'engine-status';
+  const statusId = showInReport ? 'variant-status' : 'engine-status';
   const status = message => { $(statusId).textContent = message; };
   live = task;
   try {
@@ -1548,6 +1494,13 @@ async function runLive(position, showInReport = false) {
     if (live !== task) return;
     const engineLabel = 'Stockfish 19 ' + profile.name + ' · profundidade ';
     const key = cache + '/' + depth + '/' + count;
+    if (position.userEdited) {
+      await reviewExploration(position, engine, cache, depth, task);
+      if (live !== task || cursor !== position) return;
+      render();
+      status(engineLabel + position.depth);
+      return;
+    }
     if (position.liveKey === key) {
       readyEngine();
       status(engineLabel + position.depth);
@@ -1651,11 +1604,7 @@ async function runReview() {
       node.depth = result.lines[0].depth;
       if (index > 0) {
         const before = path[index - 1];
-        node.coach = { before: before.evaluation, after: node.evaluation, best: before.best, choices: before.lines };
-        node.forced = new Chess(before.fen).moves().length <= 1;
-        node.accuracy = moveAccuracyBetween(before.evaluation, node.evaluation, node.move.color);
-        node.chanceLost = findMissedChance(Chess, before, node);
-        node.classification = reviewClass(node, before.evaluation, node.evaluation, before.best, before.lines, index);
+        gradeMove(node, before.lines, before.best, index);
       }
       progress.value = index + 1;
       $('report-status').textContent = 'Avaliando ' + (index + 1) + ' de ' + path.length + ' posições…';
@@ -1788,7 +1737,8 @@ function exportPgn() {
   for (const [key, value] of Object.entries(gameHeaders)) {
     if (typeof value === 'string' && value !== '?' && !['FEN', 'SetUp'].includes(key)) chess.setHeader(key, value.replace(/["\r\n]/g, ' '));
   }
-  const current = linePath(cursor).slice(1);
+  if (originalPgn !== undefined) return originalPgn;
+  const current = mainPath().slice(1);
   for (const node of current) chess.move(moveFromUci(uci(node.move)));
   if (current.at(-1)?.terminal?.type === 'mate') chess.setHeader('Result', current.at(-1).terminal.white > 0 ? '1-0' : '0-1');
   else if (current.at(-1)?.terminal?.type === 'cp') chess.setHeader('Result', '1/2-1/2');
@@ -1836,7 +1786,7 @@ function renderArchive() {
 }
 
 function snapshotGame() {
-  return root.children.length ? { pgn: exportPgn(), ply: pathTo(cursor).length } : { fen: root.fen };
+  return root.children.length ? { pgn: exportPgn(), ply: mainPath().indexOf(pathTo(cursor).reverse().find(n => mainPath().includes(n)) || root) } : { fen: root.fen };
 }
 
 function boardSquareAtPoint(clientX, clientY) {
@@ -1883,6 +1833,7 @@ function cancelBoardMark(event) {
 }
 
 function bindEvents() {
+  for (const [key,[,label]] of Object.entries(CLASSIFICATIONS)) $('chart-key').append(element('span',label,'class-'+key));
   for (const [id, name] of Object.entries({ first: 'first', prev: 'prev', play: 'play', next: 'next', last: 'last', flip: 'flip', export: 'share', 'mate-icon': 'mate' })) {
     $(id).replaceChildren(icon(name));
   }
@@ -1978,7 +1929,7 @@ function bindEvents() {
   });
   $('first').onclick = () => goTo(root);
   $('prev').onclick = () => goTo(cursor.parent);
-  $('next').onclick = () => goTo(cursor.children[0]);
+  $('next').onclick = () => goTo(preferred.get(cursor) || cursor.children[0]);
   $('last').onclick = () => goTo(linePath(cursor).at(-1));
   $('play').onclick = togglePlayback;
   $('flip').onclick = () => { flipped = !flipped; render(); };
@@ -2111,7 +2062,7 @@ function bindEvents() {
     if (event.key === 'g' || event.key === 'G') { event.preventDefault(); toggleFullscreen(); return; }
     if (tab === 'puzzles') return;
     const action = {
-      ArrowLeft: () => goTo(cursor.parent), ArrowRight: () => goTo(cursor.children[0]),
+      ArrowLeft: () => goTo(cursor.parent), ArrowRight: () => goTo(preferred.get(cursor) || cursor.children[0]),
       Home: () => goTo(root), End: () => goTo(linePath(cursor).at(-1)),
       f: () => $('flip').click(),
       ' ': event.target.closest?.('button, a') ? null : togglePlayback,

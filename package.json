@@ -8,11 +8,12 @@
   },
   "scripts": {
     "start": "node serve.mjs",
-    "build": "npm run check",
-    "check": "node --check dist/app.js && node --check dist/i18n.js && node --check dist/review-metrics.js && node --check dist/board-ui.js && node --check dist/coach.js && node --check dist/engine.js && node --check serve.mjs && node --check dist/caps2-model.js && node --check tools/calibrate-caps2.mjs",
+    "build": "npm run check && npm test",
+    "check": "node tools/check-syntax.mjs",
     "calibration:collect": "node tools/calibrate-caps2.mjs collect --games 5000 --players 1200",
     "calibration:analyze": "node tools/calibrate-caps2.mjs analyze --depth 14",
-    "calibration:fit": "node tools/calibrate-caps2.mjs fit"
+    "calibration:fit": "node tools/calibrate-caps2.mjs fit",
+    "test": "node --test"
   },
   "devDependencies": {
     "chess.js": "1.4.0",

@@ -1,3 +1,4 @@
+import {unlockWood,woodVolume,silenceWood,woodSound} from './wood-audio.js';
 const NS = 'http://www.w3.org/2000/svg';
 
 const paths = {
@@ -36,7 +37,9 @@ const paths = {
   good: 'm5 12 4 4 10-9',
   inaccuracy: 'M4 15 9 9l5 6 6-7',
   mistake: 'M7.5 8a4.5 4.5 0 0 1 9 0c0 3.5-4.5 3.5-4.5 7m0 4v.25',
-  blunder: 'm6.5 6.5 11 11m0-11-11 11',
+  great: 'M12 4v10m0 5v.2',
+  'chance-lost': 'm7 7 10 10m0-10L7 17',
+  blunder: 'M8 4v10m0 5v.2M16 4v10m0 5v.2',
   theory: 'M12 6c-3-2-6-2-9-1v13c3-1 6-1 9 1 3-2 6-2 9-1V5c-3-1-6-1-9 1zm0 0v13',
   mate: 'm3 7 5 4 4-6 4 6 5-4-2 10H5zm3 13h12',
 };
@@ -46,7 +49,7 @@ export function icon(name) {
   svg.setAttribute('viewBox', '0 0 24 24');
   svg.setAttribute('fill', 'none');
   svg.setAttribute('stroke', 'currentColor');
-  svg.setAttribute('stroke-width', ['good','excellent','inaccuracy','mistake','blunder'].includes(name) ? '2.8' : '1.8');
+  svg.setAttribute('stroke-width', ['good','excellent','inaccuracy','mistake','blunder','great','chance-lost'].includes(name) ? '2.8' : '1.8');
   svg.setAttribute('stroke-linecap', 'round');
   svg.setAttribute('stroke-linejoin', 'round');
   svg.setAttribute('aria-hidden', 'true');
@@ -108,11 +111,13 @@ function stopSoundPlayers() {
 
 export function setBoardVolume(volume) {
   outputVolume = Math.max(0, Math.min(1, Number(volume) || 0));
+  woodVolume(outputVolume);
   for (const player of soundPlayers.values()) player.volume = outputVolume * (player._boardSoundGain ?? 1);
 }
 
 export function unlockSound(enabled) {
   soundEnabled = Boolean(enabled);
+  unlockWood(enabled && document.getElementById('sound-pack')?.value==='wood');
   if (!soundEnabled) stopSoundPlayers();
 }
 
@@ -121,6 +126,11 @@ export function boardSound(name, enabled, volume = 65) {
   outputVolume = Math.max(0, Math.min(100, Number(volume) || 0)) / 100;
   if (!outputVolume) return;
   try {
+    stopSoundPlayers();
+    if(document.getElementById('sound-pack')?.value==='wood' && ['mate','move','opponent','capture','enPassant','castle','promotion','check','end'].includes(name)){
+      if (woodSound(name,outputVolume)) return;
+    }
+    silenceWood();
     const player = soundPlayer(name);
     if (!player) return;
     player._boardSoundGain = SOUND_GAINS[name] ?? 1;
@@ -131,25 +141,7 @@ export function boardSound(name, enabled, volume = 65) {
   } catch { /* Audio is optional and must never interrupt a move. */ }
 }
 export function mateCelebration(layer) {
-  const colors = ['#b7ed80', '#f7cb76', '#f0f5cb', '#72d7c2'];
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   layer.hidden = false;
-  if (reduced) return setTimeout(() => { layer.hidden = true; }, 1550);
-  const pieces = [];
-  for (let index = 0; index < 24; index += 1) {
-    const particle = document.createElement('i');
-    const angle = index * Math.PI * 2 / 24;
-    const reach = 12 + (index % 5) * 6;
-    particle.className = 'mate-particle';
-    particle.style.setProperty('--dx', Math.cos(angle) * reach + 'cqw');
-    particle.style.setProperty('--dy', Math.sin(angle) * reach + 'cqw');
-    particle.style.setProperty('--spin', (index % 2 ? -1 : 1) * (130 + index * 17) + 'deg');
-    particle.style.background = colors[index % colors.length];
-    layer.append(particle);
-    pieces.push(particle);
-  }
-  return setTimeout(() => {
-    layer.hidden = true;
-    for (const particle of pieces) particle.remove();
-  }, 2400);
+  return setTimeout(() => { layer.hidden = true; }, reduced ? 1550 : 2400);
 }
