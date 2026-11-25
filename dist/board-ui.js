@@ -58,42 +58,132 @@ export function icon(name) {
   return svg;
 }
 
-const effects = {
-  select: [[560, 290, .044, .045, 0]],
-  move: [[280, 132, .082, .17, 0], [790, 450, .032, .045, 0]],
-  capture: [[425, 145, .105, .18, 0], [182, 85, .105, .105, .026]],
-  mate: [[392, 387, .23, .11, .04], [494, 490, .26, .085, .11], [587, 584, .32, .08, .18]],
-};
-
 let audio;
-export function unlockSound(enabled) {
-  if (!enabled || !window.AudioContext) return;
-  try {
-    audio ??= new AudioContext();
-    if (audio.state === 'suspended') audio.resume().catch(() => {});
-  } catch { /* Audio is optional. */ }
+let masterGain;
+let noiseBuffer;
+
+function audioConstructor() {
+  return window.AudioContext || window.webkitAudioContext;
 }
 
-export function boardSound(name, enabled) {
-  if (!enabled || !audio) return;
+function createNoiseBuffer() {
+  if (!audio || noiseBuffer) return noiseBuffer;
+  const length = Math.ceil(audio.sampleRate * .12);
+  noiseBuffer = audio.createBuffer(1, length, audio.sampleRate);
+  const data = noiseBuffer.getChannelData(0);
+  for (let index = 0; index < length; index += 1) {
+    const fade = 1 - index / length;
+    data[index] = (Math.random() * 2 - 1) * fade;
+  }
+  return noiseBuffer;
+}
+
+export function unlockSound(enabled) {
+  if (!enabled) return;
+  const Audio = audioConstructor();
+  if (!Audio) return;
+  try {
+    audio ??= new Audio();
+    if (!masterGain) {
+      masterGain = audio.createGain();
+      masterGain.gain.value = .65;
+      masterGain.connect(audio.destination);
+    }
+    if (audio.state === 'suspended') audio.resume().catch(() => {});
+  } catch { /* Audio is optional and must never interrupt a move. */ }
+}
+
+function playTap(time, strength = .7, pitch = 175, brightness = 1750) {
+  if (!audio || !masterGain) return;
+  const duration = .075;
+  const source = audio.createBufferSource();
+  const filter = audio.createBiquadFilter();
+  const noiseEnvelope = audio.createGain();
+  source.buffer = createNoiseBuffer();
+  filter.type = 'lowpass';
+  filter.frequency.setValueAtTime(brightness, time);
+  filter.frequency.exponentialRampToValueAtTime(Math.max(500, brightness * .42), time + .05);
+  noiseEnvelope.gain.setValueAtTime(.0001, time);
+  noiseEnvelope.gain.exponentialRampToValueAtTime(.23 * strength, time + .003);
+  noiseEnvelope.gain.exponentialRampToValueAtTime(.0001, time + duration);
+  source.connect(filter).connect(noiseEnvelope).connect(masterGain);
+  source.start(time);
+  source.stop(time + duration);
+
+  const body = audio.createOscillator();
+  const bodyEnvelope = audio.createGain();
+  body.type = 'sine';
+  body.frequency.setValueAtTime(pitch, time);
+  body.frequency.exponentialRampToValueAtTime(Math.max(48, pitch * .62), time + .09);
+  bodyEnvelope.gain.setValueAtTime(.0001, time);
+  bodyEnvelope.gain.exponentialRampToValueAtTime(.105 * strength, time + .004);
+  bodyEnvelope.gain.exponentialRampToValueAtTime(.0001, time + .095);
+  body.connect(bodyEnvelope).connect(masterGain);
+  body.start(time);
+  body.stop(time + .1);
+  source.onended = () => { source.disconnect(); filter.disconnect(); noiseEnvelope.disconnect(); };
+  body.onended = () => { body.disconnect(); bodyEnvelope.disconnect(); };
+}
+
+function playNote(time, frequency, duration = .2, strength = .12) {
+  if (!audio || !masterGain) return;
+  const oscillator = audio.createOscillator();
+  const envelope = audio.createGain();
+  oscillator.type = 'sine';
+  oscillator.frequency.setValueAtTime(frequency, time);
+  oscillator.frequency.exponentialRampToValueAtTime(frequency * .985, time + duration);
+  envelope.gain.setValueAtTime(.0001, time);
+  envelope.gain.exponentialRampToValueAtTime(strength, time + .018);
+  envelope.gain.exponentialRampToValueAtTime(.0001, time + duration);
+  oscillator.connect(envelope).connect(masterGain);
+  oscillator.start(time);
+  oscillator.stop(time + duration + .01);
+  oscillator.onended = () => { oscillator.disconnect(); envelope.disconnect(); };
+}
+
+export function boardSound(name, enabled, volume = 65) {
+  if (!enabled || !audio || !masterGain || audio.state === 'closed') return;
+  const amount = Math.max(0, Math.min(100, Number(volume) || 0)) / 100;
   const now = audio.currentTime;
-  for (const [start, end, duration, volume, delay] of effects[name]) {
-    const tone = audio.createOscillator();
-    const gain = audio.createGain();
-    const time = now + delay;
-    tone.type = name === 'mate' ? 'sine' : 'triangle';
-    tone.frequency.setValueAtTime(start, time);
-    tone.frequency.exponentialRampToValueAtTime(end, time + duration);
-    gain.gain.setValueAtTime(.0001, time);
-    gain.gain.exponentialRampToValueAtTime(volume, time + .006);
-    gain.gain.exponentialRampToValueAtTime(.0001, time + duration);
-    tone.connect(gain).connect(audio.destination);
-    tone.start(time);
-    tone.stop(time + duration + .005);
-    tone.onended = () => { tone.disconnect(); gain.disconnect(); };
+  masterGain.gain.setTargetAtTime(amount, now, .018);
+  if (!amount) return;
+
+  switch (name) {
+    case 'select':
+      playTap(now, .28, 260, 2400);
+      break;
+    case 'move':
+      playTap(now, .68, 175, 1900);
+      break;
+    case 'capture':
+      playTap(now, 1, 112, 1350);
+      playTap(now + .025, .34, 235, 2600);
+      break;
+    case 'castle':
+      playTap(now, .72, 165, 1750);
+      playTap(now + .085, .66, 205, 2050);
+      break;
+    case 'check':
+      playTap(now, .65, 190, 1900);
+      playNote(now + .025, 560, .13, .075);
+      playNote(now + .105, 690, .16, .065);
+      break;
+    case 'promotion':
+      playTap(now, .58, 190, 1900);
+      playNote(now + .035, 440, .18, .075);
+      playNote(now + .12, 554, .2, .085);
+      playNote(now + .22, 659, .24, .09);
+      break;
+    case 'mate':
+      playTap(now, .8, 125, 1450);
+      playNote(now + .035, 392, .31, .12);
+      playNote(now + .12, 494, .34, .105);
+      playNote(now + .205, 587, .42, .095);
+      break;
+    default:
+      break;
   }
 }
-
 export function mateCelebration(layer) {
   const colors = ['#b7ed80', '#f7cb76', '#f0f5cb', '#72d7c2'];
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
