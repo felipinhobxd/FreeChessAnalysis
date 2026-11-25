@@ -54,8 +54,6 @@ let sharedEngine;
 let engineProfile;
 let activePuzzle;
 let mateTimer;
-let navigationTimer;
-let navigationToken = 0;
 let fullscreenFallback = false;
 const puzzleProgress = new Map();
 const positions = new Map();
@@ -175,9 +173,6 @@ function setGame({ pgn, fen, ply } = {}, shouldReview = false) {
     parent.children.push(child);
     newPositions.push(child);
   }
-  clearTimeout(navigationTimer);
-  navigationTimer = null;
-  navigationToken += 1;
   stopReview();
   stopLive();
   stopPlayback();
@@ -1090,48 +1085,19 @@ function playMoveSound(step, node) {
   const position = new Chess(node.fen);
   if (step.flags?.includes('k') || step.flags?.includes('q')) playSound('castle');
   else if (step.promotion) playSound('promotion');
-  else if (step.captured) playSound('capture');
+  else if (step.captured && position.isCheck()) {
+    playSound('capture');
+    playSound('check-alert');
+  } else if (step.captured) playSound('capture');
   else if (position.isCheck()) playSound('check');
   else playSound('move');
 }
 
-function routeBetween(from, target) {
-  const fromPath = [root, ...pathTo(from)];
-  const targetPath = [root, ...pathTo(target)];
-  let common = 0;
-  while (common < fromPath.length && common < targetPath.length && fromPath[common] === targetPath[common]) common++;
-  const route = [];
-  for (let index = fromPath.length - 1; index >= common; index--) route.push(fromPath[index].parent);
-  for (let index = common; index < targetPath.length; index++) route.push(targetPath[index]);
-  return route.filter(Boolean);
-}
-
-function goTo(node, continuation = false) {
-  if (!node) return;
-  if (!continuation) {
-    clearTimeout(navigationTimer);
-    navigationTimer = null;
-    navigationToken += 1;
-  }
-  if (node === cursor) return;
+function goTo(node) {
+  if (!node || node === cursor) return;
   const movedForward = node.parent === cursor;
   const reversed = cursor.parent === node;
   const step = movedForward ? node.move : reversed ? cursor.move : null;
-  if (!step && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    const route = routeBetween(cursor, node);
-    if (route.length) {
-      const token = navigationToken;
-      goTo(route[0], true);
-      if (route.length > 1) {
-        navigationTimer = setTimeout(() => {
-          if (token !== navigationToken) return;
-          navigationTimer = null;
-          goTo(node, true);
-        }, moveAnimationDuration() + 24);
-      }
-      return;
-    }
-  }
 
   hideMate();
   boardMarks = [];

@@ -58,37 +58,79 @@ export function icon(name) {
   return svg;
 }
 
-const SOUND_FILES = {
-  select: ['select.mp3'],
-  move: ['move-self.mp3', 'move-self-1.mp3', 'move-self-2.mp3', 'move-self-3.mp3', 'move-self-4.mp3'],
-  check: ['move-self.mp3', 'move-self-1.mp3', 'move-self-2.mp3', 'move-self-3.mp3', 'move-self-4.mp3'],
-  capture: ['capture.mp3', 'capture-1.mp3', 'capture-2.mp3', 'capture-3.mp3', 'capture-4.mp3', 'capture-5.mp3', 'capture-6.mp3', 'capture-7.mp3', 'capture-8.mp3'],
-  castle: ['castle.mp3'],
-  promotion: ['promote.mp3'],
-  mate: ['game-win.mp3'],
-  end: ['game-draw.mp3'],
-  start: ['game-start.mp3'],
-  win: ['game-win.mp3'],
-  lose: ['game-lose.mp3'],
-  illegal: ['illegal.mp3'],
-  notify: ['notify.mp3'],
+const SOUND_CUES = {
+  select: [{ file: 'select.ogg', gain: .4 }],
+  move: [{ file: 'move.ogg', gain: .82 }],
+  capture: [{ file: 'capture-light.ogg', gain: .9 }, { file: 'capture-heavy.ogg', delay: 75, gain: .88 }],
+  check: [{ file: 'check-wood.ogg', gain: .9 }, { file: 'check-glass.ogg', delay: 42, gain: .92 }],
+  'check-alert': [{ file: 'check-glass.ogg', gain: .92 }],
+  castle: [{ file: 'castle-first.ogg', gain: .82 }, { file: 'castle-second.ogg', delay: 175, gain: .82 }],
+  promotion: [{ file: 'move.ogg', gain: .72 }, { file: 'promotion-confirm.ogg', delay: 65, gain: .9 }],
+  mate: [{ file: 'game-end-wood.ogg', gain: .82 }, { file: 'game-end-bell.ogg', delay: 45, gain: .9 }],
+  end: [{ file: 'game-end-wood.ogg', gain: .67 }, { file: 'game-end-bell.ogg', delay: 65, gain: .63 }],
+  start: [{ file: 'promotion-confirm.ogg', gain: .62 }],
+  win: [{ file: 'game-end-wood.ogg', gain: .82 }, { file: 'game-end-bell.ogg', delay: 45, gain: .9 }],
+  lose: [{ file: 'game-end-wood.ogg', gain: .55 }, { file: 'check-glass.ogg', delay: 65, gain: .38 }],
+  illegal: [{ file: 'capture-heavy.ogg', gain: .55 }],
+  notify: [{ file: 'promotion-confirm.ogg', gain: .72 }],
 };
-
 const soundPlayers = new Map();
-const soundPositions = new Map();
+const activeSounds = new Set();
+const scheduledSounds = new Set();
 let outputVolume = .65;
 let soundEnabled = true;
 
+function allSoundFiles() {
+  return new Set(Object.values(SOUND_CUES).flat().map(cue => cue.file));
+}
+
 function prepareSoundPlayers() {
-  for (const file of new Set(Object.values(SOUND_FILES).flat())) {
+  for (const file of allSoundFiles()) {
     if (soundPlayers.has(file)) continue;
-    const player = new Audio('/sounds/' + file);
+    const player = new Audio('/sounds/kenney/' + file);
     player.preload = 'auto';
     player.volume = outputVolume;
     player.setAttribute('playsinline', '');
     soundPlayers.set(file, player);
     player.load();
   }
+}
+
+function clearScheduledSounds() {
+  for (const timer of scheduledSounds) clearTimeout(timer);
+  scheduledSounds.clear();
+}
+
+function stopActiveSounds() {
+  for (const player of activeSounds) {
+    player.pause();
+    try { player.currentTime = 0; } catch { /* Ignore unloaded audio. */ }
+  }
+  activeSounds.clear();
+}
+
+function playSample(file, gain = 1) {
+  const source = soundPlayers.get(file);
+  if (!source || !soundEnabled || outputVolume <= 0) return;
+  const player = source.cloneNode(true);
+  player.volume = Math.max(0, Math.min(1, outputVolume * gain));
+  activeSounds.add(player);
+  const cleanup = () => activeSounds.delete(player);
+  player.addEventListener('ended', cleanup, { once: true });
+  player.addEventListener('error', cleanup, { once: true });
+  const playback = player.play();
+  if (playback?.catch) playback.catch(cleanup);
+}
+
+function queueSample(cue) {
+  let timer = null;
+  const play = () => {
+    if (timer) scheduledSounds.delete(timer);
+    if (soundEnabled) playSample(cue.file, cue.gain ?? 1);
+  };
+  if (!cue.delay) { play(); return; }
+  timer = setTimeout(play, cue.delay);
+  scheduledSounds.add(timer);
 }
 
 export function setBoardVolume(volume) {
@@ -99,7 +141,8 @@ export function setBoardVolume(volume) {
 export function unlockSound(enabled) {
   soundEnabled = Boolean(enabled);
   if (!soundEnabled) {
-    for (const player of soundPlayers.values()) player.pause();
+    clearScheduledSounds();
+    stopActiveSounds();
     return;
   }
   try { prepareSoundPlayers(); } catch { /* Audio is optional and must never interrupt a move. */ }
@@ -107,23 +150,12 @@ export function unlockSound(enabled) {
 
 export function boardSound(name, enabled, volume = 65) {
   if (!enabled || !soundEnabled) return;
-  const files = SOUND_FILES[name];
-  if (!files?.length) return;
-
-  const next = soundPositions.get(name) || 0;
-  soundPositions.set(name, (next + 1) % files.length);
-  const file = files[next % files.length];
-  if (!soundPlayers.has(file)) {
-    try { prepareSoundPlayers(); } catch { return; }
-  }
-  const player = soundPlayers.get(file);
-  if (!player) return;
-  const amount = Math.max(0, Math.min(100, Number(volume) || 0)) / 100;
-  if (!amount) return;
-  player.volume = amount;
-  try { player.currentTime = 0; } catch { /* Metadata may still be loading. */ }
-  const playback = player.play();
-  if (playback?.catch) playback.catch(() => {});
+  outputVolume = Math.max(0, Math.min(100, Number(volume) || 0)) / 100;
+  if (!outputVolume) return;
+  const cues = SOUND_CUES[name];
+  if (!cues?.length) return;
+  try { prepareSoundPlayers(); } catch { return; }
+  for (const cue of cues) queueSample(cue);
 }
 export function mateCelebration(layer) {
   const colors = ['#b7ed80', '#f7cb76', '#f0f5cb', '#72d7c2'];

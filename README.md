@@ -157,7 +157,7 @@ O projeto reúne recursos próprios e componentes de terceiros:
 - **Stockfish.js 19.0.1:** motor de xadrez distribuído sob [GNU GPLv3](https://www.gnu.org/licenses/gpl-3.0.html).
 - **chess.js 1.4.0:** biblioteca de regras e movimentação, sob [BSD 2-Clause](https://github.com/jhlywa/chess.js).
 
-- **Sons do tabuleiro:** pacote [chess-sounds-gen](https://github.com/chessvault-app/chess-sounds-gen), sintetizado do zero e licenciado sob GPL-3.0-or-later. Consulte `dist/sounds/README.md` e `dist/sounds/LICENSE.txt`.
+- **Sons do tabuleiro:** amostras Kenney Impact Sounds e Interface Sounds, CC0 1.0, combinadas em efeitos próprios para movimento, captura, roque, xeque, promoção e fim de partida. Créditos em `dist/sounds/kenney/README.md`.
 
 Consulte também a página de [créditos e licenças da aplicação](dist/notices.html) e os arquivos de licença distribuídos com os respectivos recursos.
 
