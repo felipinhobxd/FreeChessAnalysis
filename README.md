@@ -30,7 +30,7 @@ A aplicação é estática e executa a análise no navegador. Não exige conta, 
 | **Treino** | Resolver puzzles gerados a partir de imprecisões, erros e erros graves encontrados na revisão, com navegação livre pelo histórico e exibição do último lance do adversário. Cada desafio começa com três vidas. |
 | **Tabuleiro** | Mover peças por seleção ou arrastar e soltar com destinos legais destacados, desenhar setas vermelhas por padrão e setas em L para movimentos de cavalo, navegar pelo histórico com animações, girar o tabuleiro e abrir o modo de tela cheia. |
 | **Exportação** | Copiar PGN ou FEN, baixar a partida em PGN, criar um link compartilhável ou salvar a partida no arquivo local. |
-| **Personalização** | Usar Cburnett como conjunto padrão ou escolher outros temas, configurar o motor, ajustar parâmetros de análise, ativar ou silenciar sons, controlar o volume e escolher a velocidade das animações. Os efeitos usam variações locais para movimentos e capturas. |
+| **Personalização** | Usar Cburnett como conjunto padrão ou escolher outros temas, configurar o motor, ajustar parâmetros de análise, ativar ou silenciar sons, controlar o volume e escolher a velocidade das animações. Os efeitos usam os sons padrão do Chess.com para movimentos, capturas, xeque, roque, promoção e fim de partida. |
 
 As classificações e os percentuais de precisão são estimativas calculadas a partir das avaliações do motor. Não representam uma classificação oficial do Chess.com, Lichess ou de outra plataforma.
 
@@ -157,7 +157,7 @@ O projeto reúne recursos próprios e componentes de terceiros:
 - **Stockfish.js 19.0.1:** motor de xadrez distribuído sob [GNU GPLv3](https://www.gnu.org/licenses/gpl-3.0.html).
 - **chess.js 1.4.0:** biblioteca de regras e movimentação, sob [BSD 2-Clause](https://github.com/jhlywa/chess.js).
 
-- **Sons do tabuleiro:** amostras Kenney Impact Sounds e Interface Sounds, CC0 1.0, combinadas em efeitos próprios para movimento, captura, roque, xeque, promoção e fim de partida. Créditos em `dist/sounds/kenney/README.md`.
+- **Sons do tabuleiro:** efeitos padrão do Chess.com integrados com autorização, em MP3 e com carregamento sob demanda. Mapeamento e atribuição em `dist/sounds/chesscom-default/README.md`.
 
 Consulte também a página de [créditos e licenças da aplicação](dist/notices.html) e os arquivos de licença distribuídos com os respectivos recursos.
 

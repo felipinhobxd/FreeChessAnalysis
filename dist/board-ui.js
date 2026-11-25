@@ -58,79 +58,45 @@ export function icon(name) {
   return svg;
 }
 
-const SOUND_CUES = {
-  select: [{ file: 'select.ogg', gain: .4 }],
-  move: [{ file: 'move.ogg', gain: .82 }],
-  capture: [{ file: 'capture-light.ogg', gain: .9 }, { file: 'capture-heavy.ogg', delay: 75, gain: .88 }],
-  check: [{ file: 'check-wood.ogg', gain: .9 }, { file: 'check-glass.ogg', delay: 42, gain: .92 }],
-  'check-alert': [{ file: 'check-glass.ogg', gain: .92 }],
-  castle: [{ file: 'castle-first.ogg', gain: .82 }, { file: 'castle-second.ogg', delay: 175, gain: .82 }],
-  promotion: [{ file: 'move.ogg', gain: .72 }, { file: 'promotion-confirm.ogg', delay: 65, gain: .9 }],
-  mate: [{ file: 'game-end-wood.ogg', gain: .82 }, { file: 'game-end-bell.ogg', delay: 45, gain: .9 }],
-  end: [{ file: 'game-end-wood.ogg', gain: .67 }, { file: 'game-end-bell.ogg', delay: 65, gain: .63 }],
-  start: [{ file: 'promotion-confirm.ogg', gain: .62 }],
-  win: [{ file: 'game-end-wood.ogg', gain: .82 }, { file: 'game-end-bell.ogg', delay: 45, gain: .9 }],
-  lose: [{ file: 'game-end-wood.ogg', gain: .55 }, { file: 'check-glass.ogg', delay: 65, gain: .38 }],
-  illegal: [{ file: 'capture-heavy.ogg', gain: .55 }],
-  notify: [{ file: 'promotion-confirm.ogg', gain: .72 }],
-};
+const SOUND_FILES = Object.freeze({
+  move: 'move-self',
+  opponent: 'move-opponent',
+  capture: 'capture',
+  check: 'move-check',
+  castle: 'castle',
+  promotion: 'promote',
+  premove: 'premove',
+  illegal: 'illegal',
+  start: 'game-start',
+  end: 'game-end',
+  mate: 'game-end',
+  win: 'game-end',
+  lose: 'game-end',
+  drawOffer: 'drawoffer',
+  tenSeconds: 'tenseconds',
+});
+
 const soundPlayers = new Map();
-const activeSounds = new Set();
-const scheduledSounds = new Set();
-let outputVolume = .65;
+let outputVolume = 0.65;
 let soundEnabled = true;
 
-function allSoundFiles() {
-  return new Set(Object.values(SOUND_CUES).flat().map(cue => cue.file));
-}
-
-function prepareSoundPlayers() {
-  for (const file of allSoundFiles()) {
-    if (soundPlayers.has(file)) continue;
-    const player = new Audio('/sounds/kenney/' + file);
+function soundPlayer(name) {
+  const file = SOUND_FILES[name];
+  if (!file) return null;
+  if (!soundPlayers.has(file)) {
+    const player = new Audio(`/sounds/chesscom-default/${file}.mp3`);
     player.preload = 'auto';
     player.volume = outputVolume;
-    player.setAttribute('playsinline', '');
     soundPlayers.set(file, player);
-    player.load();
   }
+  return soundPlayers.get(file);
 }
 
-function clearScheduledSounds() {
-  for (const timer of scheduledSounds) clearTimeout(timer);
-  scheduledSounds.clear();
-}
-
-function stopActiveSounds() {
-  for (const player of activeSounds) {
+function stopSoundPlayers() {
+  for (const player of soundPlayers.values()) {
     player.pause();
     try { player.currentTime = 0; } catch { /* Ignore unloaded audio. */ }
   }
-  activeSounds.clear();
-}
-
-function playSample(file, gain = 1) {
-  const source = soundPlayers.get(file);
-  if (!source || !soundEnabled || outputVolume <= 0) return;
-  const player = source.cloneNode(true);
-  player.volume = Math.max(0, Math.min(1, outputVolume * gain));
-  activeSounds.add(player);
-  const cleanup = () => activeSounds.delete(player);
-  player.addEventListener('ended', cleanup, { once: true });
-  player.addEventListener('error', cleanup, { once: true });
-  const playback = player.play();
-  if (playback?.catch) playback.catch(cleanup);
-}
-
-function queueSample(cue) {
-  let timer = null;
-  const play = () => {
-    if (timer) scheduledSounds.delete(timer);
-    if (soundEnabled) playSample(cue.file, cue.gain ?? 1);
-  };
-  if (!cue.delay) { play(); return; }
-  timer = setTimeout(play, cue.delay);
-  scheduledSounds.add(timer);
 }
 
 export function setBoardVolume(volume) {
@@ -140,23 +106,23 @@ export function setBoardVolume(volume) {
 
 export function unlockSound(enabled) {
   soundEnabled = Boolean(enabled);
-  if (!soundEnabled) {
-    clearScheduledSounds();
-    stopActiveSounds();
-    return;
-  }
-  try { prepareSoundPlayers(); } catch { /* Audio is optional and must never interrupt a move. */ }
+  if (!soundEnabled) stopSoundPlayers();
 }
 
 export function boardSound(name, enabled, volume = 65) {
   if (!enabled || !soundEnabled) return;
   outputVolume = Math.max(0, Math.min(100, Number(volume) || 0)) / 100;
   if (!outputVolume) return;
-  const cues = SOUND_CUES[name];
-  if (!cues?.length) return;
-  try { prepareSoundPlayers(); } catch { return; }
-  for (const cue of cues) queueSample(cue);
+  try {
+    const player = soundPlayer(name);
+    if (!player) return;
+    player.volume = outputVolume;
+    try { player.currentTime = 0; } catch { /* Wait for the first audio frame. */ }
+    const playback = player.play();
+    playback?.catch(() => {});
+  } catch { /* Audio is optional and must never interrupt a move. */ }
 }
+
 export function mateCelebration(layer) {
   const colors = ['#b7ed80', '#f7cb76', '#f0f5cb', '#72d7c2'];
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;

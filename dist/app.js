@@ -235,7 +235,6 @@ function pieceGraphic(piece, square, playable) {
       selected = square;
       showLegalTargets(square);
       renderScore();
-      playSound('select');
       event.dataTransfer.setData('text/plain', square);
       event.dataTransfer.effectAllowed = 'move';
     });
@@ -493,7 +492,6 @@ function selectSquare(square) {
   if (selected && selected !== square && tryMove(selected, square)) return;
   if (puzzle) puzzle.wrongSquare = null;
   selected = selected !== square && piece?.color === board.turn() ? square : null;
-  if (selected) playSound('select');
   renderPieces();
   renderScore();
 }
@@ -952,7 +950,7 @@ function submitPuzzleMove(command) {
   const position = shownPosition();
   const board = boardAt(position);
   let move;
-  try { move = board.move(moveFromUci(command)); } catch { return; }
+  try { move = board.move(moveFromUci(command)); } catch { playSound('illegal'); return; }
   playSound(move.captured ? 'capture' : 'move');
   selected = null;
   puzzle.wrongSquare = null;
@@ -1259,12 +1257,12 @@ function playMoveSound(step, node) {
   const position = new Chess(node.fen);
   if (step.flags?.includes('k') || step.flags?.includes('q')) playSound('castle');
   else if (step.promotion) playSound('promotion');
-  else if (step.captured && position.isCheck()) {
-    playSound('capture');
-    playSound('check-alert');
-  } else if (step.captured) playSound('capture');
   else if (position.isCheck()) playSound('check');
-  else playSound('move');
+  else if (step.captured) playSound('capture');
+  else {
+    const playerColor = activeChallenge()?.node?.move?.color ?? (flipped ? 'b' : 'w');
+    playSound(step.color === playerColor ? 'move' : 'opponent');
+  }
 }
 
 function goTo(node) {
@@ -1640,6 +1638,7 @@ async function submitImport(event) {
   try {
     if (source === 'pgn' || source === 'fen') {
       setGame({ [source]: text }, true);
+      playSound('start');
       return;
     }
     remoteRequest?.abort();
@@ -1653,7 +1652,7 @@ async function submitImport(event) {
     $('remote-games').replaceChildren(...games.map(game => {
       const button = element('button', game.white + ' × ' + game.black + ' · ' + new Date(game.timestamp).toLocaleDateString('pt-BR'), 'game-option');
       button.onclick = () => {
-        try { setGame({ pgn: game.pgn }, true); } catch { reportError('Esta partida não pôde ser importada.'); }
+        try { setGame({ pgn: game.pgn }, true); playSound('start'); } catch { reportError('Esta partida não pôde ser importada.'); }
       };
       return button;
     }));
@@ -1715,6 +1714,7 @@ function renderArchive() {
     button.onclick = () => {
       try {
         setGame(game.data, Boolean(game.data.pgn));
+        playSound('start');
         if (!game.data.pgn) setTab('lines');
         $('archive').close();
       } catch { toast('Não foi possível abrir essa partida.'); }
@@ -1783,7 +1783,6 @@ function bindEvents() {
     control.checked = !control.checked;
     unlockSound(control.checked);
     control.dispatchEvent(new Event('change'));
-    if (control.checked) playSound('select');
   };
   $('board').addEventListener('click', event => {
     if (event.button === 0 && boardMarks.length) {
