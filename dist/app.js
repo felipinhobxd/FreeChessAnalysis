@@ -1770,8 +1770,17 @@ function bindEvents() {
   });
   for (const button of document.querySelectorAll('[data-source]')) button.onclick = () => setSource(button.dataset.source);
   const savedPrefs = readLocal('livro-de-lances/preferencias/v1', {});
+  let migratedPrefs = false;
   if (savedPrefs['piece-set'] === 'atelier') {
     savedPrefs['piece-set'] = 'classicas';
+    migratedPrefs = true;
+  }
+  // The former full setting was the default, so migrate old saved defaults to Lite.
+  if (savedPrefs['engine-mode'] === 'full') {
+    savedPrefs['engine-mode'] = 'lite';
+    migratedPrefs = true;
+  }
+  if (migratedPrefs) {
     try { writeLocal('livro-de-lances/preferencias/v1', savedPrefs); } catch { /* Private mode. */ }
   }
   for (const id of PREFS) {
