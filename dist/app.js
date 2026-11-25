@@ -539,20 +539,21 @@ function renderChart() {
     context.stroke();
   }
 
+  const markerRadius = Math.min(4.2, Math.max(2.1, (width - 10) / Math.max(1, nodes.length - 1) * .36));
   for (const [index, node] of nodes.entries()) {
     const color = chartColors[node.classification];
     if (!node.evaluation || !color || index === 0) continue;
     const marker = { node, index, x: x(index), y: y(node.evaluation), color };
     chartMarkers.push(marker);
     context.beginPath();
-    context.arc(marker.x, marker.y, 4.2, 0, Math.PI * 2);
+    context.arc(marker.x, marker.y, markerRadius, 0, Math.PI * 2);
     context.fillStyle = color;
     context.fill();
     context.lineWidth = 1.35;
     context.strokeStyle = '#20261d';
     context.stroke();
     context.beginPath();
-    context.arc(marker.x, marker.y, 1.15, 0, Math.PI * 2);
+    context.arc(marker.x, marker.y, Math.max(.7, markerRadius * .28), 0, Math.PI * 2);
     context.fillStyle = '#f4f5e9';
     context.fill();
   }
@@ -1014,7 +1015,7 @@ function goTo(node, continuation = false) {
   const movedForward = node.parent === cursor;
   const reversed = cursor.parent === node;
   const step = movedForward ? node.move : reversed ? cursor.move : null;
-  if (!step) {
+  if (!step && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
     const route = routeBetween(cursor, node);
     if (route.length) {
       const token = navigationToken;
@@ -1620,8 +1621,7 @@ function bindEvents() {
         syncEngine('idle', setting(id) === 'full' ? 'Modo completo' : 'Modo leve');
         if (tab === 'lines') queueLive();
       }
-      if (id === 'sound-enabled') syncBoardTools();
-      if (id === 'mate-enabled' && !control.checked) hideMate();
+        if (id === 'mate-enabled' && !control.checked) hideMate();
       render();
       if (tab === 'lines' && (id === 'multi-pv' || id === 'line-depth')) queueLive();
     };
