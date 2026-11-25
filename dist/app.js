@@ -65,9 +65,15 @@ const chartColors = {
 };
 let chartMarkers = [];
 let boardAnimations = new Set();
+let boardMarks = [];
+let activeBoardMark = null;
 
 const setting = id => $(id).type === 'checkbox' ? $(id).checked : ['engine-mode', 'piece-set', 'animation-speed'].includes(id) ? $(id).value : Number($(id).value);
-const playSound = name => boardSound(name, setting('sound-enabled'), setting('sound-volume') / 100);
+const playSound = name => {
+  if (!setting('sound-enabled')) return;
+  unlockSound(true);
+  boardSound(name, true, setting('sound-volume'));
+};
 const readLocal = (key, fallback) => {
   try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; }
 };
@@ -180,6 +186,8 @@ function setGame({ pgn, fen, ply } = {}, shouldReview = false) {
   activePuzzle = null;
   puzzleProgress.clear();
   positions.clear();
+  boardMarks = [];
+  activeBoardMark = null;
   for (const child of newPositions) positions.set(child.id, child);
   root = nextRoot;
   cursor = newPositions[Math.min(Math.max(Number(ply) || 0, 0), newPositions.length - 1)];
@@ -228,12 +236,25 @@ function pieceGraphic(piece, square, playable) {
     view.draggable = playable;
     if (playable) view.addEventListener('dragstart', event => {
       selected = square;
+      showLegalTargets(square);
+      renderScore();
       playSound('select');
       event.dataTransfer.setData('text/plain', square);
       event.dataTransfer.effectAllowed = 'move';
     });
   }
   return [image, fallback];
+}
+
+function showLegalTargets(square) {
+  const board = new Chess(shownPosition().fen);
+  const legal = new Set(board.moves({ square, verbose: true }).map(move => move.to));
+  for (const cell of $('board').querySelectorAll('[data-square]')) {
+    const name = cell.dataset.square;
+    cell.classList.toggle('selected', name === square);
+    cell.classList.toggle('legal', legal.has(name));
+    cell.classList.toggle('occupied', Boolean(board.get(name)));
+  }
 }
 
 function renderPieces() {
@@ -338,33 +359,89 @@ function canvasContext(canvas) {
   return { context, width, height };
 }
 
-function renderScore() {
-  $('evalbar').classList.toggle('puzzle-hidden', Boolean(activeChallenge()));
-  if (activeChallenge()) { canvasContext($('arrows')); return; }
-  const evaluation = cursor.evaluation;
-  const percent = winPercent(evaluation);
-  $('eval-value').textContent = evaluationLabel(evaluation);
-  $('eval-value').title = evaluationLabel(evaluation);
-  $('eval-white').style.height = Math.max(3, Math.min(97, percent)) + '%';
-  $('evalbar').classList.toggle('low-white', percent < 12);
-  $('evalbar').classList.toggle('flipped', flipped);
-  $('evalbar').setAttribute('aria-valuenow', percent.toFixed(0));
-  $('evalbar').setAttribute('aria-valuetext', evaluation ? evaluationLabel(evaluation) : 'Sem avaliação');
-  $('chart-value').textContent = evaluationLabel(evaluation);
-  const surface = canvasContext($('arrows'));
-  const best = cursor.lines[0]?.pv[0];
-  if (!surface || !best || !setting('show-arrow') || selected) return;
-  const { context, width, height } = surface;
-  const size = width / 8;
-  function point(square) {
-    const x = square.charCodeAt(0) - 97;
-    const y = Number(square[1]) - 1;
-    return [(flipped ? 7 - x : x) * size + size / 2, (flipped ? y : 7 - y) * height / 8 + height / 16];
+function boardPoint(square, width, height) {
+  const blackAtBottom = activeChallenge() ? activeChallenge().node.move.color === 'b' : flipped;
+  const file = square.charCodeAt(0) - 97;
+  const rank = Number(square[1]) - 1;
+  const column = blackAtBottom ? 7 - file : file;
+  const row = blackAtBottom ? rank : 7 - rank;
+  return [(column + .5) * width / 8, (row + .5) * height / 8];
+}
+
+function drawBoardArrow(context, from, to, color, width, height, preview = false) {
+  if (!from || !to || from === to) return;
+  const cell = Math.min(width, height) / 8;
+  const [x1, y1] = boardPoint(from, width, height);
+  const [x2, y2] = boardPoint(to, width, height);
+  const dx = x2 - x1, dy = y2 - y1;
+  const angle = Math.atan2(dy, dx);
+  const distance = Math.hypot(dx, dy);
+  const head = cell * .34;
+  const half = cell * .19;
+  const tipX = x2 - Math.cos(angle) * cell * .08;
+  const tipY = y2 - Math.sin(angle) * cell * .08;
+  const baseX = tipX - Math.cos(angle) * head;
+  const baseY = tipY - Math.sin(angle) * head;
+  context.save();
+  context.globalAlpha = preview ? .62 : .78;
+  context.strokeStyle = color;
+  context.fillStyle = color;
+  context.lineWidth = cell * .14;
+  context.lineCap = 'round';
+  context.lineJoin = 'round';
+  context.beginPath();
+  context.moveTo(x1, y1);
+  context.lineTo(baseX, baseY);
+  context.stroke();
+  context.beginPath();
+  context.moveTo(tipX, tipY);
+  context.lineTo(baseX - Math.sin(angle) * half, baseY + Math.cos(angle) * half);
+  context.lineTo(baseX + Math.sin(angle) * half, baseY - Math.cos(angle) * half);
+  context.closePath();
+  context.fill();
+  context.restore();
+}
+
+function drawBoardCircle(context, square, color, width, height, preview = false) {
+  if (!square) return;
+  const cell = Math.min(width, height) / 8;
+  const [x, y] = boardPoint(square, width, height);
+  context.save();
+  context.globalAlpha = preview ? .22 : .27;
+  context.fillStyle = color;
+  context.beginPath();
+  context.arc(x, y, cell * .34, 0, Math.PI * 2);
+  context.fill();
+  context.globalAlpha = preview ? .72 : .92;
+  context.strokeStyle = color;
+  context.lineWidth = Math.max(3, cell * .075);
+  context.beginPath();
+  context.arc(x, y, cell * .34, 0, Math.PI * 2);
+  context.stroke();
+  context.restore();
+}
+
+function renderBoardMarks(context, width, height) {
+  for (const mark of boardMarks) {
+    if (mark.type === 'circle') drawBoardCircle(context, mark.from, mark.color, width, height);
+    else drawBoardArrow(context, mark.from, mark.to, mark.color, width, height);
   }
-  const [x1, y1] = point(best.slice(0, 2));
-  const [x2, y2] = point(best.slice(2, 4));
+  if (activeBoardMark) {
+    if (activeBoardMark.to && activeBoardMark.to !== activeBoardMark.from) {
+      drawBoardArrow(context, activeBoardMark.from, activeBoardMark.to, activeBoardMark.color, width, height, true);
+    } else {
+      drawBoardCircle(context, activeBoardMark.from, activeBoardMark.color, width, height, true);
+    }
+  }
+}
+
+function renderBestArrow(context, best, width, height) {
+  if (!best || !setting('show-arrow') || selected || activeChallenge()) return;
+  const [x1, y1] = boardPoint(best.slice(0, 2), width, height);
+  const [x2, y2] = boardPoint(best.slice(2, 4), width, height);
   const angle = Math.atan2(y2 - y1, x2 - x1);
   const distance = Math.hypot(x2 - x1, y2 - y1);
+  const size = width / 8;
   context.save();
   context.translate(x1, y1);
   context.rotate(angle);
@@ -387,6 +464,26 @@ function renderScore() {
   context.restore();
 }
 
+function renderScore() {
+  $('evalbar').classList.toggle('puzzle-hidden', Boolean(activeChallenge()));
+  if (!activeChallenge()) {
+    const evaluation = cursor.evaluation;
+    const percent = winPercent(evaluation);
+    $('eval-value').textContent = evaluationLabel(evaluation);
+    $('eval-value').title = evaluationLabel(evaluation);
+    $('eval-white').style.height = Math.max(3, Math.min(97, percent)) + '%';
+    $('evalbar').classList.toggle('low-white', percent < 12);
+    $('evalbar').classList.toggle('flipped', flipped);
+    $('evalbar').setAttribute('aria-valuenow', percent.toFixed(0));
+    $('evalbar').setAttribute('aria-valuetext', evaluation ? evaluationLabel(evaluation) : 'Sem avaliação');
+    $('chart-value').textContent = evaluationLabel(evaluation);
+  }
+  const surface = canvasContext($('arrows'));
+  if (!surface) return;
+  const { context, width, height } = surface;
+  renderBestArrow(context, cursor.lines[0]?.pv[0], width, height);
+  renderBoardMarks(context, width, height);
+}
 function selectSquare(square) {
   const puzzle = activeChallenge();
   const position = shownPosition();
@@ -1495,6 +1592,29 @@ function bindEvents() {
     const square = event.target.closest('[data-square]')?.dataset.square;
     if (square) selectSquare(square);
   });
+  $('board').addEventListener('contextmenu', event => event.preventDefault());
+  $('board').addEventListener('pointerdown', event => {
+    if (event.button !== 2 || event.pointerType === 'touch') return;
+    const origin = boardSquareAtPoint(event.clientX, event.clientY);
+    if (!origin) return;
+    event.preventDefault();
+    event.stopPropagation();
+    selected = null;
+    activeBoardMark = { pointerId: event.pointerId, from: origin, to: origin, color: annotationColor(event) };
+    try { $('board').setPointerCapture(event.pointerId); } catch { /* Pointer capture is an enhancement. */ }
+    renderScore();
+  });
+  $('board').addEventListener('pointermove', event => {
+    if (!activeBoardMark || activeBoardMark.pointerId !== event.pointerId) return;
+    const destination = boardSquareAtPoint(event.clientX, event.clientY);
+    if (destination && destination !== activeBoardMark.to) {
+      activeBoardMark.to = destination;
+      renderScore();
+    }
+  });
+  $('board').addEventListener('pointerup', event => finishBoardMark(event));
+  $('board').addEventListener('pointercancel', event => cancelBoardMark(event));
+  $('board').addEventListener('lostpointercapture', event => cancelBoardMark(event));
   $('board').addEventListener('dragover', event => event.preventDefault());
   $('board').addEventListener('drop', event => {
     event.preventDefault();
@@ -1596,6 +1716,10 @@ function bindEvents() {
   });
   for (const button of document.querySelectorAll('[data-source]')) button.onclick = () => setSource(button.dataset.source);
   const savedPrefs = readLocal('livro-de-lances/preferencias/v1', {});
+  if (savedPrefs['piece-set'] === 'atelier') {
+    savedPrefs['piece-set'] = 'classicas';
+    try { writeLocal('livro-de-lances/preferencias/v1', savedPrefs); } catch { /* Private mode. */ }
+  }
   for (const id of PREFS) {
     const control = $(id);
     const value = savedPrefs[id];
