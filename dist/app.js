@@ -1,6 +1,6 @@
 import { Engine } from './engine.js';
 import { acceptedMove, inspectMove, isTrainingMove } from './coach.js';
-import { icon, unlockSound, boardSound, mateCelebration } from './board-ui.js';
+import { icon, unlockSound, boardSound, setBoardVolume, mateCelebration } from './board-ui.js';
 
 const $ = id => document.getElementById(id);
 const element = (tag, text, className) => {
@@ -1602,7 +1602,15 @@ function bindEvents() {
     if (control.type === 'range' && Number.isFinite(Number(value))) control.value = String(Math.max(Number(control.min), Math.min(Number(control.max), Number(value))));
     control.onchange = () => {
       try { writeLocal('livro-de-lances/preferencias/v1', Object.fromEntries(PREFS.map(key => [key, setting(key)]))); } catch { /* Private mode. */ }
-      if (id === 'sound-volume') $('sound-volume-value').textContent = control.value + '%';
+      if (id === 'sound-volume') {
+        $('sound-volume-value').textContent = control.value + '%';
+        setBoardVolume(setting('sound-enabled') ? setting('sound-volume') / 100 : 0);
+      }
+      if (id === 'sound-enabled') {
+        unlockSound(setting('sound-enabled'));
+        setBoardVolume(setting('sound-enabled') ? setting('sound-volume') / 100 : 0);
+        syncBoardTools();
+      }
       if (id === 'engine-mode') {
         stopReview();
         stopLive();
@@ -1619,7 +1627,10 @@ function bindEvents() {
     };
   }
   $('sound-volume-value').textContent = setting('sound-volume') + '%';
-  $('sound-volume').oninput = () => { $('sound-volume-value').textContent = $('sound-volume').value + '%'; };
+  $('sound-volume').oninput = () => {
+    $('sound-volume-value').textContent = $('sound-volume').value + '%';
+    setBoardVolume(setting('sound-enabled') ? Number($('sound-volume').value) / 100 : 0);
+  };
   syncBoardTools();
   $('copy-fen').onclick = () => copyText(cursor.fen, 'FEN copiado.');
   $('copy-pgn').onclick = () => copyText(exportPgn(), 'PGN copiado.');
