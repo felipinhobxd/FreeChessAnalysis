@@ -788,8 +788,9 @@ function renderRatingEstimates(path){
   if(estimate.available){
    card.append(element('strong','≈ '+formatRating(estimate.rating),'rating-performance'));
    const control=estimate.timeClass==='blitz'?'Blitz':'Rapid';
-   card.append(element('small','Lichess '+control+' · Faixa indicativa: '+formatRating(estimate.low,estimate.lowBound)+'–'+formatRating(estimate.high,estimate.highBound)+' · '+estimate.moves+' lances','muted'));
+   card.append(element('small','Chess.com '+control+' · Intervalo aproximado: '+formatRating(estimate.low,estimate.lowBound)+'–'+formatRating(estimate.high,estimate.highBound)+' · '+estimate.moves+' lances','muted'));
    card.append(element('small','Precisão média por lance: '+estimate.accuracy.toFixed(1).replace('.',',')+'%','muted'));
+   card.append(element('small','Erro mediano de referência em uma partida: ±'+estimate.typicalAbsoluteError+' pontos de rating.','muted'));
   }else{
    card.append(element('strong','—','rating-performance'));
    const reasons={short:'Partida curta demais para estimar.','time-control':'Ritmo não informado no PGN.',bullet:'Precisão isolada não estima bem rating bullet.',classical:'Sem curva de referência para partidas clássicas.','outside-range':'Precisão fora da faixa de referência; uma partida não permite estimar com segurança.'};
@@ -849,7 +850,7 @@ function findMissedChance(ChessClass,before,node){
  const side=node.move.color,sign=side==='w'?1:-1;
  const beforeWin=side==='w'?winPercent(before.evaluation):100-winPercent(before.evaluation);
  const afterWin=side==='w'?winPercent(node.evaluation):100-winPercent(node.evaluation);
- if(afterWin<58||beforeWin-afterWin<2.5)return null;
+ if(beforeWin-afterWin<2.5)return null;
  const hadMate=before.evaluation.type==='mate'&&before.evaluation.white*sign>0;
  const keptMate=node.evaluation.type==='mate'&&node.evaluation.white*sign>0;
  const bestMove=before.lines?.[0]?.pv?.[0]||before.best;
@@ -1542,9 +1543,10 @@ function reviewClass(node, before, after, previousBest, runnersUp, index) {
   const color = node.move.color === 'w' ? 1 : -1;
   const loss = Math.max(0, color * (winPercent(before) - winPercent(after)));
   const actual = uci(node.move);
-  const top = acceptedMove(node.coach, actual) || loss < 1.2;
+  const exactBest = actual === previousBest;
+  const accepted = acceptedMove(node.coach, actual) || loss <= 1;
   if (node.chanceLost) return 'chance-lost';
-  const opening = root.fen === new Chess().fen() && loss < 6 &&
+  const opening = root.fen === new Chess().fen() && loss < 5 &&
     ((index === 1 && BOOK.has(actual)) || (index === 2 && BOOK_REPLY[uci(node.parent.move)]?.includes(actual)));
   const margin = runnersUp?.[1] ? color * (winPercent(runnersUp[0]) - winPercent(runnersUp[1])) : 0;
   const opponentCapture = node.parent.move?.captured ? material[node.parent.move.captured] : 0;
@@ -1552,17 +1554,17 @@ function reviewClass(node, before, after, previousBest, runnersUp, index) {
   const commitment = staticBoard.moves({ verbose: true }).some(reply =>
     reply.to === node.move.to && reply.captured && material[reply.captured] >= 3 &&
     material[reply.captured] - (node.move.captured ? material[node.move.captured] : 0) - opponentCapture >= 2);
+  const chanceBefore = color === 1 ? winPercent(before) : 100 - winPercent(before);
   if (opening) return 'theory';
-  if (top && margin > 12 && commitment && color * (winPercent(after) - 50) >= -5) return 'brilliant';
-  if (top && margin > 14) return 'great';
-  if (top) return 'best';
-  if (loss < 3.5) return 'excellent';
-  if (loss < 7) return 'good';
-  if (loss < 13) return 'inaccuracy';
-  if (loss < 24) return 'mistake';
+  if (accepted && margin >= 12 && commitment && chanceBefore > 18 && chanceBefore < 82) return 'brilliant';
+  if (accepted && margin >= 14 && chanceBefore > 15 && chanceBefore < 85) return 'great';
+  if (exactBest) return 'best';
+  if (accepted || loss <= 2) return 'excellent';
+  if (loss <= 5) return 'good';
+  if (loss <= 10) return 'inaccuracy';
+  if (loss <= 20) return 'mistake';
   return 'blunder';
 }
-
 function stopReview(resumeLive = true) {
   if (!review) return;
   review.controller.abort();
