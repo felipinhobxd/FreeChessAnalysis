@@ -262,3 +262,13 @@ body.focus-board{overflow:hidden}.board-column:fullscreen,body.focus-board .boar
   .range-value{min-width:145px}
   .moment-row{padding:7px 6px}
 }
+
+
+/* A restrained checkmate finish with a soft expanding board halo */
+.mate-effect{overflow:hidden;isolation:isolate;background:radial-gradient(circle at 50% 50%,#b9d99424 0,#252b204f 38%,#151a1594 100%)}
+.mate-effect::before,.mate-effect::after{content:"";position:absolute;left:50%;top:50%;width:24cqw;aspect-ratio:1;border:1px solid #c6e7a27a;border-radius:50%;transform:translate(-50%,-50%) scale(.28);animation:mateRing 1.45s cubic-bezier(.12,.66,.24,1) both}
+.mate-effect::after{width:36cqw;border-color:#f4d38a55;animation-delay:.18s}
+.mate-title{animation:matePop .48s cubic-bezier(.16,.82,.25,1.22) both}
+@keyframes mateRing{0%{opacity:0;transform:translate(-50%,-50%) scale(.28)}18%{opacity:.8}100%{opacity:0;transform:translate(-50%,-50%) scale(1.5)}}
+@keyframes matePop{0%{opacity:0;transform:translateY(9px) scale(.84)}100%{opacity:1;transform:translateY(0) scale(1)}}
+@media(prefers-reduced-motion:reduce){.mate-effect::before,.mate-effect::after,.mate-title{animation:none}}
