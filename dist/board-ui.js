@@ -189,6 +189,11 @@ export function boardSound(name, enabled, volume = 65) {
       playNote(now + .12, 494, .34, .105);
       playNote(now + .205, 587, .42, .095);
       break;
+    case 'end':
+      playTap(now, .52, 145, 1350);
+      playNote(now + .045, 349, .3, .075);
+      playNote(now + .11, 440, .26, .06);
+      break;
     default:
       break;
   }
