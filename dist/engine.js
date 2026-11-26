@@ -134,7 +134,8 @@ export class Engine {
   search(rootFen, moves, depth, lines, { signal, update } = {}) {
     const next = this.tail.then(async () => {
       signal?.throwIfAborted();
-      const info = new Map();
+      const byDepth = new Map();
+      let publishedDepth = 7;
       const stop = () => this.worker?.postMessage('stop');
       signal?.addEventListener('abort', stop, { once: true });
       try {
@@ -148,11 +149,19 @@ export class Engine {
           const result = /^info depth (\d+).*? multipv (\d+) score (cp|mate) (-?\d+)(?: lowerbound| upperbound)?.*? pv (.+)$/.exec(line);
           if (!result || signal?.aborted) return;
           const [, level, id, type, value, pv] = result;
-          info.set(Number(id), { depth: Number(level), type, value: Number(value), pv: pv.trim().split(/\s+/) });
-          if (update && id === '1' && Number(level) >= 7) update(this.sorted(info));
+          const depth = Number(level);
+          if (!byDepth.has(depth)) byDepth.set(depth, new Map());
+          const batch = byDepth.get(depth);
+          batch.set(Number(id), { depth, type, value: Number(value), pv: pv.trim().split(/\s+/) });
+          if (update && depth >= publishedDepth && batch.size === lines && batch.has(1)) {
+            publishedDepth = depth;
+            update(this.sorted(batch));
+          }
         }, 150000);
         signal?.throwIfAborted();
-        return { best, lines: this.sorted(info) };
+        const batches = Array.from(byDepth).sort(([a], [b]) => b - a).map(([, batch]) => batch);
+        const final = batches.find(batch => batch.get(1)?.pv[0] === best) ?? batches.find(batch => batch.has(1));
+        return { best, lines: final ? this.sorted(final) : [] };
       } finally {
         signal?.removeEventListener('abort', stop);
       }

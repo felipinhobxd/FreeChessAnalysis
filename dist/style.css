@@ -712,3 +712,9 @@ body.focus-board{overflow:hidden}.board-column:fullscreen,body.focus-board .boar
 .sprite.drag-lifted img{filter:drop-shadow(0 9px 8px #080b07aa);transform-origin:50% 58%;will-change:transform}
 #board{ -webkit-user-select:none; user-select:none }
 #board .square{ -webkit-user-drag:none }
+
+.workspace-jump { display: none; }
+@media (max-width: 820px) {
+  .workspace-jump { display: inline-flex; align-self: flex-start; margin: 6px 0; }
+  #jump-to-board { margin-inline-start: 12px; }
+}
