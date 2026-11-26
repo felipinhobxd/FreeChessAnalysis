@@ -1044,7 +1044,11 @@ function selectReviewMove(node) {
 function startGuidedReview() {
   const path = mainPath();
   selectReviewMove(reviewSide === 'all' ? path.find(isTrainingMove) || path[1] : reviewHighlights(path, reviewSide, winPercent)[0]);
-  $('move-detail').querySelector('h4')?.focus({ preventScroll: true });
+  if (matchMedia('(max-width: 820px)').matches) {
+    $('board-area').scrollIntoView({ block: 'start' });
+  } else {
+    $('move-detail').querySelector('h4')?.focus({ preventScroll: true });
+  }
 }
 
 function renderReport() {
