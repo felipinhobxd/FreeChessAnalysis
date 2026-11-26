@@ -1,64 +1,67 @@
 <div align="center">
   <img src="dist/favicon.svg" width="76" alt="Move by Move">
   <h1>Move by Move</h1>
-  <p><strong>Análise de xadrez, revisão de partidas e evolução lance a lance.</strong></p>
-  <p><a href="https://freechessanalysis.vercel.app/analysis"><strong>♟ Abrir o Move by Move</strong></a></p>
+  <p><strong>Free chess analysis. Understand every move.</strong></p>
+  <p><a href="https://freechessanalysis.vercel.app/analysis"><strong>♟ Open the live website</strong></a></p>
   <p>
-    <a href="https://github.com/felipinhobxd/FreeChessAnalysis/actions/workflows/browser-integration.yml"><img src="https://github.com/felipinhobxd/FreeChessAnalysis/actions/workflows/browser-integration.yml/badge.svg" alt="Testes automatizados"></a>
+    <a href="https://github.com/felipinhobxd/FreeChessAnalysis/actions/workflows/browser-integration.yml"><img src="https://github.com/felipinhobxd/FreeChessAnalysis/actions/workflows/browser-integration.yml/badge.svg" alt="Automated tests"></a>
     <a href="https://github.com/official-stockfish/Stockfish"><img src="https://img.shields.io/badge/Engine-Stockfish%2019-779556" alt="Stockfish 19"></a>
-    <img src="https://img.shields.io/badge/Idiomas-14-426b50" alt="14 idiomas">
+    <img src="https://img.shields.io/badge/Languages-14-426b50" alt="14 languages">
   </p>
 </div>
 
 ---
 
-## Sobre
+## About
 
-O **Move by Move** é uma plataforma gratuita de análise de xadrez que funciona diretamente no navegador. Importe uma partida, investigue as melhores continuações e entenda os momentos que fizeram diferença no jogo.
+**Move by Move** is a free, browser-based chess analysis and game review tool. Import a game, explore engine lines, discover critical moments, and learn from your decisions.
 
-## Recursos
+## Features
 
-- **Análise com Stockfish 19:** modo Lite como padrão e modo Full opcional.
-- **Revisão da partida:** precisão, classificação dos lances e momentos decisivos.
-- **Oportunidades perdidas:** destaque para chances táticas e vantagens que passaram despercebidas.
-- **Estimativa de rating:** indicadores de desempenho por jogador.
-- **Tabuleiro interativo:** explore variantes, anote posições e pratique alternativas.
-- **Importação e exportação:** PGN, FEN, Chess.com e Lichess.
-- **Histórico e personalização:** partidas salvas no navegador, sincronização opcional e 14 idiomas.
+- **Stockfish 19 analysis:** Lite engine by default, with an optional Full profile.
+- **Game review:** move classifications, accuracy, and key moments.
+- **Missed opportunities:** highlights tactical chances and advantages that slipped away.
+- **Performance estimates:** game-level rating estimates for each player.
+- **Interactive board:** explore variations, annotate positions, and test alternatives.
+- **Game import and export:** PGN, FEN, Chess.com, and Lichess.
+- **Study archive:** save games locally, with optional cloud sync.
+- **Personalization:** multiple piece sets, settings, and 14 interface languages.
 
-## Comece a jogar
+## Get started
 
-Acesse **[freechessanalysis.vercel.app/analysis](https://freechessanalysis.vercel.app/analysis)**. Não é necessário instalar nada nem criar uma conta.
+Visit **[freechessanalysis.vercel.app/analysis](https://freechessanalysis.vercel.app/analysis)**. No installation or account is required to use the live website.
 
-## Executar localmente
+## Run locally
 
-Para executar uma cópia no computador, instale o [Node.js 24](https://nodejs.org/) e rode:
+Requires [Node.js 24](https://nodejs.org/).
 
 ```bash
 git clone https://github.com/felipinhobxd/FreeChessAnalysis.git
 cd FreeChessAnalysis
 npm install
+npm run build
 npm start
 ```
 
-Depois, abra [http://127.0.0.1:8787/analysis](http://127.0.0.1:8787/analysis).
+Open [http://127.0.0.1:8787/analysis](http://127.0.0.1:8787/analysis).
 
-Para validar o projeto, execute `npm run build`. Os testes de navegador podem ser iniciados com `npm run test:e2e`.
+Run browser integration tests with `npm run test:e2e`. The GitHub Actions workflow also runs the build and browser tests on pushes and pull requests to `main`.
 
-## Sobre as estimativas
+## About the estimates
 
-As classificações, a precisão e o rating estimado são métricas próprias baseadas na análise do motor. **Não representam a fórmula oficial do Chess.com nem reproduzem seu CAPS2 proprietário.** Consulte a [metodologia e validação](https://freechessanalysis.vercel.app/methodology.html) para entender os critérios e limitações.
+Move classifications, accuracy scores, and game-rating estimates are engine-based project metrics. They are **not official Chess.com ratings or an implementation of its proprietary CAPS2 formula**. Read the [methodology and validation notes](https://freechessanalysis.vercel.app/methodology.html) for details and limitations.
 
-## Documentação e créditos
+## Documentation and credits
 
-- [Metodologia e validação](https://freechessanalysis.vercel.app/methodology.html)
-- [Calibração da precisão](tools/CAPS2-CALIBRATION.md)
-- [Benchmark de oportunidades perdidas](tools/MISSED-OPPORTUNITIES-BENCHMARK.md)
-- [Desempenho e modelos](tools/PERFORMANCE.md)
-- [Créditos e licenças](dist/notices.html)
+- [Methodology and validation](https://freechessanalysis.vercel.app/methodology.html)
+- [Accuracy calibration workflow](tools/CAPS2-CALIBRATION.md)
+- [Missed-opportunity benchmark](tools/MISSED-OPPORTUNITIES-BENCHMARK.md)
+- [Performance models and validation](tools/PERFORMANCE.md)
+- [Third-party credits and licenses](dist/notices.html)
+- [Board sound credits and sources](dist/sounds/sharechess/README.md)
 
 ---
 
 <div align="center">
-  <sub>Feito para entender melhor cada lance.</sub>
+  <sub>Built to help you understand the game, one move at a time.</sub>
 </div>
