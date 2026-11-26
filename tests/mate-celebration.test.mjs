@@ -2,30 +2,33 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { clearMateCelebration } from '../dist/board-ui.js';
 
-function particle() {
-  return { className: 'mate-particle', removed: false, remove() { this.removed = true; } };
-}
-
-function layerWith(...children) {
-  return {
-    children,
+function layerWithParticles(count) {
+  const layer = {
+    children: [],
     querySelectorAll(selector) {
       assert.equal(selector, '.mate-particle');
       return this.children.filter(child => child.className === 'mate-particle');
     },
   };
+  for (let index = 0; index < count; index++) {
+    const particle = {
+      className: 'mate-particle',
+      remove() { layer.children = layer.children.filter(child => child !== particle); },
+    };
+    layer.children.push(particle);
+  }
+  layer.children.push({ className: 'mate-title' });
+  return layer;
 }
 
 test('mate celebration cleanup removes every stale particle from the reused layer', () => {
-  const oldParticles = Array.from({ length: 24 }, particle);
-  const unrelated = { className: 'mate-title', removed: false, remove() { this.removed = true; } };
-  const layer = layerWith(...oldParticles, unrelated);
+  const layer = layerWithParticles(24);
   clearMateCelebration(layer);
-  assert.ok(oldParticles.every(item => item.removed));
-  assert.equal(unrelated.removed, false);
+  assert.equal(layer.children.filter(child => child.className === 'mate-particle').length, 0);
+  assert.equal(layer.children.length, 1);
 });
 
 test('mate celebration cleanup is safe when no layer or particles exist', () => {
   assert.doesNotThrow(() => clearMateCelebration(null));
-  assert.doesNotThrow(() => clearMateCelebration(layerWith()));
+  assert.doesNotThrow(() => clearMateCelebration(layerWithParticles(0)));
 });

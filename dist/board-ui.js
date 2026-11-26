@@ -142,7 +142,6 @@ export function mateCelebration(layer) {
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   layer.hidden = false;
   if (reduced) return setTimeout(() => { layer.hidden = true; }, 1550);
-  const pieces = [];
   for (let index = 0; index < 24; index += 1) {
     const particle = document.createElement('i');
     const angle = index * Math.PI * 2 / 24;
@@ -153,7 +152,6 @@ export function mateCelebration(layer) {
     particle.style.setProperty('--spin', (index % 2 ? -1 : 1) * (130 + index * 17) + 'deg');
     particle.style.background = colors[index % colors.length];
     layer.append(particle);
-    pieces.push(particle);
   }
   return setTimeout(() => {
     layer.hidden = true;

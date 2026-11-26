@@ -6,6 +6,7 @@ import { syncSprites, resetSprites } from './board-motion.js';
 import { Engine } from './engine.js';
 import { acceptedMove, inspectMove, isTrainingMove } from './coach.js';
 import { icon, unlockSound, boardSound, setBoardVolume, moveSound, mateCelebration, clearMateCelebration } from './board-ui.js';
+import { exportStudyPgn } from './study-export.js';
 import { initLanguage, setLanguage, getLanguage, translate } from './i18n.js';
 import { recordedRating } from './game-rating.js';
 import { classifyReviewMove, winPercent } from './review-classification.js';
