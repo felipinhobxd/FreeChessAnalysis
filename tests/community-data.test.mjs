@@ -81,7 +81,8 @@ test('ineligible local, incomplete, oversized, unfinished and unsupported-engine
  assert.equal(await createCommunityReviewSample(path,headers,engine,14,false),null);
  assert.equal(await createCommunityReviewSample(path.slice(0,8),headers,engine,14,true),null);
  assert.equal(await createCommunityReviewSample(path.slice(0,20).map((node,index)=>index?{...node,coach:null}:node),headers,engine,14,true),null);
- assert.equal(await createCommunityReviewSample([...path,...path.slice(1,502)],headers,engine,14,true),null);
+ const oversized=fixture(500);
+ assert.equal(await createCommunityReviewSample([...oversized.path,...oversized.path.slice(1)],headers,engine,14,true),null);
  assert.equal(await createCommunityReviewSample(path,{...headers,Result:'*'},engine,14,true),null);
  assert.equal(await createCommunityReviewSample(path,headers,{...engine,version:'17.1'},14,true),null);
 });
