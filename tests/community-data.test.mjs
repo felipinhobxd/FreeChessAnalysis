@@ -69,6 +69,17 @@ test('full-game sample contains every ply and compact per-move metrics without i
  }
 });
 
+test('the 500-ply collection boundary fits the database and Edge Function field limits',async()=>{
+ const {path,headers,engine}=fixture(500);
+ const sample=await createCommunityReviewSample(path,headers,engine,14,true);
+ assert.ok(sample);
+ assert.equal(sample.ply_count,500);
+ assert.equal(sample.moves_uci.split('.').length,500);
+ assert.ok(sample.moves_uci.length<=3000);
+ assert.ok(sample.move_data_base64.length<=7000);
+ assert.equal(Buffer.from(sample.move_data_base64,'base64').length,5000);
+});
+
 test('custom initial FEN is preserved only when the game does not start from the standard board',async()=>{
  const {path,headers,engine}=fixture(12);
  path[0].fen='4k3/8/8/8/8/8/8/4K3 w - - 0 1';
