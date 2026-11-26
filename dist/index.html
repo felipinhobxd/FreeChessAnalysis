@@ -50,11 +50,25 @@
         </label>
       </div>
     </section>
-    <section class="community-setup" aria-labelledby="community-setup-title">
-      <label class="community-toggle" for="welcome-community-data">
-        <input type="checkbox" id="welcome-community-data">
-        <span><strong id="community-setup-title">Share privacy-minimised analysis data</strong><small>Contribute compact statistics to improve opening and rating models. No PGN, player names or usernames are uploaded.</small></span>
-      </label>
+    <section class="community-setup community-consent-card" aria-labelledby="community-consent-title">
+      <div class="community-consent-head">
+        <span class="community-consent-symbol" aria-hidden="true">♟</span>
+        <div>
+          <p class="community-consent-kicker">VOLUNTARY CONTRIBUTION</p>
+          <h2 id="community-consent-title">Help improve chess statistics</h2>
+        </div>
+      </div>
+      <p class="community-consent-question">Do you allow us to share compact data from games you review to improve opening statistics and rating estimates?</p>
+      <details class="community-consent-details">
+        <summary>What exactly is shared?</summary>
+        <p>Only after a review is completed: the first 24 individual moves (up to 12 moves per side), the game result and time control, aggregated accuracy and error statistics for both sides, estimated ratings, platform category, and Stockfish version/settings. Ratings read from PGN are labelled as unverified.</p>
+        <p><strong>What is never uploaded?</strong> The complete PGN, the remaining move list, player names, usernames, game links, and FEN positions. Analysis continues locally in your browser. This contribution is optional and you can change your choice at any time in Settings.</p>
+      </details>
+      <div class="community-consent-actions" role="group" aria-label="Community data consent">
+        <button class="community-consent-choice allow" id="community-consent-allow" type="button" aria-pressed="false">Allow contribution</button>
+        <button class="community-consent-choice decline" id="community-consent-decline" type="button" aria-pressed="false">Do not allow</button>
+      </div>
+      <p class="community-consent-status" id="community-consent-status" role="status" aria-live="polite">Please choose whether to share review statistics before continuing.</p>
     </section>
     <details class="profile-setup" id="profile-options">
       <summary>Your chess profile</summary>
