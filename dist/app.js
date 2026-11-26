@@ -2,7 +2,7 @@ import { parseGameLink, reviewHighlights, mergeStudies, validStudy } from './stu
 import { gameFingerprint, listStudies, getStudy, putStudy } from './study-storage.js';
 import { syncArchive, newSyncCode, syncCodeKey, validCode, prepareSyncArchive } from './study-cloud.js';
 import { missedOpportunity, shortMateAfter, aspectEvidence, aspectGrade } from './review-evidence.js';
-import { syncSprites, resetSprites } from './board-motion.js';
+import { syncSprites, resetSprites, liftSprite, moveLiftedSprite, releaseLiftedSprite } from './board-motion.js';
 import { Engine } from './engine.js';
 import { acceptedMove, inspectMove, isTrainingMove } from './coach.js';
 import { icon, unlockSound, boardSound, setBoardVolume, moveSound, mateCelebration, clearMateCelebration } from './board-ui.js';
@@ -148,6 +148,8 @@ const puzzleProgress = new Map();
 const positions = new Map();
 let boardMarks = [];
 let activeBoardMark = null;
+let activePieceDrag = null;
+let suppressBoardClick = false;
 
 const setting = id => $(id).type === 'checkbox' ? $(id).checked : ['engine-mode', 'piece-set', 'animation-speed'].includes(id) ? $(id).value : Number($(id).value);
 const playSound = name => {
@@ -331,16 +333,7 @@ function pieceGraphic(piece, square, playable) {
   const set = setting('piece-set');
   const directory = set === 'chessnut' ? 'pieces/' : 'pieces/' + set + '/';
   image.src = '/' + directory + file;
-  for (const view of [image, fallback]) {
-    view.draggable = playable;
-    if (playable) view.addEventListener('dragstart', event => {
-      selected = square;
-      showLegalTargets(square);
-      renderScore();
-      event.dataTransfer.setData('text/plain', square);
-      event.dataTransfer.effectAllowed = 'move';
-    });
-  }
+  for (const view of [image, fallback]) view.draggable = false;
   return [image, fallback];
 }
 
@@ -2303,6 +2296,7 @@ function bindEvents() {
     control.dispatchEvent(new Event('change'));
   };
   $('board').addEventListener('click', event => {
+    if (suppressBoardClick) { suppressBoardClick = false; event.preventDefault(); return; }
     if (event.button === 0 && boardMarks.length) {
       boardMarks = [];
       renderScore();
@@ -2312,18 +2306,42 @@ function bindEvents() {
   });
   $('board').addEventListener('contextmenu', event => event.preventDefault());
   $('board').addEventListener('pointerdown', event => {
-    if (event.button !== 2 || event.pointerType === 'touch') return;
+    if (event.button === 2 && event.pointerType !== 'touch') {
+      const origin = boardSquareAtPoint(event.clientX, event.clientY);
+      if (!origin) return;
+      event.preventDefault();
+      event.stopPropagation();
+      selected = null;
+      activeBoardMark = { pointerId: event.pointerId, from: origin, to: origin, color: annotationColor(event) };
+      try { $('board').setPointerCapture(event.pointerId); } catch { /* Pointer capture is an enhancement. */ }
+      renderPieces();
+      renderScore();
+      return;
+    }
+    if (event.button !== 0 || activeBoardMark || demo || activePieceDrag) return;
     const origin = boardSquareAtPoint(event.clientX, event.clientY);
     if (!origin) return;
-    event.preventDefault();
-    event.stopPropagation();
-    selected = null;
-    activeBoardMark = { pointerId: event.pointerId, from: origin, to: origin, color: annotationColor(event) };
+    const position = shownPosition();
+    const board = new Chess(position.fen);
+    const piece = board.get(origin);
+    if (!piece || piece.color !== board.turn() || position.terminal ||
+        (tab === 'puzzles' && (activeChallenge()?.status !== 'active' || activeChallenge()?.reviewIndex !== activeChallenge()?.decisionIndex))) return;
+    const sprite = liftSprite(origin);
+    if (!sprite) return;
+    activePieceDrag = { pointerId: event.pointerId, from: origin, x: event.clientX, y: event.clientY, moved: false };
+    selected = origin;
+    showLegalTargets(origin);
     try { $('board').setPointerCapture(event.pointerId); } catch { /* Pointer capture is an enhancement. */ }
-    renderPieces();
     renderScore();
   });
   $('board').addEventListener('pointermove', event => {
+    if (activePieceDrag?.pointerId === event.pointerId) {
+      const drag = activePieceDrag;
+      const dx = event.clientX - drag.x, dy = event.clientY - drag.y;
+      if (!drag.moved && Math.hypot(dx, dy) > 4) drag.moved = true;
+      if (drag.moved) moveLiftedSprite(drag.from, event.clientX, event.clientY);
+      return;
+    }
     if (!activeBoardMark || activeBoardMark.pointerId !== event.pointerId) return;
     const destination = boardSquareAtPoint(event.clientX, event.clientY);
     if (destination && destination !== activeBoardMark.to) {
@@ -2331,22 +2349,39 @@ function bindEvents() {
       renderScore();
     }
   });
-  $('board').addEventListener('pointerup', event => finishBoardMark(event));
-  $('board').addEventListener('pointercancel', event => cancelBoardMark(event));
-  $('board').addEventListener('lostpointercapture', event => cancelBoardMark(event));
-  $('board').addEventListener('dragover', event => event.preventDefault());
-  $('board').addEventListener('drop', event => {
-    event.preventDefault();
-    const square = event.target.closest('[data-square]')?.dataset.square;
-    if (square) tryMove(event.dataTransfer.getData('text/plain'), square);
-    selected = null;
-    renderPieces();
-    renderScore();
+  $('board').addEventListener('pointerup', event => {
+    if (activePieceDrag?.pointerId === event.pointerId) {
+      const drag = activePieceDrag;
+      activePieceDrag = null;
+      if (drag.moved) {
+        const destination = boardSquareAtPoint(event.clientX, event.clientY);
+        suppressBoardClick = true;
+        selected = null;
+        if (!destination || !tryMove(drag.from, destination)) releaseLiftedSprite(drag.from);
+      } else {
+        releaseLiftedSprite(drag.from);
+      }
+      try { $('board').releasePointerCapture(event.pointerId); } catch { /* Capture may already be released. */ }
+      selected = null;
+      renderPieces();
+      renderScore();
+      return;
+    }
+    finishBoardMark(event);
   });
-  $('board').addEventListener('dragend', () => {
-    selected = null;
-    renderPieces();
-    renderScore();
+  $('board').addEventListener('pointercancel', event => {
+    if (activePieceDrag?.pointerId === event.pointerId) {
+      const drag = activePieceDrag; activePieceDrag = null;
+      releaseLiftedSprite(drag.from); selected = null; renderPieces(); renderScore();
+    }
+    cancelBoardMark(event);
+  });
+  $('board').addEventListener('lostpointercapture', event => {
+    if (activePieceDrag?.pointerId === event.pointerId) {
+      const drag = activePieceDrag; activePieceDrag = null;
+      releaseLiftedSprite(drag.from); selected = null; renderPieces(); renderScore();
+    }
+    cancelBoardMark(event);
   });
   $('board').addEventListener('keydown', event => {
     const square = event.target.dataset.square;

@@ -1,8 +1,9 @@
 // A piece keeps the same physical identity along every variation, including
 // promotion. CSS retargets from the currently painted position on rapid input.
 let layouts=new WeakMap(),sprites=new Map(),previousOrientation;
+let liftedSprite=null;
 export function resetSprites(){
-  layouts=new WeakMap();sprites.clear();previousOrientation=undefined;
+  layouts=new WeakMap();sprites.clear();previousOrientation=undefined;liftedSprite=null;
   document.getElementById('piece-layer')?.replaceChildren();
 }
 function layout(node,board){
@@ -62,7 +63,8 @@ export function syncSprites(position,board,flipped,set,duration,speed){
       }
     }
     const x=square.charCodeAt(0)-97,y=8-Number(square[1]);
-    sprite.style.transform='translate('+100*(flipped?7-x:x)+'%,'+100*(flipped?7-y:y)+'%)';
+    sprite.dataset.baseX=String(100*(flipped?7-x:x));sprite.dataset.baseY=String(100*(flipped?7-y:y));
+    if(liftedSprite!==sprite)sprite.style.transform='translate('+sprite.dataset.baseX+'%,'+sprite.dataset.baseY+'%)';
     sprite.style.zIndex=sprite.dataset.square && sprite.dataset.square!==square?'2':'1';
     sprite.dataset.square=square;
     if(fresh){layer.append(sprite);if(!instant)sprite.animate([{opacity:0},{opacity:1}],{duration});}
@@ -74,4 +76,35 @@ export function syncSprites(position,board,flipped,set,duration,speed){
     sprite.removeTimer=setTimeout(()=>{if(sprite.style.opacity==='0'){sprite.remove();sprites.delete(id)}},duration+25);
   }
   previousOrientation=flipped;
+}
+
+export function liftSprite(square){
+  const sprite=[...sprites.values()].find(item=>item.dataset.square===square);
+  if(!sprite)return null;
+  liftedSprite=sprite;
+  sprite.classList.add('drag-lifted');
+  sprite.style.zIndex='20';
+  sprite.style.transition='transform 90ms cubic-bezier(.2,.8,.2,1), filter 90ms ease';
+  sprite.style.transform='translate('+sprite.dataset.baseX+'%,'+sprite.dataset.baseY+'%) scale(1.09)';
+  return sprite;
+}
+export function moveLiftedSprite(square,clientX,clientY){
+  if(!liftedSprite||liftedSprite.dataset.square!==square)return;
+  const frame=document.querySelector('.board-frame');
+  const rect=frame?.getBoundingClientRect();
+  if(!rect)return;
+  const size=rect.width/8;
+  const x=square.charCodeAt(0)-97,y=8-Number(square[1]);
+  const centerX=(x+.5)*size,centerY=(y+.5)*size;
+  const dx=clientX-rect.left-centerX,dy=clientY-rect.top-centerY;
+  liftedSprite.style.transform='translate(calc('+liftedSprite.dataset.baseX+'% + '+dx+'px),calc('+liftedSprite.dataset.baseY+'% + '+dy+'px)) scale(1.09)';
+}
+export function releaseLiftedSprite(square){
+  if(!liftedSprite||liftedSprite.dataset.square!==square)return;
+  const sprite=liftedSprite;liftedSprite=null;
+  sprite.style.transition='transform 260ms cubic-bezier(.18,.82,.25,1.16), filter 180ms ease';
+  sprite.style.transform='translate('+sprite.dataset.baseX+'%,'+sprite.dataset.baseY+'%) scale(1)';
+  sprite.classList.remove('drag-lifted');
+  sprite.style.zIndex='1';
+  setTimeout(()=>{if(!sprite.classList.contains('drag-lifted'))sprite.style.transition='';},280);
 }
