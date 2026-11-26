@@ -52,3 +52,4 @@ jobs:
           done
           psql -v ON_ERROR_STOP=1 -f tests/cloud-sync.integration.sql
           psql -v ON_ERROR_STOP=1 -f tests/community-review.integration.sql
+          psql -v ON_ERROR_STOP=1 -f tests/community-game.integration.sql
