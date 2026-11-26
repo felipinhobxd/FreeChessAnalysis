@@ -88,7 +88,7 @@ test('Chess.com lookup responds to caller cancellation while a request is pendin
   await assert.rejects(pending, error => error.name === 'AbortError');
 });
 
-test('Chess.com lookup falls back when a non-cancellation upstream request fails', async () => {
+test('Chess.com lookup handles upstream failures without exposing internal errors', async () => {
   const visited = [];
   const fetchJson = async url => {
     visited.push(url);

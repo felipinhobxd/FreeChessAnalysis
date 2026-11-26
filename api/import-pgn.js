@@ -92,7 +92,8 @@ export async function lookupChessGame({
     }
 
     const queries = [];
-    const archiveLists = await mapConcurrent(names, 3, async name => {
+    const archiveNames = account && !matchDate ? names.slice(0, 1) : names;
+    const archiveLists = await mapConcurrent(archiveNames, 3, async name => {
       const base = chessHost + '/pub/player/' + encodeURIComponent(name) + '/games/';
       return { base, index: await read(base + 'archives') };
     }, signal);
