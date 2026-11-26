@@ -5,11 +5,14 @@ import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {createInterface} from 'node:readline';
 import {Chess} from 'chess.js';
-import {estimatePerformance} from '../dist/review-metrics.js';
+import {estimatePerformance,gameTimeClass} from '../dist/review-metrics.js';
 const [input,limit='4',depth='10']=process.argv.slice(2);
+const requestedSpeed=/blitz/i.test(input)?'blitz':'rapid';
 const test=name=>createHash('sha256').update(name.toLowerCase()).digest().readUInt32BE(0)%100>=80;
 const games=readFileSync(input,'utf8').trim().split(/\r?\n/).map(JSON.parse)
-  .filter(([w,b])=>test(w)&&test(b)).slice(0,+limit);
+  .filter(([w,b,wr,br,tc])=>test(w)&&test(b)&&gameTimeClass({Site:'https://lichess.org',TimeControl:tc})===requestedSpeed)
+  .slice(0,+limit);
+if(!games.length)throw new Error('No player-disjoint '+requestedSpeed+' transfer games match the application time-control classification.');
 const sf=spawn(process.execPath,['node_modules/stockfish/bin/stockfish-19-lite-single.js'],{stdio:['pipe','pipe','inherit']});
 const output=createInterface({input:sf.stdout})[Symbol.asyncIterator]();
 const send=cmd=>sf.stdin.write(cmd+'\n');
@@ -44,5 +47,6 @@ try{
     }
   }
 }finally{send('quit');sf.stdin.end();sf.kill()}
-const avg=xs=>xs.reduce((s,v)=>s+v,0)/xs.length;
-console.log(JSON.stringify({ids,sides:scores.length,mae:avg(scores.map(Math.abs)),rmse:Math.sqrt(avg(scores.map(e=>e*e))),bias:avg(scores)}));
+const avg=xs=>xs.length?xs.reduce((s,v)=>s+v,0)/xs.length:null;
+if(!scores.length)throw new Error('No eligible side received a performance estimate in the transfer sample.');
+console.log(JSON.stringify({speed:requestedSpeed,ids,sides:scores.length,mae:avg(scores.map(Math.abs)),rmse:Math.sqrt(avg(scores.map(e=>e*e))),bias:avg(scores)}));
