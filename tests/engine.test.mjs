@@ -55,6 +55,7 @@ test('engine can retry initialization after every source initially fails', async
   const restore = installBrowserMocks({
     fetch: async () => available ? ({ ok: true, arrayBuffer: async () => new TextEncoder().encode('worker fixture').buffer }) : ({ ok: false }),
     Worker: respondingWorker(),
+    verifiedEngine: true,
   });
   const engine = new Engine('lite');
   try {
