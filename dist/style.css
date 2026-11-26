@@ -495,8 +495,8 @@ body.focus-board{overflow:hidden}.board-column:fullscreen,body.focus-board .boar
 .review-overview { margin-block: 10px 13px; }
 .review-overview h4 { margin: 0 0 6px; font-size: 13px; }
 #class-table { table-layout: fixed; }
-#class-table thead th:first-child { width: 44%; }
-#class-table thead th { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+#class-table thead th:first-child { width: 52%; }
+#class-table thead th { overflow-wrap: anywhere; white-space: normal; color: var(--ink); }
 #class-table th[scope="row"] { text-align: left; font-weight: 600; }
 #class-table :is(th, td) { padding: 6px 4px; }
 #class-table .review-totals :is(th, td) { border-color: #465148; }
@@ -513,10 +513,12 @@ body.focus-board{overflow:hidden}.board-column:fullscreen,body.focus-board .boar
 .review-totals .game-rating-value { color: #dfefbd; }
 .rating-reference td { color: var(--muted); font-size: 11px; }
 .rating-method { margin-inline-start: 2px; color: var(--accent); text-decoration: none; }
-#class-breakdown :is(th, td) { border: 0; font-size: 11px; }
-#class-breakdown td { color: var(--badge); font-weight: 700; }
+#class-breakdown :is(th, td) { border: 0; padding-block: 5px; font-size: 13px; vertical-align: middle; }
+#class-breakdown td { color: var(--badge); font-size: 16px; font-variant-numeric: tabular-nums; font-weight: 750; }
 #class-breakdown td[data-count="0"] { color: var(--muted); font-weight: 500; }
-#class-breakdown .badge { width: 16px; height: 16px; margin-inline-end: 5px; }
+.review-classification { display: flex; align-items: center; gap: 8px; overflow-wrap: anywhere; }
+#class-breakdown .badge { width: clamp(28px, 8vw, 34px); height: clamp(28px, 8vw, 34px); }
+#class-table .review-ratings tr:first-child > * { border-top: 1px solid var(--review-line); }
 #class-breakdown .class-chance-lost { --badge: #f2a5a0; --glyph: #4b2024; }
 .chart-marker[data-category="chance-lost"] .badge,
 .chart-key-item.class-chance-lost .badge { background: #f2a5a0; color: #4b2024; }
@@ -656,7 +658,10 @@ body.focus-board{overflow:hidden}.board-column:fullscreen,body.focus-board .boar
   font-weight: 750;
 }
 .review-start:not(:disabled):hover { background: #f8caa3; }
-.review-start .ui-icon { width: 16px; height: 16px; }
+.review-start .ui-icon { width: 18px; height: 18px; }
+.review-summary-action { margin-block: 16px; }
+.review-summary-action .review-start { min-height: 46px; }
+#report[data-review-mode="summary"] > .review-dock { display: none; }
 .review-back { flex: none; padding: 6px 2px; color: #efd1b8; font-size: 11px; font-weight: 700; }
 .review-back:hover { color: #fff2e9; text-decoration: underline; }
 .review-dock .transport { width: auto; }
@@ -723,7 +728,7 @@ body.focus-board{overflow:hidden}.board-column:fullscreen,body.focus-board .boar
 .board-frame:has(.drag-lifted) { overflow: visible; z-index: 2; }
 
 @media (max-width: 820px) {
-  .workspace:has(#report:not([hidden])) { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
+  .workspace:has(#report:not([hidden])[data-review-mode="guided"]) { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
   #report .review-summary { max-height: none; overflow: visible; }
   #report .review-dock {
     position: fixed;

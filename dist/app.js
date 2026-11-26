@@ -1088,7 +1088,11 @@ function renderReport() {
     const row = element('tr', undefined, 'class-' + key);
     const kind = element('th');
     kind.scope = 'row';
-    kind.append(badge(key), document.createTextNode(label));
+    const classification = element('span', undefined, 'review-classification');
+    const mark = badge(key);
+    mark.setAttribute('aria-hidden', 'true');
+    classification.append(mark, element('span', label));
+    kind.append(classification);
     row.append(kind);
     for (const side of ['w', 'b']) {
       const count = counts[side][key] ?? 0;

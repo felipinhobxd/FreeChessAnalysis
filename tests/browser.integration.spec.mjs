@@ -309,6 +309,15 @@ test.describe('small-screen game review', () => {
     await page.locator('#example').click();
     const start = page.locator('#review-start');
     await expect(start).toBeEnabled({ timeout: 30_000 });
+    const ordered = await page.evaluate(() => {
+      const ids = ['chart-wrap', 'white-accuracy-label', 'white-acc', 'class-breakdown', 'white-game-rating', 'phase-insights', 'review-start'];
+      return ids.every((id, index) => index === 0 ||
+        Boolean(document.getElementById(ids[index - 1]).compareDocumentPosition(document.getElementById(id)) & Node.DOCUMENT_POSITION_FOLLOWING));
+    });
+    expect(ordered).toBe(true);
+    const badge = await page.locator('#class-breakdown .badge').first().boundingBox();
+    expect(badge.width).toBeGreaterThanOrEqual(28);
+    await start.scrollIntoViewIfNeeded();
     await expect(start).toBeInViewport();
     await start.click();
 

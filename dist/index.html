@@ -153,10 +153,12 @@
               <thead><tr><th scope="col">Jogadores</th><th scope="col" id="white-accuracy-label">Brancas</th><th scope="col" id="black-accuracy-label">Pretas</th></tr></thead>
               <tbody class="review-totals">
                 <tr><th scope="row">Precisão</th><td><strong id="white-acc">—</strong></td><td><strong id="black-acc">—</strong></td></tr>
+              </tbody>
+              <tbody id="class-breakdown"></tbody>
+              <tbody class="review-totals review-ratings">
                 <tr><th scope="row">Rating da partida <a class="rating-method" href="/methodology.html" aria-label="Método e validação">ⓘ</a></th><td><strong id="white-game-rating" class="game-rating-value">—</strong></td><td><strong id="black-game-rating" class="game-rating-value">—</strong></td></tr>
                 <tr class="rating-reference"><th scope="row">Rating do PGN</th><td id="white-pgn-rating">—</td><td id="black-pgn-rating">—</td></tr>
               </tbody>
-              <tbody id="class-breakdown"></tbody>
             </table>
             <p class="muted" id="accuracy-calibration" hidden>Precisão estimada por um modelo provisório.</p>
             <details class="rating-details">
@@ -165,12 +167,15 @@
               <a href="/methodology.html">Método e validação</a>
             </details>
           </section>
+          <h4 class="accuracy-title">Desempenho por área</h4>
+          <div id="phase-insights" class="phase-insights"><p class="muted">A revisão mostrará abertura, táticas, estratégia, final e princípios.</p></div>
+          <div class="review-summary-action">
+            <button id="review-start" class="review-start" type="button"><span>Começar revisão</span><i data-icon="forward" aria-hidden="true"></i></button>
+          </div>
           <section class="moments-section" aria-labelledby="moments-title">
             <div class="moments-head"><h4 id="moments-title">Momentos importantes</h4><span id="moment-count">0 lances</span></div>
             <div id="key-moments" class="key-moments"><p class="muted moments-empty">Os momentos importantes aparecerão depois da revisão.</p></div>
           </section>
-          <h4 class="accuracy-title">Desempenho por área</h4>
-          <div id="phase-insights" class="phase-insights"><p class="muted">A revisão mostrará abertura, táticas, estratégia, final e princípios.</p></div>
           <button class="secondary practice-button" id="practice-from-report" hidden></button>
           </div>
           <div id="review-guided" class="review-guided" hidden>
@@ -180,7 +185,6 @@
             <div id="review-timeline" class="review-timeline"></div>
           </div>
           <footer class="review-dock">
-            <button id="review-start" class="review-start" type="button"><span>Começar revisão</span><i data-icon="forward" aria-hidden="true"></i></button>
             <button id="review-overview-link" class="review-back" type="button" hidden>Ver resumo</button>
             <div id="review-transport" hidden></div>
           </footer>
