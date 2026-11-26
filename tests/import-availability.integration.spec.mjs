@@ -8,6 +8,7 @@ test('a non-JSON rate-limit response leaves the import form usable', async ({ pa
   }));
   await page.goto('/analysis');
   await page.locator('#language-select').selectOption('en');
+  await page.locator('#community-consent-decline').click();
   await page.locator('#language-enter').click();
   await page.locator('[data-source="link"]').click();
   await page.locator('#game-input').fill('https://www.chess.com/game/live/123');
