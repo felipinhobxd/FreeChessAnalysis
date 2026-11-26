@@ -8,7 +8,7 @@ import { acceptedMove, inspectMove, isTrainingMove } from './coach.js';
 import { icon, unlockSound, boardSound, setBoardVolume, moveSound, mateCelebration } from './board-ui.js';
 import { initLanguage, setLanguage, getLanguage, translate } from './i18n.js';
 import { recordedRating } from './game-rating.js';
-import { classifyByLoss } from './move-classification.js';
+import { classifyReviewMove, winPercent } from './review-classification.js';
 import { REVIEW_CHART_MARKERS, chartMarkerPoints, chartSelectionFor } from './review-chart.js';
 import { aggregateGameAccuracy, estimatePerformance, moveAccuracyBetween, phaseForPosition } from './review-metrics.js';
 
@@ -442,11 +442,6 @@ function evaluationLabel(evaluation) {
   return (value > 0 ? '+' : '') + value.toFixed(2).replace('.', ',').replace('-', '−');
 }
 
-function winPercent(score) {
-  if (!score) return 50;
-  if (score.type === 'mate') return score.white > 0 ? 100 : 0;
-  return 100 / (1 + Math.exp(-.00368208 * Math.max(-1000, Math.min(1000, score.white))));
-}
 
 function canvasContext(canvas) {
   const { width, height } = canvas.getBoundingClientRect();
@@ -1782,22 +1777,26 @@ function reviewClass(node, before, after, previousBest, runnersUp, index) {
   const color = node.move.color === 'w' ? 1 : -1;
   const loss = Math.max(0, color * (winPercent(before) - winPercent(after)));
   const actual = uci(node.move);
-  const exactBest = actual === previousBest;
   const accepted = acceptedMove(node.coach, actual) || loss <= 1;
-  if (node.chanceLost) return 'chance-lost';
   const opening = root.fen === new Chess().fen() && loss < 5 &&
     ((index === 1 && BOOK.has(actual)) || (index === 2 && BOOK_REPLY[uci(node.parent.move)]?.includes(actual)));
-  const margin = runnersUp?.[1] ? color * (winPercent(runnersUp[0]) - winPercent(runnersUp[1])) : 0;
   const opponentCapture = node.parent.move?.captured ? material[node.parent.move.captured] : 0;
   const staticBoard = new Chess(node.fen);
   const commitment = staticBoard.moves({ verbose: true }).some(reply =>
     reply.to === node.move.to && reply.captured && material[reply.captured] >= 3 &&
     material[reply.captured] - (node.move.captured ? material[node.move.captured] : 0) - opponentCapture >= 2);
-  const chanceBefore = color === 1 ? winPercent(before) : 100 - winPercent(before);
-  if (opening) return 'theory';
-  if (accepted && margin >= 12 && commitment && chanceBefore > 18 && chanceBefore < 82) return 'brilliant';
-  if (accepted && margin >= 14 && chanceBefore > 15 && chanceBefore < 85) return 'great';
-  return classifyByLoss({ loss, exactBest, accepted });
+  return classifyReviewMove({
+    side: node.move.color,
+    before,
+    after,
+    actual,
+    bestMove: previousBest,
+    accepted,
+    chanceLost: node.chanceLost,
+    opening,
+    alternatives: runnersUp,
+    commitment,
+  });
 }
 function stopReview(resumeLive = true) {
   if (!review) return;

@@ -247,3 +247,48 @@ test('endgame insights identify passed pawns and king activity without generic l
   const opposition = position(oppositionFen, 'Ke5', cp(0, ['d4e5']), cp(0));
   assert.equal(aspectEvidence(opposition, 'endgame').get('Final'), 'Oposição entre os reis');
 });
+
+
+test('review classification preserves precedence and compares only same-depth MultiPV', async () => {
+  const { classifyReviewMove, multiPvMargin, winPercent } =
+    await import('../dist/review-classification.js');
+  const cp = (white, depth = 16) => ({ type: 'cp', white, value: white, depth });
+  const mate = (white, value, depth = 16) => ({ type: 'mate', white, value, depth });
+  const equalLines = [cp(120), cp(-120)];
+  const whiteMargin = multiPvMargin(equalLines, 'w');
+  const blackMargin = multiPvMargin([cp(-120), cp(120)], 'b');
+  assert.ok(whiteMargin >= 12);
+  assert.ok(blackMargin >= 12);
+  assert.equal(multiPvMargin([cp(120, 16), cp(-120, 14)], 'w'), 0);
+
+  const base = {
+    side: 'w', before: cp(0), after: cp(0),
+    actual: 'e2e4', bestMove: 'e2e4',
+  };
+  assert.equal(classifyReviewMove(base), 'best');
+  assert.equal(classifyReviewMove({ ...base, chanceLost: true, opening: true }), 'chance-lost');
+  assert.equal(classifyReviewMove({ ...base, opening: true }), 'theory');
+  assert.equal(classifyReviewMove({
+    ...base, actual: 'd2d4', accepted: true, commitment: true, alternatives: equalLines,
+  }), 'brilliant');
+  assert.equal(classifyReviewMove({
+    ...base, actual: 'd2d4', accepted: true, alternatives: equalLines,
+  }), 'great');
+  assert.equal(classifyReviewMove({
+    ...base, actual: 'd2d4', accepted: false,
+    alternatives: [cp(120, 16), cp(-120, 14)],
+  }), 'excellent');
+
+  const blackLoss = classifyReviewMove({
+    side: 'b', before: cp(0), after: cp(100),
+    actual: 'e7e5', bestMove: 'd7d5',
+  });
+  const whiteLoss = classifyReviewMove({
+    side: 'w', before: cp(0), after: cp(-100),
+    actual: 'e2e4', bestMove: 'd2d4',
+  });
+  assert.equal(blackLoss, 'inaccuracy');
+  assert.equal(whiteLoss, 'inaccuracy');
+  assert.equal(winPercent(mate(1, 4)), 100);
+  assert.equal(winPercent(mate(-1, -3)), 0);
+});
