@@ -975,6 +975,41 @@ Object.assign(MESSAGES, {
   ]
 });
 
+Object.assign(MESSAGES, {
+  "Compartilhar partidas completas para melhorar a análise": [
+    "Share full games to improve analysis",
+    "Compartilhar partidas completas para melhorar a análise",
+    "Compartir partidas completas para mejorar el análisis",
+    "Partager des parties complètes pour améliorer l’analyse",
+    "Vollständige Partien teilen, um die Analyse zu verbessern",
+    "Condividi partite complete per migliorare l’analisi",
+    "Deel volledige partijen om de analyse te verbeteren",
+    "Делиться полными партиями для улучшения анализа",
+    "分享完整对局以改进分析",
+    "分析改善のために棋譜全体を共有する",
+    "분석 개선을 위해 전체 대국 공유",
+    "Analizi geliştirmek için tam oyunları paylaş",
+    "مشاركة المباريات الكاملة لتحسين التحليل",
+    "विश्लेषण बेहतर बनाने के लिए पूरे खेल साझा करें"
+  ],
+  "Opcional. Após a revisão completa, compartilha a sequência de lances em UCI e estatísticas compactas de cada lance. Não envia o PGN bruto, comentários, nomes, usernames ou links. Você pode desativar quando quiser.": [
+    "Optional. After a full review, shares the UCI move sequence and compact statistics for every move. Raw PGN, comments, names, usernames and links are not sent. You can turn this off at any time.",
+    "Opcional. Após a revisão completa, compartilha a sequência de lances em UCI e estatísticas compactas de cada lance. Não envia o PGN bruto, comentários, nomes, usernames ou links. Você pode desativar quando quiser.",
+    "Opcional. Tras una revisión completa, comparte la secuencia de jugadas UCI y estadísticas compactas de cada jugada. No se envían el PGN original, comentarios, nombres, usuarios ni enlaces. Puedes desactivarlo cuando quieras.",
+    "Facultatif. Après une analyse complète, partage la séquence de coups UCI et des statistiques compactes pour chaque coup. Le PGN brut, les commentaires, les noms, les noms d’utilisateur et les liens ne sont pas envoyés. Vous pouvez désactiver cette option à tout moment.",
+    "Optional. Nach einer vollständigen Analyse werden die UCI-Zugfolge und kompakte Statistiken zu jedem Zug geteilt. Rohes PGN, Kommentare, Namen, Benutzernamen und Links werden nicht gesendet. Du kannst dies jederzeit deaktivieren.",
+    "Facoltativo. Dopo un’analisi completa, condivide la sequenza delle mosse UCI e statistiche compatte per ogni mossa. PGN grezzo, commenti, nomi, nomi utente e link non vengono inviati. Puoi disattivarlo in qualsiasi momento.",
+    "Optioneel. Na een volledige analyse worden de UCI-zettenreeks en compacte statistieken per zet gedeeld. Ruwe PGN, opmerkingen, namen, gebruikersnamen en links worden niet verzonden. Je kunt dit op elk moment uitschakelen.",
+    "Необязательно. После полного анализа передаются последовательность ходов UCI и краткая статистика по каждому ходу. Исходный PGN, комментарии, имена, имена пользователей и ссылки не отправляются. Вы можете отключить это в любое время.",
+    "可选。完整复盘后，会分享 UCI 着法序列及每一步的精简统计。不会发送原始 PGN、评论、姓名、用户名或链接。您可以随时关闭此功能。",
+    "任意です。分析完了後、UCI指し手列と各手の簡潔な統計を共有します。元のPGN、コメント、氏名、ユーザー名、リンクは送信されません。いつでも無効にできます。",
+    "선택 사항입니다. 전체 분석 후 UCI 수순과 각 수의 요약 통계를 공유합니다. 원본 PGN, 댓글, 이름, 사용자 이름, 링크는 전송되지 않습니다. 언제든지 끌 수 있습니다.",
+    "İsteğe bağlıdır. Tam analizden sonra UCI hamle dizisi ve her hamleye ait kompakt istatistikler paylaşılır. Ham PGN, yorumlar, adlar, kullanıcı adları ve bağlantılar gönderilmez. İstediğiniz zaman kapatabilirsiniz.",
+    "اختياري. بعد اكتمال التحليل، تتم مشاركة تسلسل نقلات UCI وإحصاءات موجزة لكل نقلة. لا يتم إرسال PGN الخام أو التعليقات أو الأسماء أو أسماء المستخدمين أو الروابط. يمكنك إيقاف ذلك في أي وقت.",
+    "वैकल्पिक। पूरा विश्लेषण होने के बाद UCI चाल-श्रृंखला और हर चाल के संक्षिप्त आँकड़े साझा किए जाते हैं। मूल PGN, टिप्पणियाँ, नाम, यूज़रनेम और लिंक नहीं भेजे जाते। आप इसे कभी भी बंद कर सकते हैं。"
+  ]
+});
+
 const partialKeys = Object.keys(MESSAGES).filter(key => key.length > 3 && key !== 'Melhor').sort((a, b) => b.length - a.length);
 const englishReviewPatterns = [
   [/Revisão concluída · profundidade (\d+)/g, 'Review complete · depth $1'],
