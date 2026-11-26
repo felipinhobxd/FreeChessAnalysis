@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { Chess } from 'chess.js';
 import { missedOpportunity, shortMateAfter, aspectEvidence, aspectGrade } from '../dist/review-evidence.js';
 import { estimatePerformance, phaseForPosition, gameTimeClass } from '../dist/review-metrics.js';
-import { decisionProfile, predictBand } from '../dist/decision-profile.js';
+import { decisionProfile, predictBand, sideDecisions } from '../dist/decision-profile.js';
 import { performanceModel } from '../dist/performance-model.js';
 import { moveSound } from '../dist/board-ui.js';
 
@@ -291,4 +291,44 @@ test('review classification preserves precedence and compares only same-depth Mu
   assert.equal(whiteLoss, 'inaccuracy');
   assert.equal(winPercent(mate(1, 4)), 100);
   assert.equal(winPercent(mate(-1, -3)), 0);
+});
+
+
+test('win-loss accuracy is side-symmetric and game aggregation never mixes players', () => {
+  const whiteLoss = moveAccuracyBetween(cp(0), cp(-100), 'w');
+  const blackLoss = moveAccuracyBetween(cp(0), cp(100), 'b');
+  const unchanged = moveAccuracyBetween(cp(0), cp(0), 'w');
+  assert.equal(whiteLoss, blackLoss);
+  assert.ok(unchanged > whiteLoss);
+  assert.equal(moveAccuracyBetween(mate(1), cp(0), 'w'),
+    moveAccuracyBetween(mate(-1), cp(0), 'b'));
+
+  const path = [
+    {},
+    { move: { color: 'w' }, accuracy: 91 },
+    { move: { color: 'b' }, accuracy: 12 },
+    { move: { color: 'w' }, accuracy: 83 },
+    { move: { color: 'b' }, accuracy: 24 },
+  ];
+  const white = aggregateGameAccuracy(path, 'w');
+  const black = aggregateGameAccuracy(path, 'b');
+  const whiteOnly = aggregateGameAccuracy([{}, path[1], path[3]], 'w');
+  assert.equal(white, whiteOnly);
+  assert.ok(white > black);
+  assert.equal(aggregateGameAccuracy([{}], 'w'), null);
+});
+
+test('performance feature extraction skips the first two plies and keeps each side separate', () => {
+  const score = cp(80);
+  const path = [
+    { coach: { after: score } },
+    { move: { color: 'w', san: 'e4' }, coach: { before: score, after: score } },
+    { move: { color: 'b', san: 'e5' }, coach: { before: score, after: score } },
+    { move: { color: 'w', san: 'Nf3' }, coach: { before: score, after: score } },
+    { move: { color: 'b', san: 'Nc6' }, coach: { before: score, after: score } },
+    { move: { color: 'w', san: 'Bb5' }, coach: { before: score, after: score } },
+    { move: { color: 'b', san: 'a6' }, coach: null },
+  ];
+  assert.deepEqual(sideDecisions(path, 'w').map(item => item.san), ['Nf3', 'Bb5']);
+  assert.deepEqual(sideDecisions(path, 'b').map(item => item.san), []);
 });
