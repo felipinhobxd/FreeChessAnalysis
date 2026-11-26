@@ -1,37 +1,59 @@
+<!-- Move by Move | GitHub README -->
+
 <div align="center">
-  <img src="dist/favicon.svg" width="76" alt="Move by Move">
+  <img src="dist/favicon.svg" width="88" height="88" alt="Move by Move logo">
+
   <h1>Move by Move</h1>
-  <p><strong>Free chess analysis. Understand every move.</strong></p>
-  <p><a href="https://freechessanalysis.vercel.app/analysis"><strong>♟ Open the live website</strong></a></p>
+  <p><strong>See the game differently. Understand every move.</strong></p>
+  <p>A free, browser-based chess analysis and review workspace powered by Stockfish 19.</p>
+
   <p>
-    <a href="https://github.com/felipinhobxd/FreeChessAnalysis/actions/workflows/browser-integration.yml"><img src="https://github.com/felipinhobxd/FreeChessAnalysis/actions/workflows/browser-integration.yml/badge.svg" alt="Automated tests"></a>
-    <a href="https://github.com/official-stockfish/Stockfish"><img src="https://img.shields.io/badge/Engine-Stockfish%2019-779556" alt="Stockfish 19"></a>
-    <img src="https://img.shields.io/badge/Languages-14-426b50" alt="14 languages">
+    <a href="https://freechessanalysis.vercel.app/analysis">
+      <img src="https://img.shields.io/badge/♟_OPEN_MOVE_BY_MOVE-779556?style=for-the-badge&labelColor=232620" alt="Open Move by Move">
+    </a>
+  </p>
+
+  <p>
+    <a href="https://github.com/felipinhobxd/FreeChessAnalysis/actions/workflows/browser-integration.yml">
+      <img src="https://github.com/felipinhobxd/FreeChessAnalysis/actions/workflows/browser-integration.yml/badge.svg" alt="Browser integration tests">
+    </a>
+    <a href="https://github.com/official-stockfish/Stockfish">
+      <img src="https://img.shields.io/badge/Engine-Stockfish_19-779556?style=flat-square" alt="Stockfish 19">
+    </a>
+    <img src="https://img.shields.io/badge/Languages-14-426b50?style=flat-square" alt="14 languages">
+    <img src="https://img.shields.io/badge/Platform-Web-426b50?style=flat-square" alt="Web app">
   </p>
 </div>
 
 ---
 
-## About
+## ♟ What you can do
 
-**Move by Move** is a free, browser-based chess analysis and game review tool. Import a game, explore engine lines, discover critical moments, and learn from your decisions.
+Import a game or explore a position. Review the decisions, find missed chances, compare variations and learn from the moments that changed the game.
 
-## Features
+| Analysis | Learning | Your workspace |
+|:--|:--|:--|
+| Stockfish 19 engine analysis | Move classifications and accuracy | Interactive analysis board |
+| Missed tactical opportunities | Game performance estimates | PGN and FEN import/export |
+| Evaluation graph and engine lines | Guided game review and puzzles | Local study archive and optional cloud sync |
 
-- **Stockfish 19 analysis:** choose Full for maximum engine strength, Lite for the best balance, or Economy for lower CPU and memory use.
-- **Game review:** move classifications, accuracy, and key moments.
-- **Missed opportunities:** highlights tactical chances and advantages that slipped away.
-- **Performance estimates:** game-level rating estimates for each player.
-- **Interactive board:** explore variations, annotate positions, and test alternatives.
-- **Game import and export:** PGN, FEN, Chess.com, and Lichess.
-- **Study archive:** save games locally, with optional cloud sync.
-- **Personalization:** multiple piece sets, settings, and 14 interface languages.
+## ⚙ Choose your engine
 
-## Get started
+Select a profile when you first open the site, then change it any time in **Settings**.
 
-Visit **[freechessanalysis.vercel.app/analysis](https://freechessanalysis.vercel.app/analysis)**. No installation or account is required to use the live website.
+| Engine | Best for | What to expect |
+|:--|:--|:--|
+| **Stockfish 19 Full** | Maximum analysis strength | Larger download and higher resource usage. Uses multiple threads when supported by the browser. |
+| **Stockfish 19 Lite** | Everyday analysis | Recommended balance of strength, loading time and resource use. |
+| **Stockfish 19 Lite Economy** | Lower-resource computers | Smaller hash and capped analysis depth to reduce memory use and search workload. |
 
-## Run locally
+All engines run locally in your browser. The Full build is approximately 95 MB; Lite and Economy use the compact Lite build.
+
+## 🚀 Get started
+
+**[Open the live website](https://freechessanalysis.vercel.app/analysis)**. No installation or account is needed.
+
+### Run locally
 
 Requires [Node.js 24](https://nodejs.org/).
 
@@ -43,30 +65,37 @@ npm run build
 npm start
 ```
 
-Open [http://127.0.0.1:8787/analysis](http://127.0.0.1:8787/analysis).
+Then open **http://127.0.0.1:8787/analysis**.
 
-The build copies `chess.js` into `dist/vendor`, checks syntax, and runs the Node tests. To run the browser suite locally, install its Chromium build with `npx playwright install chromium` and run `npm run test:e2e`. On Linux, `npx playwright install --with-deps chromium` also installs the system libraries. GitHub Actions verifies Chromium and runs the cloud-sync migrations against an isolated PostgreSQL 17 database.
+## 🧪 Tests
 
-## Local data and cloud sync
+Run the automated checks:
 
-Preferences and the optional player profile are stored in the browser's local storage. The study library uses IndexedDB for games, completed reviews, and puzzle progress. Cloud sync sends an archive to Supabase when you explicitly sync with a code. Keep that code private to retain control of access to the synced archive.
+```bash
+npm test
+npm run test:e2e
+```
 
-## About the estimates
+The browser suite uses Playwright and Chromium. Install the browser first with `npx playwright install chromium`. GitHub Actions also tests the cloud-sync database migrations against PostgreSQL.
 
-Move classifications, accuracy scores, and game-rating estimates are engine-based project metrics. They are **not official Chess.com ratings or an implementation of its proprietary CAPS2 formula**. Read the [methodology and validation notes](https://freechessanalysis.vercel.app/methodology.html) for details and limitations.
+## 🔎 Method and transparency
 
-## Documentation and credits
+Accuracy, move classifications and game-rating estimates are project metrics derived from engine evaluations. They are **not official Chess.com ratings** and do not reproduce Chess.com's proprietary CAPS2 formula.
+
+See the [methodology and validation notes](https://freechessanalysis.vercel.app/methodology.html) for how estimates are produced and their current limitations.
+
+## 📚 Project resources
 
 - [Methodology and validation](https://freechessanalysis.vercel.app/methodology.html)
 - [Accuracy calibration workflow](tools/CAPS2-CALIBRATION.md)
 - [Missed-opportunity benchmark](tools/MISSED-OPPORTUNITIES-BENCHMARK.md)
 - [Performance models and validation](tools/PERFORMANCE.md)
-- [External service availability and rollout](tools/EXTERNAL-SERVICES.md)
+- [External services and rollout](tools/EXTERNAL-SERVICES.md)
 - [Third-party credits and licenses](dist/notices.html)
-- [Board sound credits and sources](dist/sounds/sharechess/README.md)
+- [Board sound credits](dist/sounds/sharechess/README.md)
 
 ---
 
 <div align="center">
-  <sub>Built to help you understand the game, one move at a time.</sub>
+  <sub>Made for curious players who want to understand every move.</sub>
 </div>
