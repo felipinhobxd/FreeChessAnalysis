@@ -54,7 +54,9 @@ export class Engine {
           this.worker.onmessage = ({ data }) => String(data).split(/\r?\n/).forEach(line => this.pending?.read(line));
           this.worker.onerror = event => {
             event.preventDefault();
-            this.pending?.fail(new Error(event.message || 'Falha no WebAssembly'));
+            const error = new Error(event.message || 'Falha no WebAssembly');
+            this.initialization = null;
+            this.closeWorker(error);
           };
           let identity = '';
           let maxThreads = 1;
@@ -145,12 +147,18 @@ export class Engine {
     return Array.from(info).sort(([a], [b]) => a - b).map(([, line]) => line);
   }
 
-  closeWorker() {
-    this.pending?.fail(aborted());
-    this.worker?.terminate();
+  closeWorker(error = aborted()) {
+    const worker = this.worker;
     this.worker = null;
+    if (worker) {
+      worker.onerror = null;
+      worker.onmessage = null;
+      worker.terminate();
+    }
     if (this.url) URL.revokeObjectURL(this.url);
     this.url = null;
+    const pending = this.pending;
+    if (pending) pending.fail(error);
   }
 
   dispose() {
