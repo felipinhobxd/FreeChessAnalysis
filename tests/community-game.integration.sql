@@ -82,14 +82,14 @@ begin
  result:=public.fca_ingest_community_games(limited_client,network,jsonb_build_array(sample));
  if result->>'rate_limited' is distinct from 'true' then raise exception 'Daily client limit failed: %',result;end if;
 
- update fca_private.community_game_ingest_state set sample_count=49999 where singleton=true;
+ update fca_private.community_game_ingest_state set sample_count=39999 where singleton=true;
  sample:=jsonb_set(sample,'{game_hash}',to_jsonb(repeat('c',64)));
  result:=public.fca_ingest_community_games(decode(repeat('44',32),'hex'),decode(repeat('55',32),'hex'),jsonb_build_array(sample));
  if (result->>'accepted')::int<>1 or result->>'capacity_reached'<>'true' then
   raise exception 'Global capacity handling failed: %',result;
  end if;
  select sample_count into state_count from fca_private.community_game_ingest_state where singleton=true;
- if state_count<>50000 then raise exception 'Global sample counter incorrect: %',state_count;end if;
+ if state_count<>40000 then raise exception 'Global sample counter incorrect: %',state_count;end if;
 end $$;
 reset role;
 rollback;
