@@ -2,16 +2,22 @@
 import {readFileSync,writeFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {decisionProfile,predictBand} from '../dist/decision-profile.js';
+import {gameTimeClass} from '../dist/review-metrics.js';
 const rows=readFileSync(process.argv[2],'utf8').trim().split(/\r?\n/).map(JSON.parse);
-const mean=xs=>xs.reduce((a,b)=>a+b,0)/xs.length;
+const mean=xs=>xs.length?xs.reduce((a,b)=>a+b,0)/xs.length:null;
+const median=xs=>{if(!xs.length)return null;const s=xs.slice().sort((a,b)=>a-b),m=Math.floor(s.length/2);return s.length%2?s[m]:(s[m-1]+s[m])/2;};
+const requestedSpeed=process.argv[4]||'rapid';
+if(!['rapid','blitz'].includes(requestedSpeed))throw new Error('Speed must be rapid or blitz');
 const fold=name=>createHash('sha256').update(name.toLowerCase()).digest().readUInt32BE(0)%100;
 const group=name=>fold(name)<60?'train':fold(name)<80?'calibration':'test';
 const samples={train:[],calibration:[],test:[]};
+let eligibleGames=0,crossSplitGames=0;
 function score(text){const mate=text.startsWith('#');const n=Number(mate?text.slice(1):text);return {type:mate?'mate':'cp',white:mate?Math.sign(n):100*n};}
 for(const [w,b,wr,br,tc,moves] of rows){
-  const f=group(w);if(f!==group(b))continue;
-  const [base,inc=0]=tc.split('+').map(Number);const t=base+40*inc;
-    if(process.argv[4]==='blitz' ? t<180 || t>=600 : t<600 || t>1500)continue;
+  // Use the exact same Lichess time-control classifier as the browser runtime.
+  if(gameTimeClass({Site:'https://lichess.org',TimeControl:tc})!==requestedSpeed)continue;
+  eligibleGames++;
+  const f=group(w);if(f!==group(b)){crossSplitGames++;continue;}
   for(const side of [0,1]){
     const y=side?br:wr;if(!Number.isFinite(y)||y<=0)continue;
     const decisions=[];
@@ -40,8 +46,11 @@ const errors=samples.calibration.map(r=>Math.abs(line(norm(r.x))-r.y)).sort((a,b
 const radius=errors[Math.min(errors.length-1,Math.ceil(.8*(errors.length+1))-1)];
 const model={population:'Lichess '+(process.argv[4] || 'rapid')+', November 2025',center,scale,weights,intercept,radius,min:Math.min(...train.map(r=>r.y)),max:Math.max(...train.map(r=>r.y)),accepted:true};
 const held=samples.test.flatMap(r=>{const p=predictBand(r.x,model);return p?[{err:p.rating-r.y,base:intercept-r.y,covered:r.y>=p.low&&r.y<=p.high}]:[]});
-function metrics(xs){return {mae:mean(xs.map(Math.abs)),rmse:Math.sqrt(mean(xs.map(v=>v*v))),bias:mean(xs)};}
-model.validation={games:rows.length,sides:Object.fromEntries(Object.entries(samples).map(([k,v])=>[k,v.length])),shown:held.length,coverage:mean(held.map(r=>Number(r.covered))),...metrics(held.map(r=>r.err)),baseline:metrics(held.map(r=>r.base))};
-model.accepted=held.length>=30 && model.validation.mae<model.validation.baseline.mae && model.validation.rmse<model.validation.baseline.rmse;
+function metrics(xs){return {mae:mean(xs.map(Math.abs)),rmse:xs.length?Math.sqrt(mean(xs.map(v=>v*v))):null,bias:mean(xs),medianAbsoluteError:median(xs.map(Math.abs))};}
+model.validation={inputGames:rows.length,eligibleGames,crossSplitGames,sides:Object.fromEntries(Object.entries(samples).map(([k,v])=>[k,v.length])),shown:held.length,coverage:mean(held.map(r=>Number(r.covered))),...metrics(held.map(r=>r.err)),baseline:metrics(held.map(r=>r.base))};
+model.accepted=held.length>=30 && model.validation.mae<model.validation.baseline.mae && model.validation.rmse<model.validation.baseline.rmse && model.validation.coverage>=0.72 && model.validation.coverage<=0.88;
 console.log(JSON.stringify(model.validation));
-if(process.argv[3])writeFileSync(process.argv[3],'export const performanceModel = '+JSON.stringify(model,null,2)+';\n');
+if(process.argv[3]){
+  if(model.accepted)writeFileSync(process.argv[3],'export const performanceModel = '+JSON.stringify(model,null,2)+';\n');
+  else console.error('Model rejected: holdout must beat the baseline and achieve 72%–88% interval coverage. Existing model file was not changed.');
+}

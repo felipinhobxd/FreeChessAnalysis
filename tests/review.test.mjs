@@ -111,6 +111,12 @@ test('performance uses signed decisions and abstains on short or unsupported gam
   assert.equal(estimatePerformance([{}],'b',{TimeControl:'60+0'}).reason,'bullet');
   assert.equal(gameTimeClass({TimeControl:'300+5'}),'blitz');
   assert.equal(gameTimeClass({TimeControl:'900+10'}),'rapid');
+  const lichess={Site:'https://lichess.org'};
+  assert.equal(gameTimeClass({...lichess,TimeControl:'479+0'}),'blitz');
+  assert.equal(gameTimeClass({...lichess,TimeControl:'480+0'}),'rapid');
+  assert.equal(gameTimeClass({...lichess,TimeControl:'8+2'}),'rapid');
+  assert.equal(gameTimeClass({...lichess,TimeControl:'1499+0'}),'rapid');
+  assert.equal(gameTimeClass({...lichess,TimeControl:'1500+0'}),'classical');
   const band=predictBand(performanceModel.center,performanceModel);
   assert.ok(band.low<band.rating && band.rating<band.high);
   assert.equal(predictBand(performanceModel.center.map(x=>x+100),performanceModel),null);

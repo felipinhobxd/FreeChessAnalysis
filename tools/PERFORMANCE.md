@@ -43,6 +43,15 @@ O coletor faz streaming do arquivo mensal até completar o número desejado de p
 
 Os arquivos NDJSON usados no treino têm SHA-256 `9978081a022d3fe43ec2d823e7f2d5c69d5d043d9e7162c7fb84b53243073af3` (rápidas) e `51991a7a88a4d90243638f38508087cfb3b70a9ba9904aa77b9d6a9ac88bae26` (blitz).
 
+
+## Validação e integridade dos conjuntos
+
+O ajuste de Blitz/Rapid usa agora o mesmo classificador de tempo do aplicativo (base + 40 × incremento): no Lichess, Bullet abaixo de 180 s, Blitz de 180 s até antes de 480 s, Rapid de 480 s até antes de 1.500 s e Classical a partir de 1.500 s. Isso evita que partidas de 8 a 10 minutos sejam treinadas como Blitz e estimadas como Rapid. O ajuste deve ser refeito com os NDJSON originais para atualizar os coeficientes publicados. Os modelos já empacotados não foram alterados sem reprocessar essa amostra.
+
+O script de ajuste só publica um novo arquivo quando o teste por jogadores separados tem pelo menos 30 previsões, melhora MAE e RMSE em relação à previsão constante e apresenta cobertura entre 72% e 88% para a faixa calibrada no conjunto de calibração. O relatório também mostra o tamanho dos conjuntos e o número de partidas descartadas por cruzarem grupos de jogadores.
+
+Para a referência Chess.com, o ajuste agora reserva 20% dos jogadores para holdout e exclui partidas que cruzam treino e holdout. Os resultados do script medem a distribuição do ajuste aplicado ao rating do PGN, não o erro em relação ao Game Rating oficial: a API pública não fornece esse rating oficial como rótulo de treino. Portanto, esses diagnósticos não comprovam a precisão do rating previsto pelo Game Review.
+
 ## Metodologia
 
 - Usei as primeiras 3.600 partidas elegíveis de cada ritmo no arquivo de novembro de 2025. Critérios de coleta incluem xadrez padrão ranqueado, término normal, sem bots titulados e a partir de 30 meios-lances anotados. É uma amostra de conveniência.
