@@ -186,7 +186,6 @@ export async function flushCommunityQueue(fetcher=globalThis.fetch){
   schedule(retry.retry_at-Date.now());
   return {sent:0,reason:'retry-deferred',status:retry.status,retryAt:retry.retry_at};
  }
- if(retry)clearRetry();
  const pending=queue();if(!pending.length||typeof fetcher!=='function')return {sent:0};
  if(timer!==null)clearTimeout(timer);timer=null;
  const batch=pending.slice(0,BATCH),hashes=new Set(batch.map(x=>x.game_hash));
@@ -199,8 +198,8 @@ export async function flushCommunityQueue(fetcher=globalThis.fetch){
     const retryAt=deferRetry(rateLimitDelay(res),'rate-limited',res.status);
     return {sent:0,status:res.status,reason:'rate-limited',retryAt};
    }
-   const accepted=Number(data?.accepted),duplicates=Number(data?.duplicates);
-   const fullyAccounted=Number.isInteger(accepted)&&accepted>=0&&Number.isInteger(duplicates)&&duplicates>=0&&accepted+duplicates===batch.length;
+   const accepted=data?.accepted,duplicates=data?.duplicates;
+   const fullyAccounted=Number.isSafeInteger(accepted)&&accepted>=0&&Number.isSafeInteger(duplicates)&&duplicates>=0&&accepted+duplicates===batch.length;
    if(data?.capacity_reached&&!fullyAccounted){
     write(CAPACITY,true);
     return {sent:0,status:res.status,reason:'capacity-reached',pending:batch.length};
