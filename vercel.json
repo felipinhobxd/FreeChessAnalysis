@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "buildCommand": "npm run build",
-  "installCommand": "npm install --include=dev",
+  "installCommand": "npm ci --include=dev",
   "outputDirectory": "dist",
   "functions": { "api/import-pgn.js": { "maxDuration": 12 } },
   "cleanUrls": true,
