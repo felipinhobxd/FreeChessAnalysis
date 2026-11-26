@@ -48,6 +48,12 @@ jobs:
         run: |
           psql -v ON_ERROR_STOP=1 -c 'CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role BYPASSRLS;'
           for migration in supabase/migrations/*.sql; do
+            case "$migration" in
+              *20261126120000_community_game_retention_cron.sql)
+                echo "Skipping Supabase-hosted pg_cron migration in stock PostgreSQL service; it is applied and verified on the live Supabase project."
+                continue
+                ;;
+            esac
             psql -v ON_ERROR_STOP=1 -f "$migration" || exit 1
           done
           psql -v ON_ERROR_STOP=1 -f tests/cloud-sync.integration.sql
