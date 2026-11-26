@@ -4,6 +4,7 @@ import { syncArchive, newSyncCode, syncCodeKey, validCode, prepareSyncArchive } 
 import { missedOpportunity, shortMateAfter, aspectEvidence, aspectGrade } from './review-evidence.js';
 import { syncSprites, resetSprites, liftSprite, moveLiftedSprite, releaseLiftedSprite } from './board-motion.js';
 import { Engine } from './engine.js';
+import { calibrationModel } from './caps2-model.js';
 import { acceptedMove, inspectMove, isTrainingMove } from './coach.js';
 import { icon, unlockSound, boardSound, setBoardVolume, moveSound, mateCelebration, clearMateCelebration } from './board-ui.js';
 import { exportStudyPgn } from './study-export.js';
@@ -1060,8 +1061,11 @@ function renderReport() {
   $('black-accuracy-label').textContent = displayName('b');
   const whiteGameAccuracy = aggregateGameAccuracy(path, 'w', winPercent);
   const blackGameAccuracy = aggregateGameAccuracy(path, 'b', winPercent);
-  $('white-acc').textContent = whiteGameAccuracy === null ? '—' : whiteGameAccuracy.toFixed(1).replace('.', ',') + '%';
-  $('black-acc').textContent = blackGameAccuracy === null ? '—' : blackGameAccuracy.toFixed(1).replace('.', ',') + '%';
+  const percent = new Intl.NumberFormat(getLanguage(), { style: 'percent', minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  $('white-acc').textContent = whiteGameAccuracy === null ? '—' : percent.format(whiteGameAccuracy / 100);
+  $('black-acc').textContent = blackGameAccuracy === null ? '—' : percent.format(blackGameAccuracy / 100);
+  $('accuracy-calibration').hidden = calibrationModel.status !== 'provisional' ||
+    (whiteGameAccuracy === null && blackGameAccuracy === null);
   renderRatingEstimates(path);
   renderPhaseReport(path);
   renderVariantEvaluation(cursor);
@@ -1826,7 +1830,12 @@ async function runReview() {
     if (review !== task) return;
     readyEngine();
     const commands = path.slice(1).map(node => uci(node.move));
+    let nextPaint = 0;
     for (const [index, node] of path.entries()) {
+      if (index > 0 && index % 16 === 0) {
+        await new Promise(resolve => setTimeout(resolve, 0));
+        if (review !== task) return;
+      }
       let result = node.terminal ? { lines: [node.terminal], best: null } : null;
       if (!result && node.reviewData?.depth === depth && node.reviewData.cache === cache) result = node.reviewData.result;
       if (!result) {
@@ -1847,11 +1856,14 @@ async function runReview() {
       }
       progress.value = index + 1;
       $('report-status').textContent = 'Avaliando ' + (index + 1) + ' de ' + path.length + ' posições…';
-      if (node === cursor) render();
-      else if (tab === 'puzzles') renderPuzzles();
-      else {
-        if (tab === 'report') renderReport();
-        renderHistory();
+      if (node === cursor || performance.now() >= nextPaint || index === path.length - 1) {
+        if (node === cursor) render();
+        else if (tab === 'puzzles') renderPuzzles();
+        else {
+          if (tab === 'report') renderReport();
+          renderHistory();
+        }
+        nextPaint = performance.now() + 100;
       }
     }
     completed = true;
@@ -2289,6 +2301,8 @@ function bindEvents() {
   document.addEventListener('keydown', () => unlockSound(setting('sound-enabled')));
   document.addEventListener('fullscreenchange', syncBoardTools);
   $('fullscreen').onclick = toggleFullscreen;
+  $('jump-to-panel').onclick = () => $('tab-' + tab).focus();
+  $('jump-to-board').onclick = () => $('board').querySelector('[tabindex="0"]')?.focus();
   $('sound').onclick = () => {
     const control = $('sound-enabled');
     control.checked = !control.checked;
@@ -2519,11 +2533,6 @@ function bindEvents() {
   let migratedPrefs = false;
   if (savedPrefs['piece-set'] === 'atelier') {
     savedPrefs['piece-set'] = 'classicas';
-    migratedPrefs = true;
-  }
-  // The former full setting was the default, so migrate old saved defaults to Lite.
-  if (savedPrefs['engine-mode'] === 'full') {
-    savedPrefs['engine-mode'] = 'lite';
     migratedPrefs = true;
   }
   if (migratedPrefs) {

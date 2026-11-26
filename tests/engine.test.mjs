@@ -107,3 +107,18 @@ test('engine falls back after a Worker crash and keeps the successful initializa
     restore();
   }
 });
+
+test('MultiPV publishes lines from one depth even when a newer iteration is incomplete', async () => {
+  const engine = new Engine('lite');
+  engine.exchange = async (_commands, parse) => {
+    parse('info depth 7 multipv 1 score cp 30 pv e2e4 e7e5');
+    parse('info depth 7 multipv 2 score cp 20 pv d2d4 d7d5');
+    parse('info depth 8 multipv 1 score cp 31 pv e2e4 e7e5');
+    return parse('bestmove e2e4');
+  };
+  const updates = [];
+  const result = await engine.search('fixture', [], 8, 2, { update: batch => updates.push(batch) });
+  assert.deepEqual(updates.map(batch => batch.map(line => line.depth)), [[7, 7]]);
+  assert.deepEqual(result.lines.map(line => line.depth), [8]);
+  assert.equal(result.lines[0].pv[0], result.best);
+});

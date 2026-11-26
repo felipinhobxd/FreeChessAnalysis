@@ -90,10 +90,12 @@
           <button class="flip" id="flip" title="Girar tabuleiro (F)" aria-label="Girar tabuleiro"></button>
         </div>
         </div>
+        <button class="mini workspace-jump" id="jump-to-panel" type="button">Ir ao painel</button>
         <div id="board-feedback" class="board-feedback" role="status" hidden></div>
       </section>
       <aside class="inspector">
         <div class="inspector-head"><i data-icon="workspace" aria-hidden="true"></i><div><h2>Central de análise</h2><p id="panel-sub">Posição inicial</p></div><button id="export" class="icon-button" title="Compartilhar ou exportar" aria-label="Compartilhar ou exportar"></button></div>
+        <button class="mini workspace-jump" id="jump-to-board" type="button">Ir ao tabuleiro</button>
         <div class="tabs" role="tablist" aria-label="Painéis">
           <button id="tab-import" role="tab" aria-controls="import" aria-selected="true"><i data-icon="inbox" aria-hidden="true"></i>Importar</button>
           <button id="tab-report" role="tab" aria-controls="report" aria-selected="false"><i data-icon="chart" aria-hidden="true"></i>Revisão</button>
@@ -156,6 +158,7 @@
               </tbody>
               <tbody id="class-breakdown"></tbody>
             </table>
+            <p class="muted" id="accuracy-calibration" hidden>Precisão estimada por um modelo provisório.</p>
             <details class="rating-details">
               <summary>Detalhes da estimativa</summary>
               <div class="rating-estimates" id="rating-estimates"></div>

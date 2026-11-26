@@ -173,6 +173,9 @@ test('sharing a side line keeps the original review and puzzle progress in the l
   await openBoard(page);
   await page.locator('#example').click();
   await expect(page.locator('#review-start')).toBeEnabled({ timeout: 30_000 });
+  await expect(page.locator('#report-status')).toContainText('Review complete · depth');
+  await expect(page.locator('#accuracy-calibration')).toBeVisible();
+  await expect(page.locator('#white-acc')).toHaveText(/^\d+\.\d%$/);
 
   await page.locator('#tab-puzzles').click();
   await page.locator('#puzzles').getByRole('button', { name: /Blunder/ }).click();
@@ -207,4 +210,25 @@ test('sharing a side line keeps the original review and puzzle progress in the l
   await page.locator('#archive-list button').click();
   await expect(page.locator('#report-status')).toContainText('Saved review');
   await expect(page.locator('#move-list')).toContainText('Qxf7#');
+});
+
+test('Full Stockfish stays selected after a reload', async ({ page }) => {
+  await openBoard(page);
+  await page.locator('#settings-btn').click();
+  await page.locator('#engine-mode').selectOption('full');
+  await page.reload();
+  await page.locator('#settings-btn').click();
+  await expect(page.locator('#engine-mode')).toHaveValue('full');
+});
+
+test.describe('mobile workspace shortcuts', () => {
+  test.use({ viewport: { width: 390, height: 650 } });
+
+  test('jump controls move focus between the board and the active panel', async ({ page }) => {
+    await openBoard(page);
+    await page.getByRole('button', { name: 'Go to analysis panel' }).click();
+    await expect(page.locator('#tab-import')).toBeFocused();
+    await page.getByRole('button', { name: 'Go to board' }).click();
+    await expect(square(page, 'a8')).toBeFocused();
+  });
 });

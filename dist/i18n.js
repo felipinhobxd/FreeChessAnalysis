@@ -691,6 +691,29 @@ Object.assign(MESSAGES, {
   ]
 });
 
+Object.assign(MESSAGES, {
+  'Melhor': MESSAGES.Melhor ?? ['Best', 'Melhor'],
+  'Bom': MESSAGES.Bom ?? ['Good', 'Bom'],
+  'Vez de jogar': MESSAGES['Vez de jogar'] ?? ['To move', 'Vez de jogar'],
+  'Ir ao painel': ['Go to analysis panel', 'Ir ao painel'],
+  'Ir ao tabuleiro': ['Go to board', 'Ir ao tabuleiro'],
+  'Precisão estimada por um modelo provisório.': ['Accuracy is estimated with a provisional model.', 'Precisão estimada por um modelo provisório.'],
+});
+
+const partialKeys = Object.keys(MESSAGES).filter(key => key.length > 3 && key !== 'Melhor').sort((a, b) => b.length - a.length);
+const englishReviewPatterns = [
+  [/Revisão concluída · profundidade (\d+)/g, 'Review complete · depth $1'],
+  [/Revisão salva · profundidade (\d+|—)/g, 'Saved review · depth $1'],
+  [/Avaliando (\d+) de (\d+) posições…/g, 'Evaluating $1 of $2 positions…'],
+  [/ · profundidade /g, ' · depth '],
+  [/(\d+) de 3 vidas/g, '$1 of 3 lives'],
+  [/(\d+) de (\d+) resolvidos/g, '$1 of $2 solved'],
+  [/\b1 vidas\b/g, '1 life'],
+  [/(\d+) vidas/g, '$1 lives'],
+  [/ das brancas/g, ' for White'],
+  [/ das pretas/g, ' for Black'],
+];
+
 function languageIndex() {
   const index = CODES.indexOf(activeLanguage);
   return index < 0 ? 0 : index;
@@ -707,8 +730,11 @@ export function translate(value) {
   if (exact) return leading + (exact[index] || exact[0]) + trailing;
 
   let output = value;
-  const keys = Object.keys(MESSAGES).filter(key => key.length > 3).sort((a, b) => b.length - a.length);
-  for (const key of keys) {
+  if (index === 0 && /^[a-h][1-8], Rei /.test(output)) output = output.replace(', Rei ', ', King ');
+  if (index === 0) {
+    for (const [pattern, replacement] of englishReviewPatterns) output = output.replace(pattern, replacement);
+  }
+  for (const key of partialKeys) {
     if (!output.includes(key)) continue;
     const replacement = MESSAGES[key][index] || MESSAGES[key][0];
     output = output.split(key).join(replacement);
