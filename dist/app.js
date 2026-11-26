@@ -9,6 +9,7 @@ import { icon, unlockSound, boardSound, setBoardVolume, moveSound, mateCelebrati
 import { initLanguage, setLanguage, getLanguage, translate } from './i18n.js';
 import { recordedRating } from './game-rating.js';
 import { classifyByLoss } from './move-classification.js';
+import { REVIEW_CHART_MARKERS, chartMarkerPoints, chartSelectionFor } from './review-chart.js';
 import { aggregateGameAccuracy, estimatePerformance, moveAccuracyBetween, phaseForPosition } from './review-metrics.js';
 
 const $ = id => document.getElementById(id);
@@ -105,7 +106,6 @@ const BOOK_REPLY = {
   g1f3: ['d7d5', 'g8f6', 'c7c5', 'g7g6', 'e7e6', 'b7b6'],
 };
 const PREFS = ['review-depth', 'line-depth', 'multi-pv', 'show-arrow', 'show-coordinates', 'engine-mode', 'piece-set', 'sound-enabled', 'sound-volume', 'animation-speed', 'mate-enabled'];
-const REVIEW_CHART_MARKERS = new Set(['brilliant', 'great', 'inaccuracy', 'mistake', 'chance-lost', 'blunder']);
 const TABS = ['import', 'report', 'lines', 'puzzles'];
 
 let reviewSide = 'all';
@@ -763,7 +763,7 @@ function renderChart() {
     context.stroke();
   }
 
-  const current = cursor.userEdited ? pathTo(cursor).reverse().find(node => nodes.includes(node)) : cursor;
+  const current = chartSelectionFor(cursor, nodes);
   const selected = points.find(point => point.node === current);
   if (selected) {
     context.strokeStyle = current.chanceLost ? '#ff8b82' : '#c3e2a1';
@@ -780,8 +780,7 @@ function renderChartMarkers(points, current) {
   const layer = $('chart-markers');
   const activeId = document.activeElement?.dataset.chartPly;
   const rendered = new Map(Array.from(layer.children, button => [Number(button.dataset.chartPly), button]));
-  for (const { node, x, y } of points) {
-    if (!node.move || !REVIEW_CHART_MARKERS.has(node.classification)) continue;
+  for (const { node, x, y } of chartMarkerPoints(points)) {
     let button = rendered.get(node.id);
     if (!button) {
       button = element('button', undefined, 'chart-marker');
