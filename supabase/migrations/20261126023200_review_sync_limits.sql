@@ -55,8 +55,10 @@ begin
     if p_entries = '[]'::jsonb then return p_entries; end if;
     perform pg_catalog.pg_advisory_xact_lock(419605113);
 
-    delete from public.fca_review_sync s
-    where s.updated_at < pg_catalog.now() - interval '180 days';
+    if (select count(*) from public.fca_review_sync) >= 128 then
+      delete from public.fca_review_sync s
+      where s.updated_at < pg_catalog.now() - interval '180 days';
+    end if;
 
     if not exists (
       select 1 from public.fca_review_sync s where s.code_hash = lookup
