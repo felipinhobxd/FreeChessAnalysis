@@ -4,6 +4,7 @@ import { test, expect } from '@playwright/test';
 async function openBoard(page) {
   await page.goto('/analysis');
   await page.locator('#language-select').selectOption('en');
+  await page.locator('#community-consent-decline').click();
   await page.locator('#language-enter').click();
   await expect(page.locator('#board .square')).toHaveCount(64);
 }
@@ -28,6 +29,7 @@ test('first-visit engine choice is saved and can be changed later in Settings', 
   await expect(page.locator('input[name="welcome-engine-mode"]')).toHaveCount(3);
   await page.locator('input[name="welcome-engine-mode"][value="economy"]').check();
   await page.locator('#language-select').selectOption('en');
+  await page.locator('#community-consent-decline').click();
   await page.locator('#language-enter').click();
   await expect(page.locator('#engine-mode')).toHaveValue('economy');
 
@@ -42,21 +44,58 @@ test('first-visit engine choice is saved and can be changed later in Settings', 
   await expect(page.locator('#engine-mode')).toHaveValue('economy');
 });
 
-test('community review collection is opt-in and consent persists across reloads', async ({ page }) => {
+test('community consent requires an explicit choice, persists, and can be changed', async ({ page }) => {
   await page.goto('/analysis');
   await expect(page.locator('#language-gate')).toBeVisible();
-  await expect(page.locator('#welcome-community-data')).not.toBeChecked();
+  await expect(page.locator('#language-enter')).toBeDisabled();
+  await expect(page.locator('#community-consent-allow')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#community-consent-decline')).toHaveAttribute('aria-pressed', 'false');
+
   await page.locator('#language-select').selectOption('en');
-  await page.locator('#welcome-community-data').check();
+  await page.locator('#community-consent-allow').click();
+  await expect(page.locator('#language-enter')).toBeEnabled();
   await page.locator('#language-enter').click();
 
-  const preferences = await page.evaluate(() => JSON.parse(localStorage.getItem('livro-de-lances/preferencias/v1') || '{}'));
-  expect(preferences['community-data']).toBe(true);
+  let consent = await page.evaluate(() => ({
+    preferences: JSON.parse(localStorage.getItem('livro-de-lances/preferencias/v1') || '{}'),
+    choice: localStorage.getItem('move-by-move/community-consent/v1'),
+  }));
+  expect(consent.preferences['community-data']).toBe(true);
+  expect(consent.choice).toBe('accepted');
 
   await page.reload();
+  await expect(page.locator('#language-gate')).toBeHidden();
   await page.locator('#language-open').click();
   await expect(page.locator('#language-gate')).toBeVisible();
-  await expect(page.locator('#welcome-community-data')).toBeChecked();
+  await expect(page.locator('#community-consent-allow')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#community-consent-decline')).toHaveAttribute('aria-pressed', 'false');
+
+  await page.locator('#community-consent-decline').click();
+  consent = await page.evaluate(() => ({
+    preferences: JSON.parse(localStorage.getItem('livro-de-lances/preferencias/v1') || '{}'),
+    choice: localStorage.getItem('move-by-move/community-consent/v1'),
+  }));
+  expect(consent.preferences['community-data']).toBe(false);
+  expect(consent.choice).toBe('declined');
+  await page.locator('#language-enter').click();
+  await page.locator('#settings-btn').click();
+  await expect(page.locator('#community-data')).not.toBeChecked();
+});
+
+test('returning visitors without an explicit consent decision see the prompt once', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('move-by-move/language', 'en');
+    localStorage.setItem('move-by-move/chess-profile', JSON.stringify({ platform: 'none', username: '' }));
+    localStorage.setItem('move-by-move/engine-choice/v1', '1');
+    localStorage.setItem('livro-de-lances/preferencias/v1', JSON.stringify({ 'engine-mode': 'lite', 'community-data': false }));
+  });
+  await page.goto('/analysis');
+  await expect(page.locator('#language-gate')).toBeVisible();
+  await expect(page.locator('#community-consent-status')).toContainText('Please choose');
+  await page.locator('#community-consent-decline').click();
+  await page.locator('#language-enter').click();
+  await page.reload();
+  await expect(page.locator('#language-gate')).toBeHidden();
 });
 
 test('the real app boots, unlocks the workspace and imports the bundled example', async ({ page }) => {
@@ -66,6 +105,7 @@ test('the real app boots, unlocks the workspace and imports the bundled example'
   await page.goto('/analysis');
   await expect(page.locator('#language-gate')).toBeVisible();
   await page.locator('#language-select').selectOption('pt-BR');
+  await page.locator('#community-consent-decline').click();
   await page.locator('#language-enter').click();
 
   await expect(page.locator('#app-content')).toBeVisible();
