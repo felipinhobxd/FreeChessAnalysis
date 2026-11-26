@@ -2328,7 +2328,10 @@ function bindEvents() {
         (tab === 'puzzles' && (activeChallenge()?.status !== 'active' || activeChallenge()?.reviewIndex !== activeChallenge()?.decisionIndex))) return;
     const sprite = liftSprite(origin);
     if (!sprite) return;
-    activePieceDrag = { pointerId: event.pointerId, from: origin, x: event.clientX, y: event.clientY, moved: false };
+    const squareRect = $('board').querySelector('[data-square="'+origin+'"]')?.getBoundingClientRect();
+    activePieceDrag = { pointerId: event.pointerId, from: origin, x: event.clientX, y: event.clientY,
+      grabX: squareRect ? event.clientX - (squareRect.left + squareRect.width / 2) : 0,
+      grabY: squareRect ? event.clientY - (squareRect.top + squareRect.height / 2) : 0, moved: false };
     selected = origin;
     showLegalTargets(origin);
     try { $('board').setPointerCapture(event.pointerId); } catch { /* Pointer capture is an enhancement. */ }
@@ -2339,7 +2342,7 @@ function bindEvents() {
       const drag = activePieceDrag;
       const dx = event.clientX - drag.x, dy = event.clientY - drag.y;
       if (!drag.moved && Math.hypot(dx, dy) > 4) drag.moved = true;
-      if (drag.moved) moveLiftedSprite(drag.from, event.clientX, event.clientY);
+      if (drag.moved) moveLiftedSprite(drag.from, event.clientX, event.clientY, drag.grabX, drag.grabY);
       return;
     }
     if (!activeBoardMark || activeBoardMark.pointerId !== event.pointerId) return;
@@ -2357,7 +2360,8 @@ function bindEvents() {
         const destination = boardSquareAtPoint(event.clientX, event.clientY);
         suppressBoardClick = true;
         selected = null;
-        if (!destination || !tryMove(drag.from, destination)) releaseLiftedSprite(drag.from);
+        releaseLiftedSprite(drag.from);
+        if (destination) tryMove(drag.from, destination);
       } else {
         releaseLiftedSprite(drag.from);
       }

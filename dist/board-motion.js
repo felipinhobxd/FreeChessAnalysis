@@ -88,7 +88,7 @@ export function liftSprite(square){
   sprite.style.transform='translate('+sprite.dataset.baseX+'%,'+sprite.dataset.baseY+'%) scale(1.09)';
   return sprite;
 }
-export function moveLiftedSprite(square,clientX,clientY){
+export function moveLiftedSprite(square,clientX,clientY,grabX=0,grabY=0){
   if(!liftedSprite||liftedSprite.dataset.square!==square)return;
   const frame=document.querySelector('.board-frame');
   const rect=frame?.getBoundingClientRect();
@@ -96,7 +96,7 @@ export function moveLiftedSprite(square,clientX,clientY){
   const size=rect.width/8;
   const x=square.charCodeAt(0)-97,y=8-Number(square[1]);
   const centerX=(x+.5)*size,centerY=(y+.5)*size;
-  const dx=clientX-rect.left-centerX,dy=clientY-rect.top-centerY;
+  const dx=clientX-rect.left-centerX-grabX,dy=clientY-rect.top-centerY-grabY;
   liftedSprite.style.transform='translate(calc('+liftedSprite.dataset.baseX+'% + '+dx+'px),calc('+liftedSprite.dataset.baseY+'% + '+dy+'px)) scale(1.09)';
 }
 export function releaseLiftedSprite(square){
