@@ -140,3 +140,74 @@ test('revoking consent stops transmission and clears queued full games',async()=
  assert.equal(calls,0);
  assert.deepEqual(JSON.parse(data.get('move-by-move/community-pending/v2')||'[]'),[]);
 });
+
+
+test('HTTP 429 preserves queued games and defers retry until the server retry window',async()=>{
+ data.clear();clearCommunityQueue();allowConsent();
+ const {path,headers,engine}=fixture();
+ await enqueueCommunityReview(path,headers,engine,14,true);
+ const result=await flushCommunityQueue(async()=>({
+  ok:false,status:429,
+  headers:{get:name=>name==='Retry-After'?'3600':null},
+  json:async()=>({accepted:0,rate_limited:true})
+ }));
+ assert.equal(result.sent,0);
+ assert.equal(result.reason,'rate-limited');
+ assert.equal(JSON.parse(data.get('move-by-move/community-pending/v2')||'[]').length,1);
+ assert.deepEqual(JSON.parse(data.get('move-by-move/community-sent/v2')||'[]'),[]);
+ const retry=JSON.parse(data.get('move-by-move/community-retry/v1'));
+ assert.equal(retry.reason,'rate-limited');
+ assert.ok(retry.retry_at>Date.now());
+ let calls=0;
+ const deferred=await flushCommunityQueue(async()=>{calls++;return {ok:true,status:200,json:async()=>({accepted:1,duplicates:0})};});
+ assert.equal(deferred.reason,'retry-deferred');
+ assert.equal(calls,0);
+ clearCommunityQueue();
+});
+
+test('HTTP client errors and server errors preserve queued games instead of marking them sent',async()=>{
+ for(const status of [400,401,403,500]){
+  data.clear();clearCommunityQueue();allowConsent();
+  const {path,headers,engine}=fixture();
+  await enqueueCommunityReview(path,headers,engine,14,true);
+  const result=await flushCommunityQueue(async()=>({
+   ok:false,status,headers:{get:()=>null},json:async()=>({error:'temporary or invalid request'})
+  }));
+  assert.equal(result.sent,0,'status '+status);
+  assert.equal(result.reason,'http-error','status '+status);
+  assert.equal(JSON.parse(data.get('move-by-move/community-pending/v2')||'[]').length,1,'status '+status);
+  assert.deepEqual(JSON.parse(data.get('move-by-move/community-sent/v2')||'[]'),[],'status '+status);
+  assert.ok(data.has('move-by-move/community-retry/v1'),'status '+status);
+  clearCommunityQueue();
+ }
+});
+
+test('partial success acknowledgement does not remove an entire batch from the queue',async()=>{
+ data.clear();clearCommunityQueue();allowConsent();
+ const first=fixture(50),second=fixture(51);
+ await enqueueCommunityReview(first.path,first.headers,first.engine,14,true);
+ await enqueueCommunityReview(second.path,second.headers,second.engine,14,true);
+ const result=await flushCommunityQueue(async()=>({
+  ok:true,status:200,json:async()=>({accepted:1,duplicates:0,capacity_reached:false})
+ }));
+ assert.equal(result.sent,0);
+ assert.equal(result.reason,'incomplete-ack');
+ assert.equal(JSON.parse(data.get('move-by-move/community-pending/v2')||'[]').length,2);
+ assert.deepEqual(JSON.parse(data.get('move-by-move/community-sent/v2')||'[]'),[]);
+ clearCommunityQueue();
+});
+
+test('global capacity stops new uploads but does not silently erase the unconfirmed queue',async()=>{
+ data.clear();clearCommunityQueue();allowConsent();
+ const first=fixture(50),second=fixture(51);
+ await enqueueCommunityReview(first.path,first.headers,first.engine,14,true);
+ await enqueueCommunityReview(second.path,second.headers,second.engine,14,true);
+ const result=await flushCommunityQueue(async()=>({
+  ok:true,status:200,json:async()=>({accepted:1,duplicates:0,capacity_reached:true,remaining_capacity:0})
+ }));
+ assert.equal(result.sent,0);
+ assert.equal(result.reason,'capacity-reached');
+ assert.equal(JSON.parse(data.get('move-by-move/community-pending/v2')||'[]').length,2);
+ assert.equal(data.get('move-by-move/community-capacity/v2'),'true');
+ clearCommunityQueue();
+});
