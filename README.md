@@ -18,7 +18,7 @@
 
 ## Features
 
-- **Stockfish 19 analysis:** Lite engine by default, with an optional Full profile.
+- **Stockfish 19 analysis:** choose Full for maximum engine strength, Lite for the best balance, or Economy for lower CPU and memory use.
 - **Game review:** move classifications, accuracy, and key moments.
 - **Missed opportunities:** highlights tactical chances and advantages that slipped away.
 - **Performance estimates:** game-level rating estimates for each player.

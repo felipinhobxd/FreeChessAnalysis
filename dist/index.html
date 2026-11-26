@@ -32,6 +32,24 @@
       <option value="ar">العربية</option>
       <option value="hi">हिन्दी</option>
     </select>
+    <section class="engine-setup" aria-labelledby="engine-setup-title">
+      <h2 class="engine-setup-title" id="engine-setup-title">Choose your analysis engine</h2>
+      <p class="engine-setup-note">Stockfish runs locally in your browser. You can change this later in Settings.</p>
+      <div class="engine-choice-list">
+        <label class="engine-choice">
+          <input type="radio" name="welcome-engine-mode" value="full">
+          <span class="engine-choice-copy"><strong>Stockfish 19 Full</strong><small>Maximum strength · about 95 MB to download</small></span>
+        </label>
+        <label class="engine-choice">
+          <input type="radio" name="welcome-engine-mode" value="lite" checked>
+          <span class="engine-choice-copy"><strong>Stockfish 19 Lite</strong><small>Recommended balance · about 1.7 MB to download</small></span>
+        </label>
+        <label class="engine-choice">
+          <input type="radio" name="welcome-engine-mode" value="economy">
+          <span class="engine-choice-copy"><strong>Stockfish 19 Lite · Economy</strong><small>Lower resource use · 8 MB hash and reduced analysis depth</small></span>
+        </label>
+      </div>
+    </section>
     <details class="profile-setup" id="profile-options">
       <summary>Your chess profile</summary>
       <label for="profile-platform">Main chess platform</label>
@@ -205,8 +223,8 @@
     
   </main>
   <dialog id="settings"><form method="dialog"><div class="dialog-head"><h2>Configurações</h2><button class="icon-button" aria-label="Fechar"><i data-icon="close" aria-hidden="true"></i></button></div></form><div class="dialog-body">
-    <label class="option">Modo do Stockfish <select id="engine-mode"><option value="lite" selected>Lite (recomendado)</option><option value="full">Completo · mais forte (~95 MB)</option></select></label>
-    <p class="muted engine-hint">O Lite é carregado por padrão. O Completo continua disponível para análises mais exigentes e baixa cerca de 95 MB.</p>
+    <label class="option">Modo do Stockfish <select id="engine-mode"><option value="lite" selected>Lite (recomendado)</option><option value="full">Completo · mais forte (~95 MB)</option><option value="economy">Lite · baixo consumo</option></select></label>
+    <p class="muted engine-hint">O Lite é compacto e recomendado. O Completo usa a rede maior e exige mais recursos. O modo econômico mantém o Lite e limita hash e profundidade para reduzir o uso da CPU.</p>
     <label class="option">Profundidade da revisão <select id="review-depth"><option>8</option><option>10</option><option>12</option><option selected>14</option><option>16</option><option>18</option><option>20</option><option>22</option></select></label>
     <label class="option">Profundidade das variantes <select id="line-depth"><option>10</option><option>14</option><option>16</option><option selected>18</option><option>20</option><option>22</option><option>24</option></select></label>
     <label class="option">Linhas simultâneas <select id="multi-pv"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select></label>

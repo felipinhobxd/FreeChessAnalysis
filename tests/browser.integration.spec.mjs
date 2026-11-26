@@ -22,6 +22,26 @@ async function serveBundledLite(page) {
   });
 }
 
+test('first-visit engine choice is saved and can be changed later in Settings', async ({ page }) => {
+  await page.goto('/analysis');
+  await expect(page.locator('#language-gate')).toBeVisible();
+  await expect(page.locator('input[name="welcome-engine-mode"]')).toHaveCount(3);
+  await page.locator('input[name="welcome-engine-mode"][value="economy"]').check();
+  await page.locator('#language-select').selectOption('en');
+  await page.locator('#language-enter').click();
+  await expect(page.locator('#engine-mode')).toHaveValue('economy');
+
+  await page.reload();
+  await expect(page.locator('#language-gate')).toBeHidden();
+  await page.locator('#settings-btn').click();
+  await expect(page.locator('#engine-mode')).toHaveValue('economy');
+  await page.locator('#engine-mode').selectOption('full');
+  await page.locator('#engine-mode').selectOption('economy');
+  await page.reload();
+  await page.locator('#settings-btn').click();
+  await expect(page.locator('#engine-mode')).toHaveValue('economy');
+});
+
 test('the real app boots, unlocks the workspace and imports the bundled example', async ({ page }) => {
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));

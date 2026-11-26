@@ -5,11 +5,41 @@ const MIRRORS = ['https://unpkg.com/', 'https://cdn.jsdelivr.net/npm/'];
 const FALLBACK_LITE = 'https://chessanalysis.dev/engine/sf19.0.1/stockfish-19-lite-single.js';
 
 function engineBuilds(mode) {
-  const lite = { name: 'Lite', file: 'stockfish-19-lite-single', threads: 1, timeout: 20000 };
+  const lite = {
+    name: 'Lite',
+    mode: 'lite',
+    version: '19.0.1',
+    file: 'stockfish-19-lite-single',
+    threads: 1,
+    hash: 24,
+    timeout: 20000,
+  };
+  if (mode === 'economy') return [{ ...lite, name: 'Eco', mode: 'economy', hash: 8 }];
   if (mode !== 'full') return [lite];
-  const threads = globalThis.crossOriginIsolated ? Math.max(1, Math.min(8, Math.floor((navigator.hardwareConcurrency || 2) / 2))) : 1;
-  const full = { name: 'Completo', file: 'stockfish-19-single', threads: 1, timeout: 55000 };
+
+  const threads = globalThis.crossOriginIsolated
+    ? Math.max(1, Math.min(8, Math.floor((navigator.hardwareConcurrency || 2) / 2)))
+    : 1;
+  const full = {
+    name: 'Completo',
+    mode: 'full',
+    version: '19.0.1',
+    file: 'stockfish-19-single',
+    threads: 1,
+    hash: 64,
+    timeout: 55000,
+  };
   return threads > 1 ? [{ ...full, file: 'stockfish-19', threads }, full, lite] : [full, lite];
+}
+
+
+export function analysisLimits(mode, purpose, requestedDepth, requestedLines = 1) {
+  const depth = Number.isFinite(Number(requestedDepth)) ? Math.max(1, Math.floor(Number(requestedDepth))) : 14;
+  const lines = Number.isFinite(Number(requestedLines)) ? Math.max(1, Math.floor(Number(requestedLines))) : 1;
+  if (mode !== 'economy') return { depth, lines };
+  if (purpose === 'review') return { depth: Math.min(depth, 12), lines };
+  if (purpose === 'live') return { depth: Math.min(depth, 14), lines: Math.min(lines, 2) };
+  return { depth, lines };
 }
 
 const aborted = () => new DOMException('Análise cancelada', 'AbortError');
@@ -88,10 +118,10 @@ export class Engine {
           if (build.threads > maxThreads) throw new Error('Compilação sem suporte às linhas de processamento.');
           await this.exchange([
             'setoption name Threads value ' + build.threads,
-            'setoption name Hash value ' + (build.name === 'Lite' ? 24 : 64),
+            'setoption name Hash value ' + build.hash,
             'isready',
           ], line => line === 'readyok' ? true : undefined, 18000);
-          return { name: build.name, threads: build.threads, identity };
+          return { name: build.name, mode: build.mode, version: build.version, file: build.file, hash: build.hash, threads: build.threads, identity };
         } catch (error) {
           this.closeWorker();
           signal.throwIfAborted();

@@ -3,7 +3,7 @@ import { gameFingerprint, listStudies, getStudy, putStudy } from './study-storag
 import { syncArchive, newSyncCode, syncCodeKey, validCode, prepareSyncArchive } from './study-cloud.js';
 import { missedOpportunity, shortMateAfter, aspectEvidence, aspectGrade } from './review-evidence.js';
 import { syncSprites, resetSprites, liftSprite, moveLiftedSprite, releaseLiftedSprite } from './board-motion.js';
-import { Engine } from './engine.js';
+import { Engine, analysisLimits } from './engine.js';
 import { calibrationModel } from './caps2-model.js';
 import { acceptedMove, inspectMove, isTrainingMove } from './coach.js';
 import { icon, unlockSound, boardSound, setBoardVolume, moveSound, mateCelebration, clearMateCelebration } from './board-ui.js';
@@ -25,6 +25,35 @@ function readChessProfile() {
       : null;
   } catch { return null; }
 }
+const preferencesStorageKey = 'livro-de-lances/preferencias/v1';
+const engineChoiceStorageKey = 'move-by-move/engine-choice/v1';
+
+function readStoredPreferences() {
+  try {
+    const value = JSON.parse(localStorage.getItem(preferencesStorageKey) || '{}');
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  } catch { return {}; }
+}
+function readEngineChoice() {
+  const mode = readStoredPreferences()['engine-mode'];
+  return ['lite', 'full', 'economy'].includes(mode) ? mode : 'lite';
+}
+function hasSavedEngineChoice() {
+  const mode = readStoredPreferences()['engine-mode'];
+  if (['lite', 'full', 'economy'].includes(mode)) return true;
+  try { return localStorage.getItem(engineChoiceStorageKey) === '1'; } catch { return false; }
+}
+function saveEngineChoice(mode) {
+  if (!['lite', 'full', 'economy'].includes(mode)) return;
+  try {
+    localStorage.setItem(preferencesStorageKey, JSON.stringify({
+      ...readStoredPreferences(),
+      'engine-mode': mode,
+    }));
+    localStorage.setItem(engineChoiceStorageKey, '1');
+  } catch { /* The engine choice remains usable for this session. */ }
+}
+
 function configureLanguageGate() {
   const languageSelect = $('language-select');
   const profilePlatform = $('profile-platform');
@@ -33,9 +62,14 @@ function configureLanguageGate() {
     profilePlatform.value = profile?.platform || 'none';
     profileUsername.value = profile?.username || '';
   };
+  const applyEngineChoice = () => {
+    const selected = document.querySelector('input[name="welcome-engine-mode"][value="' + readEngineChoice() + '"]');
+    if (selected) selected.checked = true;
+  };
   const savedProfile = readChessProfile();
   languageSelect.value = getLanguage();
   applyProfile(savedProfile);
+  applyEngineChoice();
   languageSelect.addEventListener('change', () => {
     setLanguage(languageSelect.value);
   });
@@ -50,6 +84,9 @@ function configureLanguageGate() {
       previousProfile.platform !== profile.platform ||
       previousProfile.username !== profile.username;
     try { localStorage.setItem(profileStorageKey, JSON.stringify(profile)); } catch { /* Profile is optional. */ }
+    const engineChoice = document.querySelector('input[name="welcome-engine-mode"]:checked')?.value || readEngineChoice();
+    saveEngineChoice(engineChoice);
+    if ($('engine-mode') && ['lite', 'full', 'economy'].includes(engineChoice)) $('engine-mode').value = engineChoice;
     $('language-gate').hidden = true;
     $('app-content').hidden = false;
     if (profileChanged && ['chesscom', 'lichess'].includes(profile.platform)) {
@@ -64,11 +101,12 @@ function configureLanguageGate() {
   $('language-open').addEventListener('click', () => {
     languageSelect.value = getLanguage();
     applyProfile(readChessProfile());
+    applyEngineChoice();
     $('language-gate').hidden = false;
     $('app-content').hidden = true;
   });
   const profileReady = Boolean(savedProfile);
-  const showGate = !languageState.saved || !profileReady;
+  const showGate = !languageState.saved || !profileReady || !hasSavedEngineChoice();
   $('language-gate').hidden = !showGate;
   $('app-content').hidden = showGate;
 }
@@ -1687,12 +1725,14 @@ async function useEngine(onLoad) {
   const engine = sharedEngine;
   try {
     const profile = await engine.start(build => {
-      const loading = build.name === 'Completo' ? 'Carregando completo (~95 MB)' : 'Carregando Lite';
+      const loading = build.name === 'Completo'
+        ? 'Carregando completo (~95 MB)'
+        : build.name === 'Eco' ? 'Carregando Lite econômico' : 'Carregando Lite';
       syncEngine('loading', loading);
       onLoad?.(loading);
     });
     if (sharedEngine === engine) engineProfile = profile;
-    return { engine, profile, cache: profile.name + '/' + profile.threads };
+    return { engine, profile, cache: ['stockfish', profile.version, profile.file, profile.hash, profile.threads].join('/') };
   } catch (error) {
     if (sharedEngine === engine) {
       sharedEngine = null;
@@ -1735,8 +1775,8 @@ function queueLive() {
 }
 
 async function runLive(position, showInReport = false) {
-  const depth = setting('line-depth');
-  const count = setting('multi-pv');
+  const limits = analysisLimits(setting('engine-mode'), 'live', setting('line-depth'), setting('multi-pv'));
+  const { depth, lines: count } = limits;
   const task = { controller: new AbortController() };
   const statusId = showInReport ? 'variant-status' : 'engine-status';
   const status = message => { $(statusId).textContent = message; };
@@ -1823,7 +1863,7 @@ async function runReview() {
   stopLive();
   const task = { controller: new AbortController() };
   review = task;
-  const depth = setting('review-depth');
+  const { depth } = analysisLimits(setting('engine-mode'), 'review', setting('review-depth'), 3);
   const progress = $('review-progress');
   progress.hidden = false;
   progress.max = path.length;
@@ -2537,14 +2577,14 @@ function bindEvents() {
     $('tab-' + TABS[target]).focus();
   });
   for (const button of document.querySelectorAll('[data-source]')) button.onclick = () => setSource(button.dataset.source);
-  const savedPrefs = readLocal('livro-de-lances/preferencias/v1', {});
+  const savedPrefs = readLocal(preferencesStorageKey, {});
   let migratedPrefs = false;
   if (savedPrefs['piece-set'] === 'atelier') {
     savedPrefs['piece-set'] = 'classicas';
     migratedPrefs = true;
   }
   if (migratedPrefs) {
-    try { writeLocal('livro-de-lances/preferencias/v1', savedPrefs); } catch { /* Private mode. */ }
+    try { writeLocal(preferencesStorageKey, savedPrefs); } catch { /* Private mode. */ }
   }
   for (const id of PREFS) {
     const control = $(id);
@@ -2553,7 +2593,7 @@ function bindEvents() {
     if (control.tagName === 'SELECT' && Array.from(control.options).some(option => option.value === String(value))) control.value = value;
     if (control.type === 'range' && Number.isFinite(Number(value))) control.value = String(Math.max(Number(control.min), Math.min(Number(control.max), Number(value))));
     control.onchange = () => {
-      try { writeLocal('livro-de-lances/preferencias/v1', Object.fromEntries(PREFS.map(key => [key, setting(key)]))); } catch { /* Private mode. */ }
+      try { writeLocal(preferencesStorageKey, Object.fromEntries(PREFS.map(key => [key, setting(key)]))); } catch { /* Private mode. */ }
       if (id === 'sound-volume') {
         $('sound-volume-value').textContent = control.value + '%';
         setBoardVolume(setting('sound-enabled') ? setting('sound-volume') / 100 : 0);
@@ -2569,7 +2609,9 @@ function bindEvents() {
         sharedEngine?.dispose();
         sharedEngine = null;
         engineProfile = null;
-        syncEngine('idle', setting(id) === 'full' ? 'Modo completo' : 'Modo leve');
+        try { localStorage.setItem(engineChoiceStorageKey, '1'); } catch { /* Storage is optional. */ }
+        const mode = setting(id);
+        syncEngine('idle', mode === 'full' ? 'Modo completo' : mode === 'economy' ? 'Modo econômico' : 'Modo leve');
         if (tab === 'lines') queueLive();
       }
         if (id === 'mate-enabled' && !control.checked) hideMate();
