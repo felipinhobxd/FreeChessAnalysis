@@ -115,7 +115,7 @@ test('queue batches, sends complete games and deduplicates reviews',async()=>{
  let body;
  const result=await flushCommunityQueue(async(_url,options)=>{
   body=JSON.parse(options.body);
-  return {ok:true,status:200,json:async()=>({accepted:1,remaining_capacity:49999})};
+  return {ok:true,status:200,json:async()=>({accepted:1,duplicates:0,capacity_reached:false,remaining_capacity:49999})};
  });
  assert.equal(result.sent,1);
  assert.equal(body.samples.length,1);
