@@ -746,22 +746,22 @@ Object.assign(MESSAGES, {
     "ساهم في تحسين إحصاءات الشطرنج",
     "शतरंज के आँकड़ों को बेहतर बनाने में मदद करें"
   ],
-  "Do you allow us to share compact data from games you review to improve opening statistics and rating estimates?": [
-    "Do you allow us to share compact data from games you review to improve opening statistics and rating estimates?",
-    "Você permite o compartilhamento de dados compactos das partidas que revisar para melhorar as estatísticas de aberturas e as estimativas de rating?",
-    "¿Permites compartir datos resumidos de las partidas que revises para mejorar las estadísticas de aperturas y las estimaciones de rating?",
-    "Autorisez-vous le partage de données condensées des parties que vous analysez afin d’améliorer les statistiques d’ouvertures et les estimations de classement ?",
-    "Erlaubst du, kompakte Daten aus deinen analysierten Partien zu teilen, um Eröffnungsstatistiken und Rating-Schätzungen zu verbessern?",
-    "Autorizzi la condivisione di dati sintetici delle partite che analizzi per migliorare le statistiche sulle aperture e le stime del rating?",
-    "Sta je toe dat beknopte gegevens van je geanalyseerde partijen worden gedeeld om openingsstatistieken en ratinginschattingen te verbeteren?",
-    "Разрешаете ли вы делиться краткими данными разобранных вами партий, чтобы улучшать статистику дебютов и оценку рейтинга?",
-    "您是否允许分享您复盘棋局的精简数据，以改进开局统计和等级分估算？",
-    "棋譜の分析データを共有し、定跡統計やレーティング推定の改善に役立ててもよいですか？",
-    "분석한 대국의 요약 데이터를 공유하여 오프닝 통계와 레이팅 추정치를 개선하는 데 동의하시나요?",
-    "İncelediğiniz oyunlardan özet verilerin paylaşılmasına, açılış istatistiklerini ve rating tahminlerini geliştirmek için izin veriyor musunuz?",
-    "هل تسمح بمشاركة بيانات مختصرة من المباريات التي تحللها لتحسين إحصاءات الافتتاحيات وتقديرات التصنيف؟",
-    "क्या आप ओपनिंग आँकड़ों और रेटिंग अनुमानों को बेहतर बनाने के लिए आपके विश्लेषित खेलों का संक्षिप्त डेटा साझा करने की अनुमति देते हैं?"
-  ],
+  "May we share the first 24 individual moves (12 per side) and compact statistics from games you review to improve opening statistics and rating estimates? The complete PGN, player names and usernames are never sent.": [
+    "May we share the first 24 individual moves (12 per side) and compact statistics from games you review to improve opening statistics and rating estimates? The complete PGN, player names and usernames are never sent.",
+    "Você permite compartilhar os 24 primeiros meios-lances (12 por jogador) e estatísticas resumidas das partidas que revisar para melhorar os dados de abertura e as estimativas de rating? O PGN completo, nomes de jogadores e usernames não são enviados.",
+    "¿Nos permites compartir las primeras 24 medias jugadas (12 por jugador) y estadísticas resumidas de las partidas que revises para mejorar los datos de aperturas y las estimaciones de rating? Nunca se envían el PGN completo, los nombres de jugadores ni los nombres de usuario.",
+    "Acceptez-vous de partager les 24 premiers demi-coups (12 par joueur) et des statistiques résumées des parties que vous analysez afin d’améliorer les données d’ouverture et les estimations de classement ? Le PGN complet, les noms des joueurs et les noms d’utilisateur ne sont jamais envoyés.",
+    "Dürfen wir die ersten 24 Halbzüge (12 pro Seite) und zusammengefasste Statistiken deiner analysierten Partien teilen, um Eröffnungsdaten und Rating-Schätzungen zu verbessern? Die vollständige PGN-Datei, Spielernamen und Benutzernamen werden niemals gesendet.",
+    "Autorizzi la condivisione delle prime 24 semimosse (12 per lato) e di statistiche sintetiche delle partite che analizzi per migliorare i dati sulle aperture e le stime del rating? Il PGN completo, i nomi dei giocatori e i nomi utente non vengono mai inviati.",
+    "Mogen we de eerste 24 halve zetten (12 per speler) en beknopte statistieken van je geanalyseerde partijen delen om openingsgegevens en ratinginschattingen te verbeteren? De volledige PGN, spelersnamen en gebruikersnamen worden nooit verzonden.",
+    "Разрешаете ли вы делиться первыми 24 полуходами (по 12 за каждую сторону) и краткой статистикой разобранных вами партий, чтобы улучшать данные об дебютах и оценку рейтинга? Полный PGN, имена игроков и имена пользователей никогда не отправляются.",
+    "您是否允许分享您复盘棋局的前 24 个半回合（双方各 12 步）及精简统计数据，以改进开局数据和等级分估算？完整 PGN、棋手姓名和用户名绝不会发送。",
+    "分析した対局の最初の24手（各側12手）と要約統計を共有し、定跡データやレーティング推定の改善に役立ててもよいですか？棋譜全体、プレイヤー名、ユーザー名は送信されません。",
+    "분석한 대국의 첫 24개 반수(각 진영 12수)와 요약 통계를 공유하여 오프닝 데이터와 레이팅 추정치를 개선하는 데 동의하시나요? 전체 PGN, 선수 이름, 사용자 이름은 전송되지 않습니다.",
+    "İncelediğiniz oyunların ilk 24 yarım hamlesini (her taraf için 12) ve özet istatistiklerini, açılış verilerini ve rating tahminlerini geliştirmek için paylaşmamıza izin veriyor musunuz? Tam PGN, oyuncu adları ve kullanıcı adları asla gönderilmez.",
+    "هل تسمح بمشاركة أول 24 نصف نقلة (12 لكل لاعب) وإحصاءات موجزة من المباريات التي تحللها لتحسين بيانات الافتتاحيات وتقديرات التصنيف؟ لا يتم إرسال ملف PGN الكامل أو أسماء اللاعبين أو أسماء المستخدمين مطلقًا.",
+    "क्या आप ओपनिंग डेटा और रेटिंग अनुमानों को बेहतर बनाने के लिए आपके विश्लेषित खेलों की पहली 24 आधी चालें (हर पक्ष की 12) और संक्षिप्त आँकड़े साझा करने की अनुमति देते हैं? पूरा PGN, खिलाड़ियों के नाम और यूज़रनेम कभी नहीं भेजे जाते।"
+  ]
   "What exactly is shared?": [
     "What exactly is shared?",
     "O que exatamente é compartilhado?",
