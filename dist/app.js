@@ -2022,7 +2022,7 @@ async function submitImport(event) {
 
 function exportPgn() {
   if (cursor?.userEdited) {
-    const branch = pathTo(cursor).reverse();
+    const branch = pathTo(cursor);
     const result = endResult(cursor) || '*';
     return exportStudyPgn(Chess, root.fen, gameHeaders, branch.slice(1).map(node => node.move), result);
   }
@@ -2243,7 +2243,7 @@ async function syncStudies() {
 
 function snapshotGame() {
   if (!root.children.length) return { fen: root.fen };
-  const path = cursor?.userEdited ? [root, ...pathTo(cursor).reverse()] : mainPath();
+  const path = cursor?.userEdited ? [root, ...pathTo(cursor)] : mainPath();
   return { pgn: exportPgn(), ply: Math.max(0, path.indexOf(cursor)) };
 }
 
