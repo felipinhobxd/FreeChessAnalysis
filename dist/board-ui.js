@@ -132,7 +132,12 @@ export function moveSound(step, result) {
   return 'move';
 }
 
+export function clearMateCelebration(layer) {
+  for (const particle of layer?.querySelectorAll?.('.mate-particle') ?? []) particle.remove();
+}
+
 export function mateCelebration(layer) {
+  clearMateCelebration(layer);
   const colors = ['#b7ed80', '#f7cb76', '#f0f5cb', '#72d7c2'];
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   layer.hidden = false;
@@ -152,6 +157,6 @@ export function mateCelebration(layer) {
   }
   return setTimeout(() => {
     layer.hidden = true;
-    for (const particle of pieces) particle.remove();
+    clearMateCelebration(layer);
   }, 2400);
 }

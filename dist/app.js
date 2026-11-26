@@ -5,7 +5,7 @@ import { missedOpportunity, shortMateAfter, aspectEvidence, aspectGrade } from '
 import { syncSprites, resetSprites } from './board-motion.js';
 import { Engine } from './engine.js';
 import { acceptedMove, inspectMove, isTrainingMove } from './coach.js';
-import { icon, unlockSound, boardSound, setBoardVolume, moveSound, mateCelebration } from './board-ui.js';
+import { icon, unlockSound, boardSound, setBoardVolume, moveSound, mateCelebration, clearMateCelebration } from './board-ui.js';
 import { initLanguage, setLanguage, getLanguage, translate } from './i18n.js';
 import { recordedRating } from './game-rating.js';
 import { classifyReviewMove, winPercent } from './review-classification.js';
@@ -1604,7 +1604,9 @@ function togglePlayback() {
 
 function hideMate() {
   clearTimeout(mateTimer);
+  mateTimer = null;
   const layer = $('mate-effect');
+  clearMateCelebration(layer);
   layer.hidden = true;
   $('board-area').classList.remove('mate-highlight');
 }
@@ -2018,11 +2020,16 @@ async function submitImport(event) {
 }
 
 function exportPgn() {
+  if (cursor?.userEdited) {
+    const branch = pathTo(cursor).reverse();
+    const result = endResult(cursor) || '*';
+    return exportStudyPgn(Chess, root.fen, gameHeaders, branch.slice(1).map(node => node.move), result);
+  }
+  if (originalPgn !== undefined) return originalPgn;
   const chess = new Chess(root.fen);
   for (const [key, value] of Object.entries(gameHeaders)) {
     if (typeof value === 'string' && value !== '?' && !['FEN', 'SetUp'].includes(key)) chess.setHeader(key, value.replace(/["\r\n]/g, ' '));
   }
-  if (originalPgn !== undefined) return originalPgn;
   const current = mainPath().slice(1);
   for (const node of current) chess.move(moveFromUci(uci(node.move)));
   if (current.at(-1)?.terminal?.type === 'mate') chess.setHeader('Result', current.at(-1).terminal.white > 0 ? '1-0' : '0-1');
@@ -2234,7 +2241,9 @@ async function syncStudies() {
 }
 
 function snapshotGame() {
-  return root.children.length ? { pgn: exportPgn(), ply: mainPath().indexOf(pathTo(cursor).reverse().find(n => mainPath().includes(n)) || root) } : { fen: root.fen };
+  if (!root.children.length) return { fen: root.fen };
+  const path = cursor?.userEdited ? [root, ...pathTo(cursor).reverse()] : mainPath();
+  return { pgn: exportPgn(), ply: Math.max(0, path.indexOf(cursor)) };
 }
 
 function boardSquareAtPoint(clientX, clientY) {
