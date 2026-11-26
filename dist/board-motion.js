@@ -85,15 +85,17 @@ export function liftSprite(square){
   liftedSprite=sprite;
   const image=sprite.querySelector('img');
   if(image){
-    image.style.transition='transform 90ms cubic-bezier(.2,.8,.2,1)';
-    image.style.transform='scale(1.08)';
+    image.style.transition='transform 110ms cubic-bezier(.16,1,.3,1)';
+    image.style.transform='perspective(220px) translateZ(12px) scale(1.15)';
     image.style.transformOrigin='50% 56%';
   }
   sprite.dataset.tilt='0';
   sprite.classList.add('drag-lifted');
   sprite.style.zIndex='20';
-  sprite.style.transition='transform 90ms cubic-bezier(.2,.8,.2,1), filter 90ms ease';
-  sprite.style.transform='translate('+sprite.dataset.baseX+'%,'+sprite.dataset.baseY+'%) scale(1.09)';
+  sprite.dataset.lastX='';sprite.dataset.lastY='';sprite.dataset.lastTime='';
+  sprite.dataset.vx='0';sprite.dataset.vy='0';sprite.dataset.pitch='0';sprite.dataset.yaw='0';
+  sprite.style.transition='transform 110ms cubic-bezier(.16,1,.3,1), filter 110ms ease';
+  sprite.style.transform='translate('+sprite.dataset.baseX+'%,'+sprite.dataset.baseY+'%) scale(1.15)';
   return sprite;
 }
 export function moveLiftedSprite(square,clientX,clientY,grabX=0,grabY=0){
@@ -114,14 +116,14 @@ export function moveLiftedSprite(square,clientX,clientY,grabX=0,grabY=0){
     const vx=(clientX-previousX)/elapsed,vy=(clientY-previousY)/elapsed;
     const oldVx=Number(liftedSprite.dataset.vx||0),oldVy=Number(liftedSprite.dataset.vy||0);
     const smoothX=oldVx*.38+vx*.62,smoothY=oldVy*.38+vy*.62;
-    const roll=Math.max(-13,Math.min(13,smoothX*4.1));
-    const pitch=Math.max(-8,Math.min(8,-smoothY*2.2));
-    const yaw=Math.max(-7,Math.min(7,-smoothX*2.0));
+    const roll=Math.max(-42,Math.min(42,smoothX*25));
+    const pitch=Math.max(-32,Math.min(32,-smoothY*19));
+    const yaw=Math.max(-25,Math.min(25,-smoothX*14));
     liftedSprite.dataset.lastX=String(clientX);liftedSprite.dataset.lastY=String(clientY);
     liftedSprite.dataset.lastTime=String(now);liftedSprite.dataset.vx=String(smoothX);liftedSprite.dataset.vy=String(smoothY);
-    liftedSprite.dataset.tilt=String(roll);
-    image.style.transition='transform 72ms cubic-bezier(.2,.75,.25,1)';
-    image.style.transform='perspective(180px) rotateX('+pitch+'deg) rotateY('+yaw+'deg) rotateZ('+roll+'deg) scale(1.08)';
+    liftedSprite.dataset.tilt=String(roll);liftedSprite.dataset.pitch=String(pitch);liftedSprite.dataset.yaw=String(yaw);
+    image.style.transition='transform 48ms cubic-bezier(.2,.75,.25,1)';
+    image.style.transform='perspective(220px) translateZ(13px) rotateX('+pitch+'deg) rotateY('+yaw+'deg) rotateZ('+roll+'deg) scale(1.15)';
   }
 }
 export function releaseLiftedSprite(square){
@@ -129,21 +131,21 @@ export function releaseLiftedSprite(square){
   const sprite=liftedSprite;liftedSprite=null;
   const image=sprite.querySelector('img');
   if(image){
-    const roll=Number(sprite.dataset.tilt||0);
+    const roll=Number(sprite.dataset.tilt||0),pitch=Number(sprite.dataset.pitch||0),yaw=Number(sprite.dataset.yaw||0);
     image.style.transition='none';
     if(!matchMedia('(prefers-reduced-motion: reduce)').matches){
       liftedAnimation=image.animate([
-        {transform:'perspective(180px) rotateX(0deg) rotateY(0deg) rotateZ('+roll+'deg) scale(1.08)',offset:0},
-        {transform:'perspective(180px) rotateX(-2deg) rotateY(1deg) rotateZ('+(-roll*.42)+'deg) scale(1.035)',offset:.32},
-        {transform:'perspective(180px) rotateX(1deg) rotateY(-.5deg) rotateZ('+(roll*.16)+'deg) scale(1.01)',offset:.62},
+        {transform:'perspective(220px) translateZ(13px) rotateX('+pitch+'deg) rotateY('+yaw+'deg) rotateZ('+roll+'deg) scale(1.15)',offset:0},
+        {transform:'perspective(220px) rotateX('+(-pitch*.48)+'deg) rotateY('+(-yaw*.45)+'deg) rotateZ('+(-roll*.5)+'deg) scale(1.08)',offset:.28},
+        {transform:'perspective(220px) rotateX('+(pitch*.2)+'deg) rotateY('+(yaw*.18)+'deg) rotateZ('+(roll*.2)+'deg) scale(1.025)',offset:.58},
         {transform:'rotate(0deg) scale(1)',offset:1}
-      ],{duration:390,easing:'cubic-bezier(.2,.72,.25,1)',fill:'both'});
+      ],{duration:520,easing:'cubic-bezier(.18,.78,.22,1)',fill:'both'});
       liftedAnimation.onfinish=()=>{image.style.transform='';image.style.transition='';liftedAnimation=null;};
     }else{image.style.transform='';image.style.transition='';}
   }
-  sprite.style.transition='transform 260ms cubic-bezier(.18,.82,.25,1.16), filter 180ms ease';
+  sprite.style.transition='transform 320ms cubic-bezier(.18,.82,.25,1.16), filter 220ms ease';
   sprite.style.transform='translate('+sprite.dataset.baseX+'%,'+sprite.dataset.baseY+'%) scale(1)';
   sprite.classList.remove('drag-lifted');
   sprite.style.zIndex='1';
-  setTimeout(()=>{if(!sprite.classList.contains('drag-lifted'))sprite.style.transition='';},280);
+  setTimeout(()=>{if(!sprite.classList.contains('drag-lifted'))sprite.style.transition='';},340);
 }

@@ -708,7 +708,7 @@ body.focus-board{overflow:hidden}.board-column:fullscreen,body.focus-board .boar
 }
 
 /* Mouse drag: lift the piece from the board, give it depth, then let it settle. */
-.sprite.drag-lifted{filter:drop-shadow(0 9px 7px #10140d88);cursor:grabbing;will-change:transform;z-index:20!important}
-.sprite.drag-lifted img{filter:drop-shadow(0 5px 5px #1119)}
+.sprite.drag-lifted{filter:drop-shadow(0 16px 11px #10140dbb);cursor:grabbing;will-change:transform;z-index:20!important}
+.sprite.drag-lifted img{filter:drop-shadow(0 9px 8px #080b07aa);transform-origin:50% 58%;will-change:transform}
 #board{ -webkit-user-select:none; user-select:none }
 #board .square{ -webkit-user-drag:none }
