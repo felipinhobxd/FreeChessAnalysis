@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { syncArchive } from '../dist/study-cloud.js';
 import assert from 'node:assert/strict';
 import {
   prepareSyncArchive,
@@ -54,4 +55,10 @@ test('cloud sync ignores malformed records before applying limits', () => {
   const prepared = prepareSyncArchive([{}, study(2), { ...study(3), date: Number.NaN }]);
   assert.deepEqual(prepared.entries, [study(2)]);
   assert.equal(prepared.omitted, 0);
+});
+
+test('cloud sync reports a rate limit even if the response is not JSON', async t => {
+  t.mock.method(globalThis, 'fetch', async () =>
+    new Response('Busy', { status: 429, headers: { 'Content-Type': 'text/plain' } }));
+  await assert.rejects(syncArchive('a'.repeat(64)), /limitou as consultas/);
 });

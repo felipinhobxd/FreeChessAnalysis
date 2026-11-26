@@ -6,6 +6,18 @@ export const CHESSCOM_LOOKUP_TIMEOUT_MS = 8000;
 const UPSTREAM_TIMEOUT_MS = 2500;
 const ARCHIVE_MONTH_LIMIT = 8;
 const ARCHIVE_LOOKUP_CONCURRENCY = 4;
+export const CHESSCOM_IMPORT_CONCURRENCY = 6;
+const RATE_LIMIT_MESSAGE = 'O serviço limitou as consultas. Tente daqui a pouco.';
+
+class ChessComRateLimit extends Error {
+  constructor(retryAfter) {
+    super(RATE_LIMIT_MESSAGE);
+    const delay = /^\d+$/.test(retryAfter ?? '')
+      ? Number(retryAfter)
+      : (Date.parse(retryAfter) - Date.now()) / 1000;
+    this.seconds = Number.isFinite(delay) ? Math.min(300, Math.max(1, Math.ceil(delay))) : 30;
+  }
+}
 
 async function json(url, { signal } = {}) {
   const requestSignal = signal
@@ -15,6 +27,7 @@ async function json(url, { signal } = {}) {
     headers: { Accept: 'application/json', 'User-Agent': 'Move by Move (public chess game import)' },
     signal: requestSignal,
   });
+  if (response.status === 429) throw new ChessComRateLimit(response.headers.get('Retry-After'));
   if (!response.ok) return null;
   return response.json();
 }
@@ -65,6 +78,7 @@ export async function lookupChessGame({
         return await fetchJson(url, { signal });
       } catch (error) {
         if (signal.aborted) throw signal.reason || error;
+        if (error instanceof ChessComRateLimit) throw error;
         return null;
       }
     };
@@ -131,28 +145,65 @@ function safePath(url) {
   try { return new URL(url).pathname; } catch { return ''; }
 }
 
-export default async function handler(req, res) {
-  res.setHeader('Cache-Control', 'private, no-store');
-  if (req.method !== 'GET') return res.status(405).json({ error: 'Método não permitido.' });
-  const { type, id, account } = req.query;
-  if (!['live', 'daily'].includes(type) || typeof id !== 'string' || !/^\d{1,16}$/.test(id)) {
-    return res.status(400).json({ error: 'Link do Chess.com inválido.' });
-  }
+export function createImportHandler(lookup = lookupChessGame) {
+  let active = 0;
+  let cooldownUntil = 0;
 
-  const controller = new AbortController();
-  const onAborted = () => controller.abort(new DOMException('Requisição cancelada.', 'AbortError'));
-  req.once?.('aborted', onAborted);
-  try {
-    const pgn = await lookupChessGame({ type, id, account, signal: controller.signal });
-    if (pgn) return res.status(200).json({ pgn });
-    return res.status(404).json({ error: 'Não encontrei a partida no arquivo público. Informe um dos jogadores ou importe o PGN.' });
-  } catch (error) {
-    if (error?.name === 'TimeoutError') {
-      return res.status(504).json({ error: 'A consulta ao Chess.com demorou demais. Tente novamente ou importe o PGN diretamente.' });
+  return async function handler(req, res) {
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    const send = (status, body) => {
+      if (res.destroyed) return;
+      res.statusCode = status;
+      res.end(JSON.stringify(body));
+    };
+    const limited = seconds => {
+      res.setHeader('Retry-After', String(seconds));
+      send(429, { error: RATE_LIMIT_MESSAGE });
+    };
+
+    if (req.method !== 'GET') {
+      res.setHeader('Allow', 'GET');
+      return send(405, { error: 'Método não permitido.' });
     }
-    if (error?.name === 'AbortError') return res.status(499).json({ error: 'Consulta cancelada.' });
-    return res.status(502).json({ error: 'O Chess.com está indisponível. Você também pode importar o PGN.' });
-  } finally {
-    req.off?.('aborted', onAborted);
-  }
+    const params = new URL(req.url, 'http://127.0.0.1').searchParams;
+    const [type] = params.getAll('type');
+    const [id] = params.getAll('id');
+    const account = params.get('account');
+    if (params.getAll('type').length !== 1 || params.getAll('id').length !== 1 ||
+        !['live', 'daily'].includes(type) || !/^\d{1,16}$/.test(id)) {
+      return send(400, { error: 'Link do Chess.com inválido.' });
+    }
+
+    const retryIn = Math.ceil((cooldownUntil - Date.now()) / 1000);
+    if (retryIn > 0) return limited(retryIn);
+    if (active >= CHESSCOM_IMPORT_CONCURRENCY) return limited(3);
+
+    const controller = new AbortController();
+    const onAborted = () => controller.abort(new DOMException('Requisição cancelada.', 'AbortError'));
+    res.once('close', onAborted);
+    active++;
+    try {
+      const pgn = await lookup({ type, id, account, signal: controller.signal });
+      return pgn
+        ? send(200, { pgn })
+        : send(404, { error: 'Não encontrei a partida no arquivo público. Informe um dos jogadores ou importe o PGN.' });
+    } catch (error) {
+      if (error instanceof ChessComRateLimit) {
+        cooldownUntil = Math.max(cooldownUntil, Date.now() + error.seconds * 1000);
+        if (!res.destroyed) return limited(Math.ceil((cooldownUntil - Date.now()) / 1000));
+        return;
+      }
+      if (error?.name === 'TimeoutError') {
+        return send(504, { error: 'A consulta ao Chess.com demorou demais. Tente novamente ou importe o PGN diretamente.' });
+      }
+      if (error?.name === 'AbortError') return send(499, { error: 'Consulta cancelada.' });
+      return send(502, { error: 'O Chess.com está indisponível. Você também pode importar o PGN.' });
+    } finally {
+      active--;
+      res.off('close', onAborted);
+    }
+  };
 }
+
+export default createImportHandler();

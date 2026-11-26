@@ -4,6 +4,7 @@
   "buildCommand": "npm run build",
   "installCommand": "npm install --include=dev",
   "outputDirectory": "dist",
+  "functions": { "api/import-pgn.js": { "maxDuration": 12 } },
   "cleanUrls": true,
   "trailingSlash": false,
   "rewrites": [
