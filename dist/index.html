@@ -58,11 +58,11 @@
           <h2 id="community-consent-title">Help improve chess statistics</h2>
         </div>
       </div>
-      <p class="community-consent-question">May we share the first 24 individual moves (12 per side) and compact statistics from games you review to improve opening statistics and rating estimates? The complete PGN, player names and usernames are never sent.</p>
+      <p class="community-consent-question">Do you agree to share the complete move sequence and compact Stockfish analysis for every move in imported games you fully review? This includes evaluations before and after each move, accuracy, move classification and the engine's best move, plus the result, time control and platform category. Ratings read from PGN are marked as unverified. A starting FEN is included only when a game begins from a non-standard position. The complete PGN, comments, player names, usernames and game links are never uploaded.</p>
       <details class="community-consent-details">
         <summary>What exactly is shared?</summary>
-        <p>Only after a review is completed: the first 24 individual moves (up to 12 moves per side), the game result and time control, aggregated accuracy and error statistics for both sides, estimated ratings, platform category, and Stockfish version/settings. Ratings read from PGN are labelled as unverified.</p>
-        <p><strong>What is never uploaded?</strong> The complete PGN, the remaining move list, player names, usernames, game links, and FEN positions. Analysis continues locally in your browser. This contribution is optional and you can change your choice at any time in Settings.</p>
+        <p>Only imported games that have been fully reviewed are eligible. We store the complete mainline move sequence in UCI format and a compact 10-byte record for each move: evaluations before and after the move, move accuracy, move classification, whether the move was forced, mate indicators and the engine's best-move suggestion. We also store the result, time control, platform category, aggregated player statistics, estimated ratings and Stockfish version/settings. Ratings copied from PGN headers are labelled as unverified. Data is automatically removed after 180 days.</p>
+        <p><strong>What is never uploaded?</strong> The full PGN file, comments, player names, usernames, account identifiers, game links and intermediate FEN positions are never uploaded. Only the starting FEN is stored when needed to reconstruct a non-standard starting position. Analysis still runs locally in your browser. This contribution is optional and you can change your choice at any time in Settings.</p>
       </details>
       <div class="community-consent-actions" role="group" aria-label="Community data consent">
         <button class="community-consent-choice allow" id="community-consent-allow" type="button" aria-pressed="false">Allow contribution</button>
