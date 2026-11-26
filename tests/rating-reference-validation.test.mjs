@@ -20,13 +20,13 @@ function reliableFixture() {
   const holdout = [];
   const bands = { rapid: [], blitz: [] };
   for (const speed of ['rapid', 'blitz']) {
-    train.push(
-      row(speed, 1000, 50, speed + '-train-a'),
-      row(speed, 1000, 52, speed + '-train-b'),
-      row(speed, 2000, 70, speed + '-train-c'),
-      row(speed, 2000, 72, speed + '-train-d'),
-    );
     bands[speed] = [[1000, 51, 2], [2000, 71, 2]];
+    for (let index = 0; index < 130; index++) {
+      const rating = index % 2 ? 2000 : 1000;
+      const quality = rating === 2000 ? 71 : 51;
+      train.push(row(speed, rating, quality + (index % 3 - 1) * 0.2,
+        speed + '-train-' + index));
+    }
     for (let index = 0; index < 60; index++) {
       const rating = index % 2 ? 2000 : 1000;
       const quality = rating === 2000 ? 71 : 51;
@@ -34,10 +34,7 @@ function reliableFixture() {
         speed + '-holdout-' + index));
     }
   }
-  const expandedTrain = Array.from({ length: 130 }, (_, index) =>
-    train[index % train.length]
-  );
-  return { train: expandedTrain, holdout, bands };
+  return { train, holdout, bands };
 }
 
 test('quality interpolation clamps outside the sample and interpolates inside it', () => {
@@ -62,6 +59,7 @@ test('rating-reference publishing requires enough independent players and both s
   const report = validateRatingReference(fixture.train, fixture.holdout, fixture.bands);
   const acceptance = ratingReferenceAcceptance(report, {
     minTrainingSides: 100,
+    minTrainingPlayers: 50,
     minHoldoutSides: 100,
     minHoldoutPlayers: 50,
     minHoldoutPerTimeClass: 30,

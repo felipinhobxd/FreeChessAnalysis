@@ -27,9 +27,9 @@ function summarize(errors) {
 
 export function interpolateExpectedQuality(bands, rating) {
   if (!Array.isArray(bands) || !bands.length || !Number.isFinite(rating)) return null;
-  const sorted = bands.slice().sort((a, b) => a[0] - b[0]);
-  if (sorted.some(row => !Array.isArray(row) || row.length < 2 ||
+  if (bands.some(row => !Array.isArray(row) || row.length < 2 ||
       !Number.isFinite(row[0]) || !Number.isFinite(row[1]))) return null;
+  const sorted = bands.slice().sort((a, b) => a[0] - b[0]);
   if (rating <= sorted[0][0]) return sorted[0][1];
   for (let index = 1; index < sorted.length; index++) {
     const lower = sorted[index - 1];
@@ -83,14 +83,15 @@ export function validateRatingReference(trainRows, holdoutRows, trainBands) {
       baseline: summarize(rows.map(row => row.baselineError)),
     };
   }
-  const players = new Set(scored.flatMap(row => [
-    row.playerName,
-    ...row.names,
+  const playerNames = rows => new Set(rows.flatMap(row => [
+    row.player?.username,
+    ...(row.names ?? []),
   ]).filter(name => typeof name === 'string' && name.trim()));
   return {
     trainingSides: trainRows.length,
+    trainingPlayers: playerNames(trainRows).size,
     holdoutSides: scored.length,
-    holdoutPlayers: players.size,
+    holdoutPlayers: playerNames(scored).size,
     overall: {
       model: summarize(scored.map(row => row.modelError)),
       baseline: summarize(scored.map(row => row.baselineError)),
@@ -102,6 +103,7 @@ export function validateRatingReference(trainRows, holdoutRows, trainBands) {
 export function ratingReferenceAcceptance(validation, requirements = {}) {
   const limits = {
     minTrainingSides: requirements.minTrainingSides ?? 500,
+    minTrainingPlayers: requirements.minTrainingPlayers ?? 100,
     minHoldoutSides: requirements.minHoldoutSides ?? 120,
     minHoldoutPlayers: requirements.minHoldoutPlayers ?? 60,
     minHoldoutPerTimeClass: requirements.minHoldoutPerTimeClass ?? 30,
@@ -109,6 +111,7 @@ export function ratingReferenceAcceptance(validation, requirements = {}) {
     maxClassRegression: requirements.maxClassRegression ?? 0.1,
   };
   const enoughData = validation.trainingSides >= limits.minTrainingSides &&
+    validation.trainingPlayers >= limits.minTrainingPlayers &&
     validation.holdoutSides >= limits.minHoldoutSides &&
     validation.holdoutPlayers >= limits.minHoldoutPlayers &&
     ['rapid', 'blitz'].every(speed =>

@@ -50,7 +50,8 @@ function fit(sample, bucketStats = null) {
     const stats = [];
     for (let start = 0; start < 3600; start += 400) {
       const bucket = rated.filter(row => row.player.rating >= start && row.player.rating < start + 400);
-      if (bucket.length < 14) continue;
+      const bucketPlayers = new Set(bucket.flatMap(row => row.names ?? [row.player.username]));
+      if (bucket.length < 14 || bucketPlayers.size < 8) continue;
       const ratings = bucket.map(row => row.player.rating).sort((a, b) => a - b);
       const scores = bucket.map(row => row.evidence.quality).sort((a, b) => a - b);
       bands.push([
@@ -58,7 +59,7 @@ function fit(sample, bucketStats = null) {
         +quantile(scores, 0.5).toFixed(2),
         +(quantile(scores, 0.75) - quantile(scores, 0.25)).toFixed(2),
       ]);
-      stats.push({ minRating: start, maxRating: start + 399, sides: bucket.length });
+      stats.push({ minRating: start, maxRating: start + 399, sides: bucket.length, players: bucketPlayers.size });
     }
     if (bands.length < 2) throw new Error('Insufficient rating bands for ' + speed + '; collect more players across rating levels.');
     if (bucketStats) bucketStats[speed] = stats;
@@ -150,6 +151,7 @@ if (acceptance.accepted) {
       sourceGames: new Set([...trainRows, ...heldRows].map(row => row.game.url)).size,
       stockfishDepth: depth,
       trainingSides: qualityValidation.trainingSides,
+      trainingPlayers: qualityValidation.trainingPlayers,
       holdoutSides: qualityValidation.holdoutSides,
       holdoutPlayers: qualityValidation.holdoutPlayers,
       holdoutQualityMae: qualityValidation.overall.model.mae,
