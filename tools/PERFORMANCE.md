@@ -15,7 +15,7 @@ node tools/fit-game-rating.mjs .calibration/caps2-analysis.json 187950475324
 npm run build
 ```
 
-A referência foi ajustada em 608 partidas públicas analisadas com Stockfish 19 Lite na profundidade 10. Em validação de cinco grupos sem jogadores em comum entre treino e teste, 1.031 lados receberam estimativa. O ajuste médio foi de −7 pontos no total e −14 pontos nos 403 lados abaixo de 800. Nessa faixa, 1 de 403 estimativas ficou mais de 300 pontos acima do PGN. A partida de referência e seus jogadores foram excluídos do ajuste. Ela mede a tendência de inflar ou reduzir o rating de base. Uma comparação sistemática com o rating oficial de partida exigiria uma amostra de resultados do Game Review em vários níveis.
+A referência atualmente empacotada foi ajustada em 608 partidas públicas analisadas com Stockfish 19 Lite na profundidade 10. O relatório histórico anterior registrou 1.031 lados com estimativa e ajuste médio de −7 pontos; esse número descreve apenas a distribuição do ajuste aplicado ao rating informado no PGN. Ele não mede erro contra o rating oficial do Game Review. A nova validação separa jogadores em treino e holdout 80/20, exclui partidas que cruzam os grupos e deve ser executada novamente sobre os dados brutos antes de publicar novas métricas.
 
 - [Explicação oficial do Game Rating](https://support.chess.com/en/articles/10773754-how-is-game-rating-calculated-in-game-review)
 - [Chess.com Published Data API](https://www.chess.com/terms/chess-com-published-data-api)
@@ -41,7 +41,7 @@ npm run build
 
 O coletor faz streaming do arquivo mensal até completar o número desejado de partidas. A opção `--archive` usa uma cópia local. O material original é CC0. [Arquivo e licença do Lichess](https://database.lichess.org/)
 
-Os arquivos NDJSON usados no treino têm SHA-256 `9978081a022d3fe43ec2d823e7f2d5c69d5d043d9e7162c7fb84b53243073af3` (rápidas) e `51991a7a88a4d90243638f38508087cfb3b70a9ba9904aa77b9d6a9ac88bae26` (blitz).
+Os arquivos NDJSON usados na calibração histórica têm SHA-256 `9978081a022d3fe43ec2d823e7f2d5c69d5d043d9e7162c7fb84b53243073af3` (rápidas) e `51991a7a88a4d90243638f38508087cfb3b70a9ba9904aa77b9d6a9ac88bae26` (blitz).
 
 
 ## Validação e integridade dos conjuntos
