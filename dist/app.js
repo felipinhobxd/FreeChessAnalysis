@@ -8,6 +8,7 @@ import { acceptedMove, inspectMove, isTrainingMove } from './coach.js';
 import { icon, unlockSound, boardSound, setBoardVolume, moveSound, mateCelebration } from './board-ui.js';
 import { initLanguage, setLanguage, getLanguage, translate } from './i18n.js';
 import { recordedRating } from './game-rating.js';
+import { classifyByLoss } from './move-classification.js';
 import { aggregateGameAccuracy, estimatePerformance, moveAccuracyBetween, phaseForPosition } from './review-metrics.js';
 
 const $ = id => document.getElementById(id);
@@ -1797,12 +1798,7 @@ function reviewClass(node, before, after, previousBest, runnersUp, index) {
   if (opening) return 'theory';
   if (accepted && margin >= 12 && commitment && chanceBefore > 18 && chanceBefore < 82) return 'brilliant';
   if (accepted && margin >= 14 && chanceBefore > 15 && chanceBefore < 85) return 'great';
-  if (exactBest) return 'best';
-  if (accepted || loss <= 2) return 'excellent';
-  if (loss <= 5) return 'good';
-  if (loss <= 10) return 'inaccuracy';
-  if (loss <= 20) return 'mistake';
-  return 'blunder';
+  return classifyByLoss({ loss, exactBest, accepted });
 }
 function stopReview(resumeLive = true) {
   if (!review) return;
