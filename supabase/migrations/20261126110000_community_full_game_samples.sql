@@ -54,8 +54,8 @@ grant all on fca_private.community_game_samples to service_role;
 
 create table fca_private.community_game_ingest_state(
  singleton boolean primary key default true check(singleton),
- sample_count integer not null default 0 check(sample_count between 0 and 50000),
- max_samples integer not null default 50000 check(max_samples=50000),
+ sample_count integer not null default 0 check(sample_count between 0 and 40000),
+ max_samples integer not null default 40000 check(max_samples=40000),
  last_pruned_day date not null default current_date
 );
 insert into fca_private.community_game_ingest_state(singleton) values(true) on conflict do nothing;
