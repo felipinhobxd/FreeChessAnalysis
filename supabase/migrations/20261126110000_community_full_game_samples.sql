@@ -5,7 +5,7 @@ create table fca_private.community_game_samples(
  opening_uci varchar(120) not null check(opening_uci~'^(?:[a-h][1-8][a-h][1-8][qrbn]?){1,24}$'),
  moves_uci varchar(3000) not null check(moves_uci~'^(?:[a-h][1-8][a-h][1-8][qrbn]?)(?:\.(?:[a-h][1-8][a-h][1-8][qrbn]?)){7,499}$'),
  ply_count smallint not null check(ply_count between 8 and 500),
- start_fen varchar(100) check(start_fen is null or start_fen~'^[prnbqkPRNBQK1-8/]+ [wb] (?:-|K?Q?k?q?) (?:-|[a-h][36]) [0-9]+ [0-9]+$'),
+ start_fen varchar(100) check(start_fen is null or start_fen~'^[prnbqkPRNBQK1-8/]+ [wb] (?:-|[KQkq]{1,4}) (?:-|[a-h][36]) [0-9]+ [0-9]+$'),
  move_data bytea not null check(octet_length(move_data)=ply_count*10),
  result text not null check(result in('w','d','b')),
  time_class text not null check(time_class in('bullet','blitz','rapid','classical','unknown')),
@@ -117,7 +117,7 @@ begin
 
   v_hash:=v_sample->>'game_hash';
   v_move_array:=pg_catalog.string_to_array(coalesce(v_sample->>'moves_uci',''),'.');
-  v_ply_count:=pg_catalog.coalesce(nullif(v_sample->>'ply_count','')::integer,0);
+  v_ply_count:=coalesce(nullif(v_sample->>'ply_count','')::integer,0);
   if coalesce(v_hash,'')!~'^[a-f0-9]{64}$'
    or coalesce(v_sample->>'opening_uci','')!~'^(?:[a-h][1-8][a-h][1-8][qrbn]?){1,24}$'
    or coalesce(v_sample->>'moves_uci','')!~'^(?:[a-h][1-8][a-h][1-8][qrbn]?)(?:\.(?:[a-h][1-8][a-h][1-8][qrbn]?)){7,499}$'
@@ -181,10 +181,10 @@ begin
  end if;
 
  select count(distinct value->>'game_hash')::int into v_new_requested
- from jsonb_array_elements(p_samples) as rows(value)
+ from jsonb_array_elements(p_samples) as incoming(value)
  where not exists(
   select 1 from fca_private.community_game_samples existing
-  where existing.game_hash=pg_catalog.decode(rows.value->>'game_hash','hex')
+  where existing.game_hash=pg_catalog.decode(incoming.value->>'game_hash','hex')
  );
 
  if v_new_requested=0 then
