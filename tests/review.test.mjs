@@ -330,5 +330,5 @@ test('performance feature extraction skips the first two plies and keeps each si
     { move: { color: 'b', san: 'a6' }, coach: null },
   ];
   assert.deepEqual(sideDecisions(path, 'w').map(item => item.san), ['Nf3', 'Bb5']);
-  assert.deepEqual(sideDecisions(path, 'b').map(item => item.san), []);
+  assert.deepEqual(sideDecisions(path, 'b').map(item => item.san), ['Nc6']);
 });
