@@ -78,6 +78,10 @@ npm run test:e2e
 
 The browser suite uses Playwright and Chromium. Install the browser first with `npx playwright install chromium`. GitHub Actions also tests the cloud-sync database migrations against PostgreSQL.
 
+## 🔐 Optional community data
+
+Players can opt in to share compact, privacy-minimised review statistics. The site does not upload PGNs, full move lists, FENs, player names, usernames or game links. Only an opening prefix, result, imported PGN rating labels (marked unverified), review metrics and engine settings are retained. Samples are deduplicated, rate-limited, capped at 100,000 records and retained for up to 180 days.
+
 ## 🔎 Method and transparency
 
 Accuracy, move classifications and game-rating estimates are project metrics derived from engine evaluations. They are **not official Chess.com ratings** and do not reproduce Chess.com's proprietary CAPS2 formula.

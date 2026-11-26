@@ -346,7 +346,14 @@ body.focus-board{overflow:hidden}.board-column:fullscreen,body.focus-board .boar
 .engine-choice-copy strong{color:var(--ink);font-size:12px;line-height:1.3}
 .engine-choice-copy small{color:var(--muted);font-size:10px;line-height:1.4}
 .engine-choice:has(input:checked){border-color:var(--accent);background:color-mix(in srgb,var(--accent) 9%,var(--raised))}
-.engine-choice:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+ .engine-choice:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+.community-setup{margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+.language-card label.community-toggle{display:flex;align-items:flex-start;gap:10px;margin:0;padding:10px 0;color:var(--ink);cursor:pointer}
+.community-toggle input{flex:0 0 auto;width:16px;height:16px;margin:2px 0 0;accent-color:var(--accent)}
+.community-toggle span{display:grid;gap:4px}
+.community-toggle strong{color:#dce2d3;font-size:12px;line-height:1.35}
+.community-toggle small{color:var(--muted);font-size:10px;font-weight:400;line-height:1.5}
+.community-setting{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
 @media(max-width:540px){.language-gate{padding:12px}.language-card{max-height:94dvh;padding:22px 19px}.language-eyebrow{margin-top:20px}.profile-setup{margin-top:16px;padding-top:14px}}
 
 /* Stable visual layer; the square buttons keep keyboard, drag and ARIA semantics. */

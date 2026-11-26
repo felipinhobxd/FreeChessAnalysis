@@ -50,6 +50,12 @@
         </label>
       </div>
     </section>
+    <section class="community-setup" aria-labelledby="community-setup-title">
+      <label class="community-toggle" for="welcome-community-data">
+        <input type="checkbox" id="welcome-community-data">
+        <span><strong id="community-setup-title">Share privacy-minimised analysis data</strong><small>Contribute compact statistics to improve opening and rating models. No PGN, player names or usernames are uploaded.</small></span>
+      </label>
+    </section>
     <details class="profile-setup" id="profile-options">
       <summary>Your chess profile</summary>
       <label for="profile-platform">Main chess platform</label>
@@ -225,6 +231,8 @@
   <dialog id="settings"><form method="dialog"><div class="dialog-head"><h2>Configurações</h2><button class="icon-button" aria-label="Fechar"><i data-icon="close" aria-hidden="true"></i></button></div></form><div class="dialog-body">
     <label class="option">Modo do Stockfish <select id="engine-mode"><option value="lite" selected>Lite (recomendado)</option><option value="full">Completo · mais forte (~95 MB)</option><option value="economy">Lite · baixo consumo</option></select></label>
     <p class="muted engine-hint">O Lite é compacto e recomendado. O Completo usa a rede maior e exige mais recursos. O modo econômico mantém o Lite e limita hash e profundidade para reduzir o uso da CPU.</p>
+    <label class="option community-setting">Compartilhar estatísticas sem dados pessoais <input type="checkbox" id="community-data"></label>
+    <p class="muted engine-hint">Opcional. Envia estatísticas compactas das partidas revisadas, nunca PGN completo, nomes, usernames ou links. Você pode desativar quando quiser.</p>
     <label class="option">Profundidade da revisão <select id="review-depth"><option>8</option><option>10</option><option>12</option><option selected>14</option><option>16</option><option>18</option><option>20</option><option>22</option></select></label>
     <label class="option">Profundidade das variantes <select id="line-depth"><option>10</option><option>14</option><option>16</option><option selected>18</option><option>20</option><option>22</option><option>24</option></select></label>
     <label class="option">Linhas simultâneas <select id="multi-pv"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select></label>

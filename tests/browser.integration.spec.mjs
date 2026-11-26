@@ -42,6 +42,21 @@ test('first-visit engine choice is saved and can be changed later in Settings', 
   await expect(page.locator('#engine-mode')).toHaveValue('economy');
 });
 
+test('community review statistics are opt-in and consent persists in Settings', async ({ page }) => {
+  await page.goto('/analysis');
+  await expect(page.locator('#language-gate')).toBeVisible();
+  await expect(page.locator('#welcome-community-data')).not.toBeChecked();
+  await page.locator('#language-select').selectOption('en');
+  await page.locator('#welcome-community-data').check();
+  await page.locator('#language-enter').click();
+  await page.locator('#settings-btn').click();
+  await expect(page.locator('#community-data')).toBeChecked();
+  await page.locator('#community-data').uncheck();
+  await page.reload();
+  await page.locator('#settings-btn').click();
+  await expect(page.locator('#community-data')).not.toBeChecked();
+});
+
 test('the real app boots, unlocks the workspace and imports the bundled example', async ({ page }) => {
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));

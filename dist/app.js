@@ -4,6 +4,7 @@ import { syncArchive, newSyncCode, syncCodeKey, validCode, prepareSyncArchive } 
 import { missedOpportunity, shortMateAfter, aspectEvidence, aspectGrade } from './review-evidence.js';
 import { syncSprites, resetSprites, liftSprite, moveLiftedSprite, releaseLiftedSprite } from './board-motion.js';
 import { Engine, analysisLimits } from './engine.js';
+import { enqueueCommunityReview, flushCommunityQueue, clearCommunityQueue } from './community-data.js';
 import { calibrationModel } from './caps2-model.js';
 import { acceptedMove, inspectMove, isTrainingMove } from './coach.js';
 import { icon, unlockSound, boardSound, setBoardVolume, moveSound, mateCelebration, clearMateCelebration } from './board-ui.js';
@@ -65,6 +66,8 @@ function configureLanguageGate() {
   const applyEngineChoice = () => {
     const selected = document.querySelector('input[name="welcome-engine-mode"][value="' + readEngineChoice() + '"]');
     if (selected) selected.checked = true;
+    const consent = $('welcome-community-data');
+    if (consent) consent.checked = readStoredPreferences()['community-data'] === true;
   };
   const savedProfile = readChessProfile();
   languageSelect.value = getLanguage();
@@ -86,6 +89,9 @@ function configureLanguageGate() {
     try { localStorage.setItem(profileStorageKey, JSON.stringify(profile)); } catch { /* Profile is optional. */ }
     const engineChoice = document.querySelector('input[name="welcome-engine-mode"]:checked')?.value || readEngineChoice();
     saveEngineChoice(engineChoice);
+    const preferences = readStoredPreferences();
+    preferences['community-data'] = $('welcome-community-data')?.checked === true;
+    try { localStorage.setItem(preferencesStorageKey, JSON.stringify(preferences)); } catch { /* Optional consent persistence. */ }
     if ($('engine-mode') && ['lite', 'full', 'economy'].includes(engineChoice)) $('engine-mode').value = engineChoice;
     $('language-gate').hidden = true;
     $('app-content').hidden = false;
@@ -145,7 +151,7 @@ const BOOK_REPLY = {
   c2c4: ['e7e5', 'g8f6', 'c7c5', 'e7e6', 'c7c6', 'g7g6'],
   g1f3: ['d7d5', 'g8f6', 'c7c5', 'g7g6', 'e7e6', 'b7b6'],
 };
-const PREFS = ['review-depth', 'line-depth', 'multi-pv', 'show-arrow', 'show-coordinates', 'engine-mode', 'piece-set', 'sound-enabled', 'sound-volume', 'animation-speed', 'mate-enabled'];
+const PREFS = ['review-depth', 'line-depth', 'multi-pv', 'show-arrow', 'show-coordinates', 'engine-mode', 'piece-set', 'sound-enabled', 'sound-volume', 'animation-speed', 'mate-enabled', 'community-data'];
 const TABS = ['import', 'report', 'lines', 'puzzles'];
 
 let reviewSide = 'all';
@@ -1874,7 +1880,7 @@ async function runReview() {
   render();
   let completed = false;
   try {
-    const { engine, cache } = await useEngine(text => { if (review === task) $('report-status').textContent = text + '…'; });
+    const { engine, profile, cache } = await useEngine(text => { if (review === task) $('report-status').textContent = text + '…'; });
     if (review !== task) return;
     readyEngine();
     const commands = path.slice(1).map(node => uci(node.move));
@@ -1915,6 +1921,10 @@ async function runReview() {
       }
     }
     completed = true;
+    if (setting('community-data')) {
+      void enqueueCommunityReview(path, gameHeaders, profile, depth, typeof originalPgn === 'string')
+        .catch(() => { /* Optional collection never blocks review. */ });
+    }
     studyAnalysis = { version: cacheVersion, depth, positions: path.map(node => ({ lines: node.lines, best: node.best })) };
     scheduleStudy();
     $('report-status').textContent = 'Revisão concluída · profundidade ' + depth;
@@ -2603,6 +2613,10 @@ function bindEvents() {
         setBoardVolume(setting('sound-enabled') ? setting('sound-volume') / 100 : 0);
         syncBoardTools();
       }
+      if (id === 'community-data') {
+        if (control.checked) void flushCommunityQueue();
+        else clearCommunityQueue();
+      }
       if (id === 'engine-mode') {
         stopReview();
         stopLive();
@@ -2625,6 +2639,7 @@ function bindEvents() {
     setBoardVolume(setting('sound-enabled') ? Number($('sound-volume').value) / 100 : 0);
   };
   syncBoardTools();
+  if (setting('community-data')) void flushCommunityQueue();
   $('copy-fen').onclick = () => copyText(cursor.fen, 'FEN copiado.');
   $('copy-pgn').onclick = () => copyText(exportPgn(), 'PGN copiado.');
   $('copy-link').onclick = () => {
