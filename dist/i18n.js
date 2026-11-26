@@ -1010,6 +1010,41 @@ Object.assign(MESSAGES, {
   ]
 });
 
+Object.assign(MESSAGES, {
+  "A complete move sequence may be matched against a game published elsewhere. Even without names or usernames, the stored data is not guaranteed to be anonymous.": [
+    "A complete move sequence may be matched against a game published elsewhere. Even without names or usernames, the stored data is not guaranteed to be anonymous.",
+    "Uma sequência completa de lances pode ser comparada com uma partida publicada em outro lugar. Mesmo sem nomes ou usernames, não há garantia de que os dados armazenados sejam anônimos.",
+    "Una secuencia completa de jugadas puede compararse con una partida publicada en otro sitio. Incluso sin nombres ni usuarios, no se garantiza que los datos almacenados sean anónimos.",
+    "Une séquence complète de coups peut être comparée à une partie publiée ailleurs. Même sans noms ni noms d’utilisateur, l’anonymat des données stockées n’est pas garanti.",
+    "Eine vollständige Zugfolge kann mit einer andernorts veröffentlichten Partie abgeglichen werden. Auch ohne Namen oder Benutzernamen ist die Anonymität der gespeicherten Daten nicht garantiert.",
+    "Una sequenza completa di mosse può essere confrontata con una partita pubblicata altrove. Anche senza nomi o nomi utente, l’anonimato dei dati archiviati non è garantito.",
+    "Een volledige zettenreeks kan worden vergeleken met een partij die elders is gepubliceerd. Ook zonder namen of gebruikersnamen is anonimiteit van opgeslagen gegevens niet gegarandeerd.",
+    "Полную последовательность ходов можно сопоставить с партией, опубликованной в другом месте. Даже без имён и имён пользователей анонимность сохранённых данных не гарантируется.",
+    "完整着法序列可能会与其他地方发布的对局进行比对。即使不包含姓名或用户名，也无法保证存储的数据完全匿名。",
+    "完全な指し手列は、他の場所で公開された対局と照合される可能性があります。氏名やユーザー名がなくても、保存データの匿名性は保証されません。",
+    "전체 수순은 다른 곳에 공개된 대국과 대조될 수 있습니다. 이름이나 사용자 이름이 없더라도 저장된 데이터의 익명성은 보장되지 않습니다.",
+    "Tam hamle dizisi başka bir yerde yayımlanmış oyunla karşılaştırılabilir. Adlar veya kullanıcı adları bulunmasa bile saklanan verilerin anonim olduğu garanti edilemez.",
+    "يمكن مطابقة تسلسل النقلات الكامل مع مباراة منشورة في مكان آخر. وحتى من دون الأسماء أو أسماء المستخدمين، لا يمكن ضمان إخفاء هوية البيانات المخزنة.",
+    "पूरी चाल-श्रृंखला की तुलना कहीं और प्रकाशित खेल से की जा सकती है। नाम या यूज़रनेम न होने पर भी संग्रहीत डेटा के पूरी तरह गुमनाम होने की गारंटी नहीं है।"
+  ],
+  "Opcional. Após a revisão completa, compartilha a sequência de lances em UCI e estatísticas compactas de cada lance. Não envia o PGN bruto, comentários, nomes, usernames ou links. Uma sequência completa pode ser comparada com jogos públicos, portanto não há garantia de anonimato. Você pode desativar quando quiser.": [
+    "Optional. After a full review, shares the UCI move sequence and compact statistics for every move. Raw PGN, comments, names, usernames and links are not sent. A complete move sequence may be matched against public games, so anonymity is not guaranteed. You can turn this off at any time.",
+    "Opcional. Após a revisão completa, compartilha a sequência de lances em UCI e estatísticas compactas de cada lance. Não envia o PGN bruto, comentários, nomes, usernames ou links. Uma sequência completa pode ser comparada com jogos públicos, portanto não há garantia de anonimato. Você pode desativar quando quiser.",
+    "Opcional. Tras una revisión completa, comparte la secuencia de jugadas UCI y estadísticas compactas de cada jugada. No se envían el PGN original, comentarios, nombres, usuarios ni enlaces. Una secuencia completa puede compararse con partidas públicas, por lo que no se garantiza el anonimato. Puedes desactivarlo cuando quieras.",
+    "Facultatif. Après une analyse complète, partage la séquence de coups UCI et des statistiques compactes pour chaque coup. Le PGN brut, les commentaires, les noms, les noms d’utilisateur et les liens ne sont pas envoyés. Une séquence complète peut être rapprochée de parties publiques ; l’anonymat n’est donc pas garanti. Vous pouvez désactiver cette option à tout moment.",
+    "Optional. Nach einer vollständigen Analyse werden die UCI-Zugfolge und kompakte Statistiken zu jedem Zug geteilt. Rohes PGN, Kommentare, Namen, Benutzernamen und Links werden nicht gesendet. Eine vollständige Zugfolge kann mit öffentlichen Partien abgeglichen werden; Anonymität ist daher nicht garantiert. Du kannst dies jederzeit deaktivieren.",
+    "Facoltativo. Dopo un’analisi completa, condivide la sequenza delle mosse UCI e statistiche compatte per ogni mossa. PGN grezzo, commenti, nomi, nomi utente e link non vengono inviati. Una sequenza completa può essere confrontata con partite pubbliche, quindi l’anonimato non è garantito. Puoi disattivarlo in qualsiasi momento.",
+    "Optioneel. Na een volledige analyse worden de UCI-zettenreeks en compacte statistieken per zet gedeeld. Ruwe PGN, opmerkingen, namen, gebruikersnamen en links worden niet verzonden. Een volledige zettenreeks kan met openbare partijen worden vergeleken, dus anonimiteit is niet gegarandeerd. Je kunt dit op elk moment uitschakelen.",
+    "Необязательно. После полного анализа передаются последовательность ходов UCI и краткая статистика по каждому ходу. Исходный PGN, комментарии, имена, имена пользователей и ссылки не отправляются. Полную последовательность ходов можно сопоставить с публичной партией, поэтому анонимность не гарантируется. Вы можете отключить это в любое время.",
+    "可选。完整复盘后，会分享 UCI 着法序列及每一步的精简统计。不会发送原始 PGN、评论、姓名、用户名或链接。完整着法序列可能与公开对局匹配，因此无法保证匿名。您可以随时关闭此功能。",
+    "任意です。分析完了後、UCI指し手列と各手の簡潔な統計を共有します。元のPGN、コメント、氏名、ユーザー名、リンクは送信されません。指し手列が公開対局と照合される可能性があるため、匿名性は保証されません。いつでも無効にできます。",
+    "선택 사항입니다. 전체 분석 후 UCI 수순과 각 수의 요약 통계를 공유합니다. 원본 PGN, 댓글, 이름, 사용자 이름, 링크는 전송되지 않습니다. 전체 수순이 공개 대국과 대조될 수 있으므로 익명성은 보장되지 않습니다. 언제든지 끌 수 있습니다.",
+    "İsteğe bağlıdır. Tam analizden sonra UCI hamle dizisi ve her hamleye ait kompakt istatistikler paylaşılır. Ham PGN, yorumlar, adlar, kullanıcı adları ve bağlantılar gönderilmez. Tam hamle dizisi herkese açık oyunlarla karşılaştırılabileceğinden anonimlik garanti edilmez. İstediğiniz zaman kapatabilirsiniz.",
+    "اختياري. بعد اكتمال التحليل، تتم مشاركة تسلسل نقلات UCI وإحصاءات موجزة لكل نقلة. لا يتم إرسال PGN الخام أو التعليقات أو الأسماء أو أسماء المستخدمين أو الروابط. يمكن مطابقة تسلسل النقلات الكامل مع مباريات عامة، لذا لا يمكن ضمان إخفاء الهوية. يمكنك إيقاف ذلك في أي وقت.",
+    "वैकल्पिक। पूरा विश्लेषण होने के बाद UCI चाल-श्रृंखला और हर चाल के संक्षिप्त आँकड़े साझा किए जाते हैं। मूल PGN, टिप्पणियाँ, नाम, यूज़रनेम और लिंक नहीं भेजे जाते। पूरी चाल-श्रृंखला का मिलान सार्वजनिक खेलों से हो सकता है, इसलिए गुमनामी की गारंटी नहीं है। आप इसे कभी भी बंद कर सकते हैं।"
+  ]
+});
+
 const partialKeys = Object.keys(MESSAGES).filter(key => key.length > 3 && key !== 'Melhor').sort((a, b) => b.length - a.length);
 const englishReviewPatterns = [
   [/Revisão concluída · profundidade (\d+)/g, 'Review complete · depth $1'],
