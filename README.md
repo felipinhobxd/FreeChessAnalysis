@@ -76,11 +76,11 @@ npm test
 npm run test:e2e
 ```
 
-The browser suite uses Playwright and Chromium. Install the browser first with `npx playwright install chromium`. GitHub Actions also tests the cloud-sync database migrations against PostgreSQL.
+The browser suite uses Playwright and Chromium. Install the browser first with `npx playwright install chromium`. GitHub Actions also tests the cloud-sync and community-data database migrations against PostgreSQL, including full-game ingestion, deduplication, rate limits and capacity handling.
 
 ## 🔐 Optional community data
 
-Players can opt in to share compact, privacy-minimised review statistics. The site does not upload PGNs, full move lists, FENs, player names, usernames or game links. Only an opening prefix, result, imported PGN rating labels (marked unverified), review metrics and engine settings are retained. Samples are deduplicated, rate-limited, capped at 100,000 records and retained for up to 180 days.
+Players must explicitly opt in to the expanded collection. Only imported games that have been fully reviewed are eligible. The dataset stores the complete mainline in UCI notation and a compact 10-byte record for every ply: before/after engine evaluations (from White's perspective), move accuracy, classification, forced-move and mate flags, and a packed best-move suggestion. It also stores an opening prefix, result, time class, platform category, aggregate player metrics, estimated ratings, PGN rating fields labelled as unverified, and Stockfish version/settings. A starting FEN is stored only for non-standard starting positions. The full PGN, comments, player names, usernames, account identifiers, game links and intermediate FENs are never uploaded. The browser retains a consent-version marker; acceptance of the former 24-ply dataset does not authorize the full-game dataset. Samples are deduplicated, limited to 100 games per client and 500 per network per day, capped globally at 50,000 records, and automatically deleted after 180 days. The private tables are not readable through the public Data API.
 
 ## 🔎 Method and transparency
 
