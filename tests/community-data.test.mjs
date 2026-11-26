@@ -30,7 +30,7 @@ function fixture(plies=50){
    forced:i%11===0,
    coach:{
     before:{type:'cp',value:30,white:30},
-    after:{type:'cp',value:20,white:20},
+    after:{type:'cp',value:20,white:-20},
     best:next,
     choices:[{pv:[next]}]
    }
@@ -59,7 +59,7 @@ test('full-game sample contains every ply and compact per-move metrics without i
  assert.equal(bytes.length,50*10);
  const view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
  assert.equal(view.getInt16(0,true),30);
- assert.equal(view.getInt16(2,true),20);
+ assert.equal(view.getInt16(2,true),-20);
  assert.equal(view.getUint16(4,true),910);
  assert.equal(view.getUint8(6),6);
  assert.equal(sample.rating_source,'pgn_unverified');
