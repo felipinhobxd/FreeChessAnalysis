@@ -37,7 +37,7 @@ begin
   'moves_uci','e2e4.e7e5.g1f3.b8c6.f1b5.a7a6.b5a4.g8f6',
   'ply_count',8,
   'start_fen',null,
-  'move_data_base64',replace(encode(decode(repeat('00',80),'hex'),'base64'),E'\\n',''),
+  'move_data_base64',replace(encode(decode(repeat('00',80),'hex'),'base64'),chr(10),''),
   'result','w','time_class','blitz','source_pool','chesscom',
   'white_rating',1500,'black_rating',1600,'rating_source','pgn_unverified',
   'white_accuracy_tenths',920,'black_accuracy_tenths',880,
@@ -70,7 +70,7 @@ begin
 
  begin
   perform public.fca_ingest_community_games(client,network,jsonb_build_array(
-   jsonb_set(sample,'{move_data_base64}',to_jsonb(replace(encode(decode(repeat('00',70),'hex'),'base64'),E'\\n','')))
+   jsonb_set(sample,'{move_data_base64}',to_jsonb(replace(encode(decode(repeat('00',70),'hex'),'base64'),chr(10),'')))
   ));
   raise exception 'Incorrect move data length was accepted';
  exception when sqlstate '22023' then null;
