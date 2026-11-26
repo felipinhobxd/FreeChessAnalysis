@@ -2,7 +2,20 @@
 // promotion. CSS retargets from the currently painted position on rapid input.
 let layouts=new WeakMap(),sprites=new Map(),previousOrientation;
 let liftedSprite=null,liftedAnimation=null;
+function cancelLiftAnimation(image){
+  if(liftedAnimation){
+    liftedAnimation.onfinish=null;
+    liftedAnimation.cancel();
+    liftedAnimation=null;
+  }
+  if(image){
+    image.style.animation='';
+    image.style.transition='';
+    image.style.transform='';
+  }
+}
 export function resetSprites(){
+  cancelLiftAnimation(liftedSprite?.querySelector('img'));
   layouts=new WeakMap();sprites.clear();previousOrientation=undefined;liftedSprite=null;
   document.getElementById('piece-layer')?.replaceChildren();
 }
@@ -81,9 +94,10 @@ export function syncSprites(position,board,flipped,set,duration,speed){
 export function liftSprite(square){
   const sprite=[...sprites.values()].find(item=>item.dataset.square===square);
   if(!sprite)return null;
-  liftedAnimation?.cancel();liftedAnimation=null;
-  liftedSprite=sprite;
   const image=sprite.querySelector('img');
+  // A new pickup must take ownership from any unfinished landing animation.
+  cancelLiftAnimation(image);
+  liftedSprite=sprite;
   if(image){
     image.style.transition='transform 110ms cubic-bezier(.16,1,.3,1)';
     image.style.transform='perspective(220px) translateZ(12px) scale(1.15)';
@@ -134,14 +148,18 @@ export function releaseLiftedSprite(square){
     const roll=Number(sprite.dataset.tilt||0),pitch=Number(sprite.dataset.pitch||0),yaw=Number(sprite.dataset.yaw||0);
     image.style.transition='none';
     if(!matchMedia('(prefers-reduced-motion: reduce)').matches){
-      liftedAnimation=image.animate([
+      const animation=image.animate([
         {transform:'perspective(220px) translateZ(13px) rotateX('+pitch+'deg) rotateY('+yaw+'deg) rotateZ('+roll+'deg) scale(1.15)',offset:0},
         {transform:'perspective(220px) rotateX('+(-pitch*.48)+'deg) rotateY('+(-yaw*.45)+'deg) rotateZ('+(-roll*.5)+'deg) scale(1.08)',offset:.28},
         {transform:'perspective(220px) rotateX('+(pitch*.2)+'deg) rotateY('+(yaw*.18)+'deg) rotateZ('+(roll*.2)+'deg) scale(1.025)',offset:.58},
         {transform:'rotate(0deg) scale(1)',offset:1}
       ],{duration:520,easing:'cubic-bezier(.18,.78,.22,1)',fill:'both'});
-      liftedAnimation.onfinish=()=>{image.style.transform='';image.style.transition='';liftedAnimation=null;};
-    }else{image.style.transform='';image.style.transition='';}
+      liftedAnimation=animation;
+      animation.onfinish=()=>{
+        if(liftedAnimation!==animation)return;
+        image.style.transform='';image.style.transition='';liftedAnimation=null;
+      };
+    }else{cancelLiftAnimation(image);}
   }
   sprite.style.transition='transform 320ms cubic-bezier(.18,.82,.25,1.16), filter 220ms ease';
   sprite.style.transform='translate('+sprite.dataset.baseX+'%,'+sprite.dataset.baseY+'%) scale(1)';
