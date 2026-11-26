@@ -1,6 +1,6 @@
 import { parseGameLink, reviewHighlights, mergeStudies, validStudy } from './study-tools.js';
 import { gameFingerprint, listStudies, getStudy, putStudy } from './study-storage.js';
-import { syncArchive, newSyncCode, syncCodeKey, validCode } from './study-cloud.js';
+import { syncArchive, newSyncCode, syncCodeKey, validCode, prepareSyncArchive } from './study-cloud.js';
 import { missedOpportunity, shortMateAfter, aspectEvidence, aspectGrade } from './review-evidence.js';
 import { syncSprites, resetSprites } from './board-motion.js';
 import { Engine } from './engine.js';

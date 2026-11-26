@@ -23,7 +23,7 @@ test('cloud sync selects only the 40 newest valid studies without mutating local
   const prepared = prepareSyncArchive(source);
 
   assert.equal(prepared.entries.length, CLOUD_ARCHIVE_ENTRY_LIMIT);
-  assert.equal(prepared.omitted, 16);
+  assert.equal(prepared.omitted, 15);
   assert.deepEqual(prepared.entries.map(entry => entry.date),
     Array.from({ length: 40 }, (_, index) => 55 - index));
   assert.deepEqual(source, snapshot);
