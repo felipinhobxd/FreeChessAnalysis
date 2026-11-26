@@ -8,7 +8,7 @@
   },
   "scripts": {
     "start": "node serve.mjs",
-    "build": "npm run check && npm test",
+    "build": "node tools/copy-vendor.mjs && npm run check && npm test",
     "check": "node tools/check-syntax.mjs",
     "calibration:collect": "node tools/calibrate-caps2.mjs collect --games 5000 --players 1200",
     "calibration:analyze": "node tools/calibrate-caps2.mjs analyze --depth 14",

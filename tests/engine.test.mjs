@@ -1,21 +1,32 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Engine } from '../dist/engine.js';
+import { STOCKFISH_INTEGRITY } from '../dist/engine-integrity.js';
 
-function installBrowserMocks({ fetch, Worker }) {
+function installBrowserMocks({ fetch, Worker, verifiedEngine = false }) {
   const originals = {
     fetch: globalThis.fetch,
     Worker: globalThis.Worker,
+    crypto: Object.getOwnPropertyDescriptor(globalThis, 'crypto'),
     createObjectURL: URL.createObjectURL,
     revokeObjectURL: URL.revokeObjectURL,
   };
   globalThis.fetch = fetch;
   globalThis.Worker = Worker;
+  if (verifiedEngine) {
+    const digest = Uint8Array.from(STOCKFISH_INTEGRITY['stockfish-19-lite-single.js'].match(/../g), byte => parseInt(byte, 16));
+    Object.defineProperty(globalThis, 'crypto', {
+      configurable: true,
+      value: { subtle: { digest: async () => digest.buffer } },
+    });
+  }
   URL.createObjectURL = () => 'blob:stockfish-test';
   URL.revokeObjectURL = () => {};
   return () => {
     globalThis.fetch = originals.fetch;
     globalThis.Worker = originals.Worker;
+    if (originals.crypto) Object.defineProperty(globalThis, 'crypto', originals.crypto);
+    else delete globalThis.crypto;
     URL.createObjectURL = originals.createObjectURL;
     URL.revokeObjectURL = originals.revokeObjectURL;
   };
@@ -42,7 +53,7 @@ function respondingWorker() {
 test('engine can retry initialization after every source initially fails', async () => {
   let available = false;
   const restore = installBrowserMocks({
-    fetch: async () => available ? ({ ok: true, text: async () => '/* worker */' }) : ({ ok: false }),
+    fetch: async () => available ? ({ ok: true, arrayBuffer: async () => new TextEncoder().encode('worker fixture').buffer }) : ({ ok: false }),
     Worker: respondingWorker(),
   });
   const engine = new Engine('lite');
@@ -79,8 +90,9 @@ test('engine falls back after a Worker crash and keeps the successful initializa
     }
   }
   const restore = installBrowserMocks({
-    fetch: async () => ({ ok: true, text: async () => '/* worker */' }),
+    fetch: async () => ({ ok: true, arrayBuffer: async () => new TextEncoder().encode('worker fixture').buffer }),
     Worker: FallbackWorker,
+    verifiedEngine: true,
   });
   const engine = new Engine('lite');
   try {

@@ -174,17 +174,13 @@ const moveFromUci = string => ({ from: string.slice(0, 2), to: string.slice(2, 4
 const material = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
 
 async function loadChess() {
-  for (const endpoint of [
-    'https://cdn.jsdelivr.net/npm/chess.js@1.4.0/dist/esm/chess.js',
-    'https://unpkg.com/chess.js@1.4.0/dist/esm/chess.js',
-    'https://esm.sh/chess.js@1.4.0',
-  ]) {
-    try {
-      const module = await import(endpoint);
-      if (module.Chess) return module.Chess;
-    } catch { /* Try another source. */ }
+  try {
+    const module = await import('./vendor/chess.js');
+    if (module.Chess) return module.Chess;
+  } catch {
+    throw new Error('Não foi possível carregar as regras locais do xadrez. Recompile o aplicativo e tente novamente.');
   }
-  throw new Error('Não foi possível carregar as regras do xadrez. Verifique a conexão e recarregue.');
+  throw new Error('A versão local de chess.js não exportou a classe Chess.');
 }
 
 function createPosition(chess, parent = null, move = null) {

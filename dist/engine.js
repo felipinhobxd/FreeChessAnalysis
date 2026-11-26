@@ -1,3 +1,5 @@
+import { STOCKFISH_INTEGRITY, verifyAsset } from './engine-integrity.js';
+
 const PACKAGE = 'stockfish@19.0.1/bin/';
 const MIRRORS = ['https://unpkg.com/', 'https://cdn.jsdelivr.net/npm/'];
 const FALLBACK_LITE = 'https://chessanalysis.dev/engine/sf19.0.1/stockfish-19-lite-single.js';
@@ -45,14 +47,25 @@ export class Engine {
         try {
           signal.throwIfAborted();
           const response = await fetch(source, { signal: AbortSignal.any([signal, AbortSignal.timeout(8000)]) });
-          if (!response.ok) throw new Error('Arquivo do motor indisponível.');
-          const script = await response.text();
+          const scriptBytes = await verifyAsset(response, STOCKFISH_INTEGRITY[build.file + '.js']);
+          const script = new TextDecoder().decode(scriptBytes);
           if (script.trimStart().startsWith('<')) throw new Error('Arquivo do motor inválido.');
           signal.throwIfAborted();
           const wasm = source.replace(/\.js$/, '.wasm');
+          const wasmHash = STOCKFISH_INTEGRITY[build.file + '.wasm'];
           const bootstrap = [
             'const sfClientFetch = self.fetch.bind(self);',
-            'self.fetch = (resource, options) => sfClientFetch(typeof resource === "string" && /\\.wasm(?:[?#]|$)/.test(resource) ? ' + JSON.stringify(wasm) + ' : resource, options);',
+            'self.fetch = async (resource, options) => {',
+            '  const value = typeof resource === "string" ? resource : resource && typeof resource.url === "string" ? resource.url : String(resource);',
+            '  const isWasm = /\\.wasm(?:[?#]|$)/.test(value);',
+            '  const response = await sfClientFetch(isWasm ? ' + JSON.stringify(wasm) + ' : resource, options);',
+            '  if (!isWasm || !response.ok) return response;',
+            '  const bytes = await response.arrayBuffer();',
+            '  const digest = await crypto.subtle.digest("SHA-256", bytes);',
+            '  const hash = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");',
+            '  if (hash !== ' + JSON.stringify(wasmHash) + ') throw new Error("A verificação SHA-256 do WebAssembly Stockfish falhou.");',
+            '  return new Response(bytes, { status: response.status, statusText: response.statusText, headers: response.headers });',
+            '};',
             script,
           ].join('\n');
           this.url = URL.createObjectURL(new Blob([bootstrap], { type: 'text/javascript' }));
