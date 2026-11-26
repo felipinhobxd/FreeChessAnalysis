@@ -61,7 +61,7 @@ function refreshCommunityConsentUI() {
       : declined
         ? 'Your choice is saved. Contribution is disabled.'
         : 'Please choose whether to share review statistics before continuing.';
-    status.textContent = translate(message);
+    status.textContent = message;
   }
   const enter = $('language-enter');
   if (enter) enter.disabled = !accepted && !declined;
