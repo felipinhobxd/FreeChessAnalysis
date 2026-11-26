@@ -44,7 +44,7 @@ Paste a finished Chess.com game or public Lichess game URL using the Link input.
 
 In the review, filter highlights to one side, replay the move and the engine response on the board, and practice alternatives with progressively available hints. Completed reviews, the last position, and puzzle attempts are saved in IndexedDB. Older archive items are still accessible.
 
-The archive can optionally sync across devices with a private code. The Vercel app uses a Supabase publishable key. The migration in supabase/migrations provisions a locked table and an RPC restricted to records matching the supplied code's hash. Only explicit sync sends archive data. Each cloud archive supports up to 40 entries and about 1.6 MB.
+The archive can optionally sync across devices with a private code. The Vercel app uses a Supabase publishable key. The migration in supabase/migrations provisions a locked table and an RPC restricted to records matching the supplied code's hash. Only explicit sync sends archive data. Each cloud archive keeps up to the 40 most recent entries and about 1.6 MB; the browser selects a payload below the database limit, and older entries remain in the local archive. When the global 128-code capacity is reached, cloud archives not accessed for 180 days are eligible for cleanup. The retention cleanup runs only when a new archive needs a slot.
 
 ## Getting started
 

@@ -2215,10 +2215,15 @@ async function syncStudies() {
       return;
     }
     const merged = mergeStudies(local, Array.isArray(cached) ? cached : []);
-    const synced = await syncArchive(code, merged);
-    for (const entry of mergeStudies([], Array.isArray(synced) ? synced : [])) await putStudy(entry);
+    const prepared = prepareSyncArchive(merged);
+    const synced = await syncArchive(code, prepared.entries);
+    const remote = mergeStudies([], Array.isArray(synced) ? synced : []);
+    for (const entry of remote) await putStudy(entry);
     writeLocal(syncCodeKey, code);
-    status.textContent = 'Arquivo sincronizado · ' + merged.length + (merged.length === 1 ? ' partida.' : ' partidas.');
+    const remoteIds = new Set(remote.map(entry => entry.id));
+    const localOnly = merged.filter(entry => !remoteIds.has(entry.id)).length;
+    status.textContent = 'Arquivo sincronizado · ' + remote.length + (remote.length === 1 ? ' partida na nuvem.' : ' partidas na nuvem.') +
+      (localOnly ? ' ' + localOnly + (localOnly === 1 ? ' revisão ficou' : ' revisões ficaram') + ' somente neste navegador.' : '');
     renderArchive();
   } catch (error) {
     status.textContent = error.message || 'Não foi possível sincronizar suas revisões.';
