@@ -24,7 +24,13 @@ export class Engine {
   }
 
   start(onProgress) {
-    this.initialization ??= this.initialize(onProgress);
+    if (!this.initialization) {
+      const attempt = this.initialize(onProgress);
+      this.initialization = attempt;
+      attempt.catch(() => {
+        if (this.initialization === attempt) this.initialization = null;
+      });
+    }
     return this.initialization;
   }
 
@@ -55,7 +61,6 @@ export class Engine {
           this.worker.onerror = event => {
             event.preventDefault();
             const error = new Error(event.message || 'Falha no WebAssembly');
-            this.initialization = null;
             this.closeWorker(error);
           };
           let identity = '';
