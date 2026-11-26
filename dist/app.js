@@ -1945,8 +1945,9 @@ async function importGameLink(text, signal) {
     const query = new URLSearchParams({ type: link.type, id: link.id });
     if (player) query.set('account', player);
     const response = await fetch('/api/import-pgn?' + query, { signal });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || 'Não foi possível consultar a partida.');
+    if (response.status === 429) throw new Error('O serviço limitou as consultas. Tente daqui a pouco.');
+    const result = await response.json().catch(() => null);
+    if (!response.ok || !result) throw new Error(result?.error || 'Não foi possível consultar a partida.');
     pgn = result.pgn;
   }
   if (typeof pgn !== 'string' || !/^\s*\[/.test(pgn)) throw new Error('A partida não retornou um PGN válido.');

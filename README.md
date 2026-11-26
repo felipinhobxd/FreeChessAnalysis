@@ -57,6 +57,7 @@ Move classifications, accuracy scores, and game-rating estimates are engine-base
 - [Accuracy calibration workflow](tools/CAPS2-CALIBRATION.md)
 - [Missed-opportunity benchmark](tools/MISSED-OPPORTUNITIES-BENCHMARK.md)
 - [Performance models and validation](tools/PERFORMANCE.md)
+- [External service availability and rollout](tools/EXTERNAL-SERVICES.md)
 - [Third-party credits and licenses](dist/notices.html)
 - [Board sound credits and sources](dist/sounds/sharechess/README.md)
 

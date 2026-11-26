@@ -3,7 +3,7 @@ import { createReadStream, statSync } from 'node:fs';
 import { resolve, extname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
-import { lookupChessGame } from './api/import-pgn.js';
+import importPgn from './api/import-pgn.js';
 
 const root = resolve(fileURLToPath(new URL('./dist/', import.meta.url)));
 const deployment = JSON.parse(readFileSync(new URL('./vercel.json', import.meta.url), 'utf-8'));
@@ -13,10 +13,8 @@ createServer(async (request, response) => {
   try {
     const url = new URL(request.url, 'http://127.0.0.1');
     const path = decodeURI(url.pathname);
-    if (path === '/api/import-pgn' && request.method === 'GET') {
-      const pgn = await lookupChessGame(Object.fromEntries(url.searchParams));
-      response.writeHead(pgn ? 200 : 404, { 'Content-Type': 'application/json; charset=utf-8' })
-        .end(JSON.stringify(pgn ? { pgn } : { error: 'Não encontrei a partida. Informe um dos jogadores ou importe o PGN.' }));
+    if (path === '/api/import-pgn') {
+      await importPgn(request, response);
       return;
     }
     if (path === '/analysis/') {

@@ -44,6 +44,7 @@ export async function syncArchive(code, entries = null) {
     signal: AbortSignal.timeout(15000),
     body: JSON.stringify({ p_code: code, p_entries: entries }),
   });
+  if (response.status === 429) throw new Error('O serviço limitou as consultas. Tente daqui a pouco.');
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
     if (payload?.message === 'Archive limit exceeded') throw new Error('O arquivo ainda excede o limite da nuvem. Suas partidas continuam neste navegador.');
