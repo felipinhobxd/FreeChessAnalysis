@@ -1,21 +1,23 @@
 // A piece keeps the same physical identity along every variation, including
 // promotion. CSS retargets from the currently painted position on rapid input.
 let layouts=new WeakMap(),sprites=new Map(),previousOrientation;
-let liftedSprite=null,liftedAnimation=null;
+let liftedSprite=null,landingAnimations=new WeakMap();
 function cancelLiftAnimation(image){
-  if(liftedAnimation){
-    liftedAnimation.onfinish=null;
-    liftedAnimation.cancel();
-    liftedAnimation=null;
+  if(!image)return;
+  const animation=landingAnimations.get(image);
+  if(animation){
+    animation.onfinish=null;
+    animation.cancel();
+    landingAnimations.delete(image);
   }
-  if(image){
-    image.style.animation='';
-    image.style.transition='';
-    image.style.transform='';
-  }
+  // Cancelling WAAPI removes its animated effect, not the inline styles
+  // that were applied before animate(). Clear both to prevent a stuck scale.
+  image.style.animation='';
+  image.style.transition='';
+  image.style.transform='';
 }
 export function resetSprites(){
-  cancelLiftAnimation(liftedSprite?.querySelector('img'));
+  for(const sprite of sprites.values())cancelLiftAnimation(sprite.querySelector('img'));
   layouts=new WeakMap();sprites.clear();previousOrientation=undefined;liftedSprite=null;
   document.getElementById('piece-layer')?.replaceChildren();
 }
@@ -154,10 +156,14 @@ export function releaseLiftedSprite(square){
         {transform:'perspective(220px) rotateX('+(pitch*.2)+'deg) rotateY('+(yaw*.18)+'deg) rotateZ('+(roll*.2)+'deg) scale(1.025)',offset:.58},
         {transform:'rotate(0deg) scale(1)',offset:1}
       ],{duration:520,easing:'cubic-bezier(.18,.78,.22,1)',fill:'both'});
-      liftedAnimation=animation;
+      landingAnimations.set(image,animation);
       animation.onfinish=()=>{
-        if(liftedAnimation!==animation)return;
-        image.style.transform='';image.style.transition='';liftedAnimation=null;
+        if(landingAnimations.get(image)!==animation)return;
+        animation.onfinish=null;
+        animation.cancel();
+        landingAnimations.delete(image);
+        image.style.transform='';
+        image.style.transition='';
       };
     }else{cancelLiftAnimation(image);}
   }
