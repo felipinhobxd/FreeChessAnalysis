@@ -18,11 +18,16 @@ export function exportStudyPgn(ChessClass, rootFen, headers = {}, moves = [], re
   }
 
   for (const move of moves) {
-    const applied = chess.move({
-      from: move.from,
-      to: move.to,
-      ...(move.promotion ? { promotion: move.promotion } : {}),
-    });
+    let applied;
+    try {
+      applied = chess.move({
+        from: move.from,
+        to: move.to,
+        ...(move.promotion ? { promotion: move.promotion } : {}),
+      });
+    } catch (error) {
+      throw new Error('A variante contém um lance inválido e não pode ser exportada.', { cause: error });
+    }
     if (!applied) throw new Error('A variante contém um lance inválido e não pode ser exportada.');
   }
 
