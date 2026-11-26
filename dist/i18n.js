@@ -761,7 +761,7 @@ Object.assign(MESSAGES, {
     "İncelediğiniz oyunların ilk 24 yarım hamlesini (her taraf için 12) ve özet istatistiklerini, açılış verilerini ve rating tahminlerini geliştirmek için paylaşmamıza izin veriyor musunuz? Tam PGN, oyuncu adları ve kullanıcı adları asla gönderilmez.",
     "هل تسمح بمشاركة أول 24 نصف نقلة (12 لكل لاعب) وإحصاءات موجزة من المباريات التي تحللها لتحسين بيانات الافتتاحيات وتقديرات التصنيف؟ لا يتم إرسال ملف PGN الكامل أو أسماء اللاعبين أو أسماء المستخدمين مطلقًا.",
     "क्या आप ओपनिंग डेटा और रेटिंग अनुमानों को बेहतर बनाने के लिए आपके विश्लेषित खेलों की पहली 24 आधी चालें (हर पक्ष की 12) और संक्षिप्त आँकड़े साझा करने की अनुमति देते हैं? पूरा PGN, खिलाड़ियों के नाम और यूज़रनेम कभी नहीं भेजे जाते।"
-  ]
+  ],
   "What exactly is shared?": [
     "What exactly is shared?",
     "O que exatamente é compartilhado?",
