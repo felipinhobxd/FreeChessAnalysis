@@ -127,11 +127,10 @@ async function collect() {
   for (const username of seeds) {
     if (games.size >= targetGames) break;
     if (seenPlayers.has(username)) continue;
-    seenPlayers.add(username);
     scanned++;
     try {
       const archives = await apiJson('https://api.chess.com/pub/player/' + encodeURIComponent(username) + '/games/archives', state);
-      if (!archives?.archives?.length) continue;
+      if (!Array.isArray(archives?.archives)) continue;
       const monthsToRead = archives.archives.slice(-months).reverse();
       let addedByPlayer = 0;
       for (const archiveUrl of monthsToRead) {
@@ -160,6 +159,9 @@ async function collect() {
           addedByPlayer++;
         }
       }
+      // Mark only successful archive reads as scanned. Failed/transient API
+      // requests remain eligible for retry on the next resumed collection.
+      seenPlayers.add(username);
     } catch (error) {
       process.stderr.write('Skipped ' + username + ': ' + error.message + '\n');
     }

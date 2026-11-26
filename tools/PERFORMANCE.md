@@ -15,7 +15,7 @@ node tools/fit-game-rating.mjs .calibration/caps2-analysis.json 187950475324
 npm run build
 ```
 
-A referência atualmente empacotada foi ajustada em 608 partidas públicas analisadas com Stockfish 19 Lite na profundidade 10. O relatório histórico anterior registrou 1.031 lados com estimativa e ajuste médio de −7 pontos; esse número descreve apenas a distribuição do ajuste aplicado ao rating informado no PGN. Ele não mede erro contra o rating oficial do Game Review. A nova validação separa jogadores em treino e holdout 80/20, exclui partidas que cruzam os grupos e deve ser executada novamente sobre os dados brutos antes de publicar novas métricas.
+A referência atualmente empacotada foi ajustada em 608 partidas públicas analisadas com Stockfish 19 Lite na profundidade 10. O relatório histórico anterior registrou 1.031 lados com estimativa e ajuste médio de −7 pontos; esse número descreve apenas a distribuição do ajuste aplicado ao rating informado no PGN. Ele não mede erro contra o rating oficial do Game Review. A validação foi reforçada para testar, em jogadores totalmente separados, se a curva por rating prevê a qualidade derivada do Stockfish melhor que uma mediana fixa por ritmo. A atualização da referência agora exige ao menos 500 lados de treino, 120 lados retidos, 60 jogadores retidos e 30 lados por ritmo, além de melhora de MAE sem regressão relevante em Blitz ou Rapid. O relatório é sempre salvo em `dist/chesscom-rating-validation.json`; a referência de produção só é substituída quando esses critérios passam.
 
 - [Explicação oficial do Game Rating](https://support.chess.com/en/articles/10773754-how-is-game-rating-calculated-in-game-review)
 - [Chess.com Published Data API](https://www.chess.com/terms/chess-com-published-data-api)
@@ -67,3 +67,10 @@ Para a referência Chess.com, o ajuste agora reserva 20% dos jogadores para hold
 A checagem de transferência reanalisa as primeiras quatro partidas de teste de cada ritmo com Stockfish 19 Lite, profundidade 10. Em rápidas, houve sete estimativas aceitas (MAE 343,57, RMSE 364,82, viés −51). Em blitz, foram sete (MAE 369,57, RMSE 407,11, viés −213). É uma checagem pequena no mesmo conjunto retido por jogador. São necessárias mais partidas reanalisadas para quantificar a diferença entre o arquivo e a revisão do navegador com maior precisão.
 
 O [Game Review do Chess.com](https://www.chess.com/analysis) e [Chessigma](https://www.chessigma.com/) serviram de referência para a apresentação. A fórmula proprietária do rating de partida não está descrita nas referências consultadas. [Maia Chess](https://github.com/CSSLab/maia-chess) pesquisa a previsão de lances humanos em diferentes níveis e publica código GPL-3.0. O modelo e o código deste repositório foram ajustados separadamente.
+
+
+### O que a validação do Chess.com realmente mede
+
+O conjunto público contém avaliações do Stockfish por posição e uma precisão por partida, mas não contém o rating oficial calculado pelo Game Review. Por isso, a referência de rating valida somente se a qualidade de jogo derivada do motor varia de maneira previsível com o rating registrado e o ritmo. Os diagnósticos de ajuste ao rating do PGN são mantidos separados e não são chamados de MAE de rating oficial. A referência existente permanece ativa quando o holdout por jogador é pequeno, não cobre os dois ritmos ou não melhora uma linha de base simples.
+
+O coletor de CAPS2 também registra uma conta como concluída somente depois de obter seu índice de arquivos com sucesso. Respostas temporárias de rede deixam a conta elegível para nova tentativa, evitando que uma falha interrompa permanentemente a coleta.
