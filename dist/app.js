@@ -35,6 +35,51 @@ function readStoredPreferences() {
     return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   } catch { return {}; }
 }
+const communityConsentStorageKey = 'move-by-move/community-consent/v1';
+function readCommunityConsent() {
+  try {
+    const saved = localStorage.getItem(communityConsentStorageKey);
+    if (saved === 'accepted' || saved === 'declined') return saved;
+  } catch { /* Consent remains opt-in when storage is unavailable. */ }
+  return readStoredPreferences()['community-data'] === true ? 'accepted' : null;
+}
+let communityConsent = readCommunityConsent();
+
+function refreshCommunityConsentUI() {
+  const accepted = communityConsent === 'accepted';
+  const declined = communityConsent === 'declined';
+  const allow = $('community-consent-allow');
+  const deny = $('community-consent-decline');
+  if (allow) allow.setAttribute('aria-pressed', String(accepted));
+  if (deny) deny.setAttribute('aria-pressed', String(declined));
+  allow?.classList.toggle('is-selected', accepted);
+  deny?.classList.toggle('is-selected', declined);
+  const status = $('community-consent-status');
+  if (status) {
+    const message = accepted
+      ? 'Your choice is saved. Contribution is enabled.'
+      : declined
+        ? 'Your choice is saved. Contribution is disabled.'
+        : 'Please choose whether to share review statistics before continuing.';
+    status.textContent = translate(message);
+  }
+  const enter = $('language-enter');
+  if (enter) enter.disabled = !accepted && !declined;
+}
+
+function saveCommunityConsent(allowed) {
+  communityConsent = allowed ? 'accepted' : 'declined';
+  const preferences = readStoredPreferences();
+  preferences['community-data'] = Boolean(allowed);
+  try {
+    localStorage.setItem(preferencesStorageKey, JSON.stringify(preferences));
+    localStorage.setItem(communityConsentStorageKey, communityConsent);
+  } catch { /* The decision still applies for this session. */ }
+  const settingsToggle = $('community-data');
+  if (settingsToggle) settingsToggle.checked = Boolean(allowed);
+  refreshCommunityConsentUI();
+  if (!allowed) clearCommunityQueue();
+}
 function readEngineChoice() {
   const mode = readStoredPreferences()['engine-mode'];
   return ['lite', 'full', 'economy'].includes(mode) ? mode : 'lite';
@@ -66,18 +111,22 @@ function configureLanguageGate() {
   const applyEngineChoice = () => {
     const selected = document.querySelector('input[name="welcome-engine-mode"][value="' + readEngineChoice() + '"]');
     if (selected) selected.checked = true;
-    const consent = $('welcome-community-data');
-    if (consent) consent.checked = readStoredPreferences()['community-data'] === true;
   };
   const savedProfile = readChessProfile();
   languageSelect.value = getLanguage();
   applyProfile(savedProfile);
   applyEngineChoice();
+  refreshCommunityConsentUI();
   languageSelect.addEventListener('change', () => {
     setLanguage(languageSelect.value);
+    refreshCommunityConsentUI();
   });
+  $('community-consent-allow').addEventListener('click', () => saveCommunityConsent(true));
+  $('community-consent-decline').addEventListener('click', () => saveCommunityConsent(false));
   $('language-enter').addEventListener('click', () => {
+    if (communityConsent !== 'accepted' && communityConsent !== 'declined') return;
     setLanguage(languageSelect.value);
+    refreshCommunityConsentUI();
     const previousProfile = readChessProfile();
     const profile = {
       platform: profilePlatform.value,
@@ -89,9 +138,6 @@ function configureLanguageGate() {
     try { localStorage.setItem(profileStorageKey, JSON.stringify(profile)); } catch { /* Profile is optional. */ }
     const engineChoice = document.querySelector('input[name="welcome-engine-mode"]:checked')?.value || readEngineChoice();
     saveEngineChoice(engineChoice);
-    const preferences = readStoredPreferences();
-    preferences['community-data'] = $('welcome-community-data')?.checked === true;
-    try { localStorage.setItem(preferencesStorageKey, JSON.stringify(preferences)); } catch { /* Optional consent persistence. */ }
     if ($('engine-mode') && ['lite', 'full', 'economy'].includes(engineChoice)) $('engine-mode').value = engineChoice;
     $('language-gate').hidden = true;
     $('app-content').hidden = false;
@@ -108,11 +154,13 @@ function configureLanguageGate() {
     languageSelect.value = getLanguage();
     applyProfile(readChessProfile());
     applyEngineChoice();
+    refreshCommunityConsentUI();
     $('language-gate').hidden = false;
     $('app-content').hidden = true;
   });
   const profileReady = Boolean(savedProfile);
-  const showGate = !languageState.saved || !profileReady || !hasSavedEngineChoice();
+  const showGate = !languageState.saved || !profileReady || !hasSavedEngineChoice() ||
+    (communityConsent !== 'accepted' && communityConsent !== 'declined');
   $('language-gate').hidden = !showGate;
   $('app-content').hidden = showGate;
 }
@@ -2614,8 +2662,8 @@ function bindEvents() {
         syncBoardTools();
       }
       if (id === 'community-data') {
+        saveCommunityConsent(control.checked);
         if (control.checked) void flushCommunityQueue();
-        else clearCommunityQueue();
       }
       if (id === 'engine-mode') {
         stopReview();
