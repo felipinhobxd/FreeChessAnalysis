@@ -13,10 +13,12 @@
     "calibration:collect": "node tools/calibrate-caps2.mjs collect --games 5000 --players 1200",
     "calibration:analyze": "node tools/calibrate-caps2.mjs analyze --depth 14",
     "calibration:fit": "node tools/calibrate-caps2.mjs fit",
-    "test": "node --test"
+    "test": "node --test",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
     "chess.js": "1.4.0",
-    "stockfish": "19.0.1"
+    "stockfish": "19.0.1",
+    "@playwright/test": "1.56.1"
   }
 }
