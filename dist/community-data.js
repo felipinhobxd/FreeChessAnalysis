@@ -231,4 +231,7 @@ export async function flushCommunityQueue(fetcher=globalThis.fetch){
  })();
  return inflight;
 }
-if(typeof window!=='undefined')window.addEventListener('pagehide',()=>{if(hasConsent())void flushCommunityQueue();});
+if(typeof window!=='undefined'){
+ window.addEventListener('pagehide',()=>{if(hasConsent())void flushCommunityQueue();});
+ if(hasConsent()&&queue().length)schedule(1000);
+}
