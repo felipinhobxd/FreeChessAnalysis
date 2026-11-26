@@ -25,9 +25,9 @@ do $$
 declare
  sample jsonb;
  result jsonb;
- client bytea:=decode(repeat('11',64),'hex');
- network bytea:=decode(repeat('22',64),'hex');
- limited_client bytea:=decode(repeat('33',64),'hex');
+ client bytea:=decode(repeat('11',32),'hex');
+ network bytea:=decode(repeat('22',32),'hex');
+ limited_client bytea:=decode(repeat('33',32),'hex');
  i integer;
  state_count integer;
 begin
@@ -84,7 +84,7 @@ begin
 
  update fca_private.community_game_ingest_state set sample_count=49999 where singleton=true;
  sample:=jsonb_set(sample,'{game_hash}',to_jsonb(repeat('c',64)));
- result:=public.fca_ingest_community_games(decode(repeat('44',64),'hex'),decode(repeat('55',64),'hex'),jsonb_build_array(sample));
+ result:=public.fca_ingest_community_games(decode(repeat('44',32),'hex'),decode(repeat('55',32),'hex'),jsonb_build_array(sample));
  if (result->>'accepted')::int<>1 or result->>'capacity_reached'<>'true' then
   raise exception 'Global capacity handling failed: %',result;
  end if;
