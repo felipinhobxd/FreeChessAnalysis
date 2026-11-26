@@ -42,16 +42,19 @@ test('first-visit engine choice is saved and can be changed later in Settings', 
   await expect(page.locator('#engine-mode')).toHaveValue('economy');
 });
 
-test('community review collection is opt-in and the consent is saved locally', async ({ page }) => {
+test('community review collection is opt-in and consent persists across reloads', async ({ page }) => {
   await page.goto('/analysis');
   await expect(page.locator('#language-gate')).toBeVisible();
   await expect(page.locator('#welcome-community-data')).not.toBeChecked();
   await page.locator('#language-select').selectOption('en');
   await page.locator('#welcome-community-data').check();
   await page.locator('#language-enter').click();
+
   const preferences = await page.evaluate(() => JSON.parse(localStorage.getItem('livro-de-lances/preferencias/v1') || '{}'));
   expect(preferences['community-data']).toBe(true);
+
   await page.reload();
+  await page.locator('#language-open').click();
   await expect(page.locator('#language-gate')).toBeVisible();
   await expect(page.locator('#welcome-community-data')).toBeChecked();
 });
