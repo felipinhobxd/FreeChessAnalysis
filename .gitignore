@@ -2,3 +2,7 @@ node_modules/
 .vercel/
 .env*
 .calibration/
+
+/dist/vendor/
+/playwright-report/
+/test-results/

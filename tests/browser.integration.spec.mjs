@@ -232,3 +232,47 @@ test.describe('mobile workspace shortcuts', () => {
     await expect(square(page, 'a8')).toBeFocused();
   });
 });
+
+test('changing the interface language preserves the active game and selected position', async ({ page }) => {
+  await serveBundledLite(page);
+  await openBoard(page);
+  await square(page, 'e2').click();
+  await square(page, 'e4').click();
+  await expect(page.locator('#ply-count')).toHaveText('1 move');
+
+  await page.locator('#language-open').click();
+  await page.locator('#language-select').selectOption('pt-BR');
+  await page.locator('#language-enter').click();
+
+  await expect(page.locator('html')).toHaveAttribute('lang', 'pt-BR');
+  await expect(page.locator('#tab-lines')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#ply-count')).toHaveText('1 lance');
+  await expect(square(page, 'e4')).toHaveClass(/occupied/);
+  await expect(square(page, 'e2')).not.toHaveClass(/occupied/);
+});
+
+test('an underpromotion from a custom FEN is included in the exported PGN', async ({ page }) => {
+  await serveBundledLite(page);
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: async text => { window.copiedPgn = text; } },
+    });
+  });
+  await openBoard(page);
+  const fen = '4k3/P7/8/8/8/8/8/4K3 w - - 0 1';
+  await page.locator('[data-source="fen"]').click();
+  await page.locator('#game-input').fill(fen);
+  await page.locator('#submit').click();
+
+  await square(page, 'a7').click();
+  await square(page, 'a8').click();
+  await page.locator('#promotions').getByRole('button', { name: 'Knight', exact: true }).click();
+  await expect(page.locator('#move-list')).toContainText('a8=N');
+
+  await page.locator('#export').click();
+  await page.locator('#copy-pgn').click();
+  const pgn = await page.evaluate(() => window.copiedPgn);
+  expect(pgn).toContain('[SetUp "1"]');
+  expect(pgn).toContain('[FEN "' + fen + '"]');
+  expect(pgn).toMatch(/1\. a8=N 1\/2-1\/2/);
+});

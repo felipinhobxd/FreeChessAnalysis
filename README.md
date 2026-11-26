@@ -38,14 +38,18 @@ Requires [Node.js 24](https://nodejs.org/).
 ```bash
 git clone https://github.com/felipinhobxd/FreeChessAnalysis.git
 cd FreeChessAnalysis
-npm install
+npm ci
 npm run build
 npm start
 ```
 
 Open [http://127.0.0.1:8787/analysis](http://127.0.0.1:8787/analysis).
 
-Run browser integration tests with `npm run test:e2e`. The GitHub Actions workflow also runs the build and browser tests on pushes and pull requests to `main`.
+The build copies `chess.js` into `dist/vendor`, checks syntax, and runs the Node tests. To run the browser suite locally, install its Chromium build with `npx playwright install chromium` and run `npm run test:e2e`. On Linux, `npx playwright install --with-deps chromium` also installs the system libraries. GitHub Actions verifies Chromium and runs the cloud-sync migrations against an isolated PostgreSQL 17 database.
+
+## Local data and cloud sync
+
+Preferences and the optional player profile are stored in the browser's local storage. The study library uses IndexedDB for games, completed reviews, and puzzle progress. Cloud sync sends an archive to Supabase when you explicitly sync with a code. Keep that code private to retain control of access to the synced archive.
 
 ## About the estimates
 
