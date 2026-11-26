@@ -80,7 +80,7 @@ begin
  values((pg_catalog.now() at time zone 'UTC')::date,'client',limited_client,100);
  sample:=jsonb_set(sample,'{game_hash}',to_jsonb(repeat('b',64)));
  result:=public.fca_ingest_community_games(limited_client,network,jsonb_build_array(sample));
- if result->>'rate_limited'<>'true' then raise exception 'Daily client limit failed: %',result;end if;
+ if result->>'rate_limited' is distinct from 'true' then raise exception 'Daily client limit failed: %',result;end if;
 
  update fca_private.community_game_ingest_state set sample_count=49999 where singleton=true;
  sample:=jsonb_set(sample,'{game_hash}',to_jsonb(repeat('c',64)));
