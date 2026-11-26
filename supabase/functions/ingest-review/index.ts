@@ -3,9 +3,9 @@ const MAX_BYTES=131072,BATCH=5,MAX_PLIES=500;
 const HASH=/^[a-f0-9]{64}$/,UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const UCI=/^[a-h][1-8][a-h][1-8][qrbn]?$/;
 const START_FEN=/^[prnbqkPRNBQK1-8/]+ [wb] (?:-|[KQkq]{1,4}) (?:-|[a-h][36]) [0-9]+ [0-9]+$/;
-const CORS={'Access-Control-Allow-Methods':'POST, OPTIONS','Access-Control-Allow-Headers':'apikey, content-type','Access-Control-Max-Age':'86400','Vary':'Origin'};
-function reply(body,status,origin){
- return new Response(body===null?null:JSON.stringify(body),{status,headers:{...CORS,...(ORIGINS.has(origin)?{'Access-Control-Allow-Origin':origin}:{}),'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
+const CORS={'Access-Control-Allow-Methods':'POST, OPTIONS','Access-Control-Allow-Headers':'apikey, content-type','Access-Control-Expose-Headers':'Retry-After','Access-Control-Max-Age':'86400','Vary':'Origin'};
+function reply(body,status,origin,extraHeaders={}){
+ return new Response(body===null?null:JSON.stringify(body),{status,headers:{...CORS,...(ORIGINS.has(origin)?{'Access-Control-Allow-Origin':origin}:{}),...extraHeaders,'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
 }
 function secret(name,fallback){
  try{const value=JSON.parse(Deno.env.get(name)||'{}');if(typeof value.default==='string')return value.default;}catch{}
@@ -97,7 +97,12 @@ Deno.serve(async request=>{
  let data;
  try{data=JSON.parse(await response.text());}catch{data=null;}
  if(!response.ok||!data||typeof data!=='object')return reply({error:'Could not save full-game statistics'},503,origin);
- if(data.rate_limited)return reply({accepted:0,rate_limited:true},429,origin);
+ if(data.rate_limited){
+  const now=new Date();
+  const nextUtcDay=Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate()+1);
+  const retryAfter=Math.max(1,Math.ceil((nextUtcDay-Date.now())/1000));
+  return reply({accepted:0,rate_limited:true},429,origin,{'Retry-After':String(retryAfter)});
+ }
  if(data.capacity_reached&&Number(data.accepted||0)===0)
   return reply({accepted:0,capacity_reached:true,remaining_capacity:0},202,origin);
  return reply({
