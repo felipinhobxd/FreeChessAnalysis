@@ -52,7 +52,7 @@ function scoreValue(evaluation){
   const side=Number(evaluation.white??0);
   return {value:side>0?32000:side<0?-32000:0,valid:true,mate:true};
  }
- const value=Number(evaluation.value);
+ const value=Number(evaluation.white??evaluation.value);
  if(!Number.isFinite(value))return {value:0,valid:false,mate:false};
  return {value:clamp(Math.round(value),-32000,32000),valid:true,mate:false};
 }
