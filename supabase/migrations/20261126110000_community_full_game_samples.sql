@@ -3,8 +3,9 @@ begin;
 create table fca_private.community_game_samples(
  game_hash bytea primary key check(octet_length(game_hash)=32),
  opening_uci varchar(120) not null check(opening_uci~'^(?:[a-h][1-8][a-h][1-8][qrbn]?){1,24}$'),
- moves_uci varchar(3000) not null check(moves_uci~'^(?:[a-h][1-8][a-h][1-8][qrbn]?)(?:\.(?:[a-h][1-8][a-h][1-8][qrbn]?)){7,499}$'),
+ moves_uci varchar(3000) not null check(moves_uci~'^(?:[a-h][1-8][a-h][1-8][qrbn]?)(?:\.(?:[a-h][1-8][a-h][1-8][qrbn]?)){7,}$'),
  ply_count smallint not null check(ply_count between 8 and 500),
+ check(pg_catalog.cardinality(pg_catalog.string_to_array(moves_uci,'.'))=ply_count),
  start_fen varchar(100) check(start_fen is null or start_fen~'^[prnbqkPRNBQK1-8/]+ [wb] (?:-|[KQkq]{1,4}) (?:-|[a-h][36]) [0-9]+ [0-9]+$'),
  move_data bytea not null check(octet_length(move_data)=ply_count*10),
  result text not null check(result in('w','d','b')),
@@ -121,7 +122,7 @@ begin
   v_ply_count:=coalesce(nullif(v_sample->>'ply_count','')::integer,0);
   if coalesce(v_hash,'')!~'^[a-f0-9]{64}$'
    or coalesce(v_sample->>'opening_uci','')!~'^(?:[a-h][1-8][a-h][1-8][qrbn]?){1,24}$'
-   or coalesce(v_sample->>'moves_uci','')!~'^(?:[a-h][1-8][a-h][1-8][qrbn]?)(?:\.(?:[a-h][1-8][a-h][1-8][qrbn]?)){7,499}$'
+   or coalesce(v_sample->>'moves_uci','')!~'^(?:[a-h][1-8][a-h][1-8][qrbn]?)(?:\.(?:[a-h][1-8][a-h][1-8][qrbn]?)){7,}$'
    or v_ply_count not between 8 and 500
    or pg_catalog.cardinality(v_move_array)<>v_ply_count
    or pg_catalog.array_to_string(v_move_array[1:24],'')<>v_sample->>'opening_uci'
