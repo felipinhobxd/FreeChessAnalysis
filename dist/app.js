@@ -226,6 +226,11 @@ function addChild(parent, board, move) {
   if (exploring && !originalPath) originalPath = mainPath();
   const existing = parent.children.find(child => uci(child.move) === uci(move) && (!exploring || child.userEdited));
   if (existing) return existing;
+  if (!exploring && (studyId || studyAnalysis) && mainPath().at(-1) === parent) {
+    flushStudy();
+    studyId = undefined;
+    studyAnalysis = undefined;
+  }
   const node = createPosition(board, parent, move);
   node.userEdited = exploring;
   parent.children.push(node);
@@ -2013,22 +2018,13 @@ function exportPgn() {
   if (cursor?.userEdited) {
     const branch = pathTo(cursor);
     const result = endResult(cursor) || '*';
-    return exportStudyPgn(Chess, root.fen, gameHeaders, branch.slice(1).map(node => node.move), result);
+    return exportStudyPgn(Chess, root.fen, gameHeaders, branch.map(node => node.move), result);
   }
-  if (originalPgn !== undefined) return originalPgn;
-  const chess = new Chess(root.fen);
-  for (const [key, value] of Object.entries(gameHeaders)) {
-    if (typeof value === 'string' && value !== '?' && !['FEN', 'SetUp'].includes(key)) chess.setHeader(key, value.replace(/["\r\n]/g, ' '));
-  }
-  const current = mainPath().slice(1);
-  for (const node of current) chess.move(moveFromUci(uci(node.move)));
-  if (current.at(-1)?.terminal?.type === 'mate') chess.setHeader('Result', current.at(-1).terminal.white > 0 ? '1-0' : '0-1');
-  else if (current.at(-1)?.terminal?.type === 'cp') chess.setHeader('Result', '1/2-1/2');
-  else {
-    const main = mainPath();
-    if (current.some((node, index) => node !== main[index + 1])) chess.setHeader('Result', '*');
-  }
-  return chess.pgn({ maxWidth: 85 });
+  return mainPgn(mainPath());
+}
+
+function mainPgn(path) {
+  return originalPgn ?? exportStudyPgn(Chess, root.fen, gameHeaders, path.slice(1).map(node => node.move), endResult(path.at(-1)) || '*');
 }
 
 async function copyText(text, confirmation) {
@@ -2061,6 +2057,9 @@ function studyFingerprint() {
 
 function currentStudy() {
   const path = mainPath();
+  const data = path.length === 1
+    ? { fen: root.fen }
+    : { pgn: mainPgn(path), ply: path.indexOf(chartSelectionFor(cursor, path)) };
   const drills = {};
   for (const [index, node] of path.entries()) {
     const progress = puzzleProgress.get(node.id);
@@ -2072,7 +2071,7 @@ function currentStudy() {
   }
   return {
     name: displayName('w') + ' × ' + displayName('b'),
-    date: Date.now(), data: snapshotGame(), analysis: studyAnalysis,
+    date: Date.now(), data, analysis: studyAnalysis,
     side: reviewSide, drills, panel: tab === 'puzzles' ? 'puzzles' : 'report',
     puzzle: path.findIndex(node => node.id === activePuzzle?.node.id),
   };
@@ -2295,14 +2294,21 @@ function bindEvents() {
     unlockSound(control.checked);
     control.dispatchEvent(new Event('change'));
   };
-  $('board').addEventListener('click', event => {
-    if (suppressBoardClick) { suppressBoardClick = false; event.preventDefault(); return; }
-    if (event.button === 0 && boardMarks.length) {
+  function selectBoardSquare(square) {
+    if (boardMarks.length) {
       boardMarks = [];
       renderScore();
     }
-    const square = event.target.closest('[data-square]')?.dataset.square;
     if (square) selectSquare(square);
+  }
+  $('board').addEventListener('click', event => {
+    if (suppressBoardClick && event.detail) {
+      suppressBoardClick = false;
+      event.preventDefault();
+      return;
+    }
+    const square = event.target.closest('[data-square]')?.dataset.square;
+    selectBoardSquare(square);
   });
   $('board').addEventListener('contextmenu', event => event.preventDefault());
   $('board').addEventListener('pointerdown', event => {
@@ -2318,7 +2324,9 @@ function bindEvents() {
       renderScore();
       return;
     }
-    if (event.button !== 0 || activeBoardMark || demo || activePieceDrag) return;
+    if (event.button !== 0 || activeBoardMark || activePieceDrag) return;
+    suppressBoardClick = false;
+    if (demo) return;
     const origin = boardSquareAtPoint(event.clientX, event.clientY);
     if (!origin) return;
     const position = shownPosition();
@@ -2332,7 +2340,6 @@ function bindEvents() {
     activePieceDrag = { pointerId: event.pointerId, from: origin, x: event.clientX, y: event.clientY,
       grabX: squareRect ? event.clientX - (squareRect.left + squareRect.width / 2) : 0,
       grabY: squareRect ? event.clientY - (squareRect.top + squareRect.height / 2) : 0, moved: false };
-    selected = origin;
     showLegalTargets(origin);
     try { $('board').setPointerCapture(event.pointerId); } catch { /* Pointer capture is an enhancement. */ }
     renderScore();
@@ -2356,17 +2363,19 @@ function bindEvents() {
     if (activePieceDrag?.pointerId === event.pointerId) {
       const drag = activePieceDrag;
       activePieceDrag = null;
-      if (drag.moved) {
-        const destination = boardSquareAtPoint(event.clientX, event.clientY);
-        suppressBoardClick = true;
-        selected = null;
-        releaseLiftedSprite(drag.from);
-        if (destination) tryMove(drag.from, destination);
-      } else {
-        releaseLiftedSprite(drag.from);
-      }
+      const destination = boardSquareAtPoint(event.clientX, event.clientY);
+      suppressBoardClick = true;
+      releaseLiftedSprite(drag.from);
       try { $('board').releasePointerCapture(event.pointerId); } catch { /* Capture may already be released. */ }
+      // A captured pointer's native click can target the board instead of its square.
+      if (!drag.moved && destination === drag.from) {
+        selectBoardSquare(destination);
+        return;
+      }
       selected = null;
+      if (drag.moved) {
+        if (destination) tryMove(drag.from, destination);
+      }
       renderPieces();
       renderScore();
       return;
