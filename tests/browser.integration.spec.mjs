@@ -58,7 +58,7 @@ test('community consent requires an explicit choice, persists, and can be change
 
   let consent = await page.evaluate(() => ({
     preferences: JSON.parse(localStorage.getItem('livro-de-lances/preferencias/v1') || '{}'),
-    choice: localStorage.getItem('move-by-move/community-consent/v1'),
+    choice: localStorage.getItem('move-by-move/community-consent/v2'),
   }));
   expect(consent.preferences['community-data']).toBe(true);
   expect(consent.choice).toBe('accepted');
@@ -73,13 +73,50 @@ test('community consent requires an explicit choice, persists, and can be change
   await page.locator('#community-consent-decline').click();
   consent = await page.evaluate(() => ({
     preferences: JSON.parse(localStorage.getItem('livro-de-lances/preferencias/v1') || '{}'),
-    choice: localStorage.getItem('move-by-move/community-consent/v1'),
+    choice: localStorage.getItem('move-by-move/community-consent/v2'),
   }));
   expect(consent.preferences['community-data']).toBe(false);
   expect(consent.choice).toBe('declined');
   await page.locator('#language-enter').click();
   await page.locator('#settings-btn').click();
   await expect(page.locator('#community-data')).not.toBeChecked();
+});
+
+test('a previous acceptance does not authorize the expanded full-game dataset', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('move-by-move/language', 'en');
+    localStorage.setItem('move-by-move/chess-profile', JSON.stringify({ platform: 'none', username: '' }));
+    localStorage.setItem('move-by-move/engine-choice/v1', '1');
+    localStorage.setItem('move-by-move/community-consent/v1', 'accepted');
+    localStorage.setItem('livro-de-lances/preferencias/v1', JSON.stringify({ 'engine-mode': 'lite', 'community-data': true }));
+  });
+  await page.goto('/analysis');
+  await expect(page.locator('#language-gate')).toBeVisible();
+  await expect(page.locator('#community-consent-allow')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#community-consent-decline')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#language-enter')).toBeDisabled();
+  await page.locator('#community-consent-decline').click();
+  await page.locator('#language-enter').click();
+  const state = await page.evaluate(() => ({
+    v2: localStorage.getItem('move-by-move/community-consent/v2'),
+    enabled: JSON.parse(localStorage.getItem('livro-de-lances/preferencias/v1') || '{}')['community-data'],
+  }));
+  expect(state.v2).toBe('declined');
+  expect(state.enabled).toBe(false);
+});
+
+test('a previous explicit refusal remains respected after the consent update', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('move-by-move/language', 'en');
+    localStorage.setItem('move-by-move/chess-profile', JSON.stringify({ platform: 'none', username: '' }));
+    localStorage.setItem('move-by-move/engine-choice/v1', '1');
+    localStorage.setItem('move-by-move/community-consent/v1', 'declined');
+    localStorage.setItem('livro-de-lances/preferencias/v1', JSON.stringify({ 'engine-mode': 'lite', 'community-data': false }));
+  });
+  await page.goto('/analysis');
+  await expect(page.locator('#language-gate')).toBeHidden();
+  const state = await page.evaluate(() => localStorage.getItem('move-by-move/community-consent/v2'));
+  expect(state).toBe('declined');
 });
 
 test('returning visitors without an explicit consent decision see the prompt once', async ({ page }) => {
