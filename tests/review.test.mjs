@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Chess } from 'chess.js';
 import { missedOpportunity, shortMateAfter, aspectEvidence, aspectGrade } from '../dist/review-evidence.js';
-import { estimatePerformance, phaseForPosition, gameTimeClass } from '../dist/review-metrics.js';
+import { aggregateGameAccuracy, estimatePerformance, moveAccuracyBetween, phaseForPosition, gameTimeClass } from '../dist/review-metrics.js';
 import { decisionProfile, predictBand, sideDecisions } from '../dist/decision-profile.js';
 import { performanceModel } from '../dist/performance-model.js';
 import { moveSound } from '../dist/board-ui.js';
