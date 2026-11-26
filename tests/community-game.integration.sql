@@ -33,7 +33,7 @@ declare
 begin
  sample:=jsonb_build_object(
   'game_hash',repeat('a',64),
-  'opening_uci','e2e4e7e5g1f3b8c6f1b5b7b4c2c4c7c5',
+  'opening_uci','e2e4e7e5g1f3b8c6f1b5a7a6b5a4g8f6',
   'moves_uci','e2e4.e7e5.g1f3.b8c6.f1b5.a7a6.b5a4.g8f6',
   'ply_count',8,
   'start_fen',null,
