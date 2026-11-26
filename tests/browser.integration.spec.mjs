@@ -276,3 +276,51 @@ test('an underpromotion from a custom FEN is included in the exported PGN', asyn
   expect(pgn).toContain('[FEN "' + fen + '"]');
   expect(pgn).toMatch(/1\. a8=N 1\/2-1\/2/);
 });
+
+test('a held piece follows the pointer when the board is flipped', async ({ page }) => {
+  await serveBundledLite(page);
+  await openBoard(page);
+  await page.locator('#flip').click();
+  const start = await square(page, 'e2').boundingBox();
+  const end = await square(page, 'e4').boundingBox();
+  await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
+  await page.mouse.down();
+  const held = page.locator('.sprite.drag-lifted[data-square="e2"]');
+  await expect(held).toBeVisible();
+  await expect(held).toHaveCSS('opacity', '1');
+  const x = end.x + end.width / 2;
+  const y = end.y + end.height / 2;
+  await page.mouse.move(x, y, { steps: 6 });
+  await expect.poll(async () => {
+    const box = await held.boundingBox();
+    return box ? Math.hypot(box.x + box.width / 2 - x, box.y + box.height / 2 - y) : Infinity;
+  }).toBeLessThan(8);
+  await page.mouse.up();
+  await expect(held).toHaveCount(0);
+  await expect(square(page, 'e4')).toHaveClass(/occupied/);
+});
+
+test.describe('small-screen game review', () => {
+  test.use({ viewport: { width: 390, height: 540 } });
+
+  test('review brings the board into view and keeps move controls on screen', async ({ page }) => {
+    await serveBundledLite(page);
+    await openBoard(page);
+    await page.locator('#example').click();
+    const start = page.locator('#review-start');
+    await expect(start).toBeEnabled({ timeout: 30_000 });
+    await expect(start).toBeInViewport();
+    await start.click();
+
+    await expect(page.locator('#board')).toBeInViewport({ ratio: 0.75 });
+    const next = page.locator('#review-transport #next');
+    await expect(next).toBeInViewport();
+    await page.locator('#review-timeline').scrollIntoViewIfNeeded();
+    await expect(next).toBeInViewport();
+    const activeMove = page.locator('#move-list [aria-current="step"]');
+    const before = await activeMove.textContent();
+    await next.click();
+    await expect(activeMove).not.toHaveText(before);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+  });
+});

@@ -94,7 +94,7 @@ export function syncSprites(position,board,flipped,set,duration,speed){
 }
 
 export function liftSprite(square){
-  const sprite=[...sprites.values()].find(item=>item.dataset.square===square);
+  const sprite=[...sprites.values()].find(item=>item.dataset.square===square && item.style.opacity==='1' && !item.hidden);
   if(!sprite)return null;
   const image=sprite.querySelector('img');
   // A new pickup must take ownership from any unfinished landing animation.
@@ -102,14 +102,14 @@ export function liftSprite(square){
   liftedSprite=sprite;
   if(image){
     image.style.transition='transform 110ms cubic-bezier(.16,1,.3,1)';
-    image.style.transform='perspective(220px) translateZ(12px) scale(1.15)';
+    image.style.transform='scale(1.15)';
     image.style.transformOrigin='50% 56%';
   }
   sprite.dataset.tilt='0';
   sprite.classList.add('drag-lifted');
   sprite.style.zIndex='20';
-  sprite.dataset.lastX='';sprite.dataset.lastY='';sprite.dataset.lastTime='';
-  sprite.dataset.vx='0';sprite.dataset.vy='0';sprite.dataset.pitch='0';sprite.dataset.yaw='0';
+  sprite.dataset.lastX='';sprite.dataset.lastTime='';
+  sprite.dataset.vx='0';
   sprite.style.transition='transform 110ms cubic-bezier(.16,1,.3,1), filter 110ms ease';
   sprite.style.transform='translate('+sprite.dataset.baseX+'%,'+sprite.dataset.baseY+'%) scale(1.15)';
   return sprite;
@@ -120,26 +120,23 @@ export function moveLiftedSprite(square,clientX,clientY,grabX=0,grabY=0){
   const rect=frame?.getBoundingClientRect();
   if(!rect)return;
   const size=rect.width/8;
-  const x=square.charCodeAt(0)-97,y=8-Number(square[1]);
-  const centerX=(x+.5)*size,centerY=(y+.5)*size;
+  const centerX=(Number(liftedSprite.dataset.baseX)/100+.5)*size;
+  const centerY=(Number(liftedSprite.dataset.baseY)/100+.5)*size;
   const dx=clientX-rect.left-centerX-grabX,dy=clientY-rect.top-centerY-grabY;
   liftedSprite.style.transform='translate(calc('+liftedSprite.dataset.baseX+'% + '+dx+'px),calc('+liftedSprite.dataset.baseY+'% + '+dy+'px)) scale(1.09)';
   const image=liftedSprite.querySelector('img');
   if(image){
     const now=performance.now(),last=Number(liftedSprite.dataset.lastTime||now-16);
     const elapsed=Math.max(8,Math.min(40,now-last));
-    const previousX=Number(liftedSprite.dataset.lastX||clientX),previousY=Number(liftedSprite.dataset.lastY||clientY);
-    const vx=(clientX-previousX)/elapsed,vy=(clientY-previousY)/elapsed;
-    const oldVx=Number(liftedSprite.dataset.vx||0),oldVy=Number(liftedSprite.dataset.vy||0);
-    const smoothX=oldVx*.38+vx*.62,smoothY=oldVy*.38+vy*.62;
+    const previousX=Number(liftedSprite.dataset.lastX||clientX);
+    const vx=(clientX-previousX)/elapsed;
+    const smoothX=Number(liftedSprite.dataset.vx||0)*.38+vx*.62;
     const roll=Math.max(-42,Math.min(42,smoothX*25));
-    const pitch=Math.max(-32,Math.min(32,-smoothY*19));
-    const yaw=Math.max(-25,Math.min(25,-smoothX*14));
-    liftedSprite.dataset.lastX=String(clientX);liftedSprite.dataset.lastY=String(clientY);
-    liftedSprite.dataset.lastTime=String(now);liftedSprite.dataset.vx=String(smoothX);liftedSprite.dataset.vy=String(smoothY);
-    liftedSprite.dataset.tilt=String(roll);liftedSprite.dataset.pitch=String(pitch);liftedSprite.dataset.yaw=String(yaw);
+    liftedSprite.dataset.lastX=String(clientX);
+    liftedSprite.dataset.lastTime=String(now);liftedSprite.dataset.vx=String(smoothX);
+    liftedSprite.dataset.tilt=String(roll);
     image.style.transition='transform 48ms cubic-bezier(.2,.75,.25,1)';
-    image.style.transform='perspective(220px) translateZ(13px) rotateX('+pitch+'deg) rotateY('+yaw+'deg) rotateZ('+roll+'deg) scale(1.15)';
+    image.style.transform='rotate('+roll+'deg) scale(1.15)';
   }
 }
 export function releaseLiftedSprite(square){
@@ -147,13 +144,13 @@ export function releaseLiftedSprite(square){
   const sprite=liftedSprite;liftedSprite=null;
   const image=sprite.querySelector('img');
   if(image){
-    const roll=Number(sprite.dataset.tilt||0),pitch=Number(sprite.dataset.pitch||0),yaw=Number(sprite.dataset.yaw||0);
+    const roll=Number(sprite.dataset.tilt||0);
     image.style.transition='none';
     if(!matchMedia('(prefers-reduced-motion: reduce)').matches){
       const animation=image.animate([
-        {transform:'perspective(220px) translateZ(13px) rotateX('+pitch+'deg) rotateY('+yaw+'deg) rotateZ('+roll+'deg) scale(1.15)',offset:0},
-        {transform:'perspective(220px) rotateX('+(-pitch*.48)+'deg) rotateY('+(-yaw*.45)+'deg) rotateZ('+(-roll*.5)+'deg) scale(1.08)',offset:.28},
-        {transform:'perspective(220px) rotateX('+(pitch*.2)+'deg) rotateY('+(yaw*.18)+'deg) rotateZ('+(roll*.2)+'deg) scale(1.025)',offset:.58},
+        {transform:'rotate('+roll+'deg) scale(1.15)',offset:0},
+        {transform:'rotate('+(-roll*.5)+'deg) scale(1.08)',offset:.28},
+        {transform:'rotate('+(roll*.2)+'deg) scale(1.025)',offset:.58},
         {transform:'rotate(0deg) scale(1)',offset:1}
       ],{duration:520,easing:'cubic-bezier(.18,.78,.22,1)',fill:'both'});
       landingAnimations.set(image,animation);
