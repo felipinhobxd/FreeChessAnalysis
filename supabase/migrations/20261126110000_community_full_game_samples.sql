@@ -46,6 +46,7 @@ comment on column fca_private.community_game_samples.move_data is
 create index community_game_samples_created_at_idx on fca_private.community_game_samples(created_at);
 create index community_game_samples_opening_time_idx on fca_private.community_game_samples(opening_uci,time_class);
 
+grant usage on schema fca_private to service_role;
 alter table fca_private.community_game_samples enable row level security;
 revoke all on fca_private.community_game_samples from public,anon,authenticated;
 grant all on fca_private.community_game_samples to service_role;
