@@ -125,11 +125,52 @@ export function estimatePerformance(path, side, headers = {}) {
 }
 
 export function phaseForPosition(fen, ply) {
-  const board = String(fen || '').split(' ')[0].replace(/[1-8/]/g, '');
-  const value = { q: 9, r: 5, b: 3, n: 3 };
-  const material = [...board].reduce((sum, piece) => sum + (value[piece.toLowerCase()] || 0), 0);
-  if (material <= 13 || (!/[Qq]/.test(board) && material <= 22)) return 'endgame';
-  const fullmove = Number(String(fen || '').split(' ')[5]);
-  if (ply <= 20 && (!fullmove || fullmove <= 11)) return 'opening';
+  const fields = String(fen || '').trim().split(/\s+/);
+  const ranks = (fields[0] || '').split('/');
+  if (ranks.length !== 8) return 'middlegame';
+
+  const phaseValue = { n: 1, b: 1, r: 2, q: 4 };
+  let phase = 0;
+  let queens = 0;
+  let occupied = 0;
+  let whiteKings = 0;
+  let blackKings = 0;
+  for (const rank of ranks) {
+    let files = 0;
+    for (const symbol of rank) {
+      if (/[1-8]/.test(symbol)) {
+        files += Number(symbol);
+      } else if (/[prnbqkPRNBQK]/.test(symbol)) {
+        files++;
+        occupied++;
+        const type = symbol.toLowerCase();
+        phase += phaseValue[type] || 0;
+        if (type === 'q') queens++;
+        if (type === 'k') {
+          if (symbol === symbol.toUpperCase()) whiteKings++;
+          else blackKings++;
+        }
+      } else {
+        return 'middlegame';
+      }
+    }
+    if (files !== 8) return 'middlegame';
+  }
+  const fullmove = Number(fields[5]);
+  if (occupied > 64 || whiteKings !== 1 || blackKings !== 1 ||
+      !Number.isInteger(fullmove) || fullmove < 1 || !['w', 'b'].includes(fields[1])) {
+    return 'middlegame';
+  }
+
+  // The conventional game-phase scale starts at 24 (both sides fully developed).
+  // Eight or fewer points indicates that most heavy/minor material has left.
+  if (phase <= 8) return 'endgame';
+
+  const movesPlayed = Number.isFinite(ply) && ply >= 0
+    ? ply
+    : Math.max(0, (fullmove - 1) * 2 + (fields[1] === 'b' ? 1 : 0));
+  if (movesPlayed <= 20 && fullmove <= 11 && queens === 2 && phase >= 18) {
+    return 'opening';
+  }
   return 'middlegame';
 }

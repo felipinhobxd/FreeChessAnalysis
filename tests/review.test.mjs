@@ -184,3 +184,66 @@ test('board sound effects cover moves, special moves and results', () => {
   assert.equal(moveSound({ san: 'e4' }, '1-0'), 'win');
   assert.equal(moveSound({ san: 'e4' }, '1/2-1/2'), 'draw');
 });
+
+
+test('phase detection uses remaining game-phase material and rejects malformed positions', () => {
+  const initial = new Chess();
+  assert.equal(phaseForPosition(initial.fen(), 0), 'opening');
+
+  const queensGoneButPiecesRemain =
+    'rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNB1KBNR w KQkq - 0 55';
+  assert.equal(phaseForPosition(queensGoneButPiecesRemain, 108), 'middlegame');
+
+  const queenVersusKing = '7k/8/8/8/8/8/8/Q5K1 w - - 0 50';
+  assert.equal(phaseForPosition(queenVersusKing, 98), 'endgame');
+  assert.equal(phaseForPosition('not-a-fen', 0), 'middlegame');
+});
+
+test('opening principles only tag actual development, central play and castling', () => {
+  const initial = new Chess();
+  const knight = position(initial.fen(), 'Nf3', cp(25, ['g1f3']), cp(25));
+  assert.equal(aspectEvidence(knight, 'opening').get('Abertura'), 'Desenvolvimento de peças');
+
+  const backwards = new Chess();
+  for (const san of ['Nf3', 'Nf6']) backwards.move(san);
+  const retreat = position(backwards.fen(), 'Ng1', cp(25, ['f3g1']), cp(25));
+  assert.equal(aspectEvidence(retreat, 'opening').has('Abertura'), false);
+
+  const center = position(initial.fen(), 'd4', cp(25, ['d2d4']), cp(25));
+  assert.equal(aspectEvidence(center, 'opening').get('Princípios'), 'Controle do centro');
+});
+
+test('middlegame strategy requires a real pawn, outpost or rook-file feature', () => {
+  const rookFen = '3qk2r/1pp2ppp/2n2n2/8/8/2N2N2/1PP2PPP/1R1QK2R w Kk - 0 12';
+  const rookMove = position(rookFen, 'Ra1', cp(20, ['b1a1']), cp(20));
+  const rookTags = aspectEvidence(rookMove, 'middlegame', Chess);
+  assert.equal(rookTags.get('Estratégia'), 'Coluna aberta');
+
+  const outpostFen = 'r2qk2r/1pp2ppp/2n2n2/8/2P1P3/2N2N2/PP3PPP/R2QK2R w KQkq - 0 12';
+  const outpost = position(outpostFen, 'Nd5', cp(20, ['c3d5']), cp(20));
+  assert.equal(aspectEvidence(outpost, 'middlegame', Chess).get('Estratégia'), 'Posto avançado protegido');
+
+  const doubledFen = '4k3/1pp2ppp/2n2n2/2p5/1P6/2N2N2/1PP2PPP/R2QK2R w KQ - 0 12';
+  const doubled = position(doubledFen, 'bxc5', cp(20, ['b4c5']), cp(20));
+  assert.equal(aspectEvidence(doubled, 'middlegame', Chess).get('Estratégia'), 'Peões dobrados');
+
+  const quietPawnFen = 'r2qk2r/1pp2ppp/2n2n2/8/8/2N2N2/1PP2PPP/R2QK2R w KQkq - 0 12';
+  const quietPawn = position(quietPawnFen, 'b3', cp(20, ['b2b3']), cp(20));
+  assert.equal(aspectEvidence(quietPawn, 'middlegame', Chess).has('Estratégia'), false);
+});
+
+test('endgame insights identify passed pawns and king activity without generic labels', () => {
+  const fen = '8/7k/8/8/8/6K1/P7/8 w - - 0 53';
+  const passed = position(fen, 'a4', cp(160, ['a2a4']), cp(160));
+  assert.equal(aspectEvidence(passed, 'endgame').get('Final'), 'Peão passado');
+
+  const king = position(fen, 'Kf4', cp(160, ['g3f4']), cp(160));
+  assert.equal(aspectEvidence(king, 'endgame').get('Final'), 'Centralização do rei');
+
+  const inactive = position(fen, 'Kh2', cp(160, ['g3h2']), cp(160));
+  assert.equal(aspectEvidence(inactive, 'endgame').has('Final'), false);
+
+  const oppositionFen = '8/4k3/8/8/3K4/8/8/8 w - - 0 50';
+  const opposition = position(oppositionFen, 'Ke5', cp(0, ['d4e5']), cp(0));
+  assert.equal(aspectEvidence(opposition, 'endgame').get('Final'), 'Oposição entre os reis');
+});

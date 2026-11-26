@@ -147,31 +147,313 @@ export function missedOpportunity(Chess, before, node) {
   return null;
 }
 
-function boardSquares(fen){const result=new Map();let rank=8,file=0;for(const c of fen.split(' ')[0]){if(c==='/'){rank--;file=0}else if(/[1-8]/.test(c))file+=Number(c);else{result.set('abcdefgh'[file]+rank,c);file++}}return result}
-function hasTacticalContinuation(Chess,node){const pv=node.coach?.choices?.[0]?.pv||[];if(!pv.length)return false;const board=new Chess(node.parent.fen);for(const u of pv.slice(0,5)){let m;try{m=board.move(decode(u))}catch{break}if(!m)break;if(m.captured||m.promotion||m.san.includes('+')||board.isCheckmate())return true}return false}
-export function aspectEvidence(node,phase,Chess=null){
- const m=node?.move;if(!m||!node.parent||!node.coach)return new Map();
- const tags=new Map(),home=m.color==='w'?'1':'8',squares=boardSquares(node.parent.fen);
- const center=['d4','e4','d5','e5'].includes(m.to),develop='nb'.includes(m.piece)&&m.from[1]===home;
- const castle=m.san.startsWith('O-O'),earlyQueen=m.piece==='q'&&phase==='opening';
- const tactic=Boolean(node.chanceLost||m.captured||m.promotion||m.san.includes('+')||m.san.includes('#')||
-  (Chess&&hasTacticalContinuation(Chess,node)&&['brilliant','great','best','excellent','inaccuracy','mistake','blunder'].includes(node.classification)));
- const set=(a,r)=>tags.set(a,r);
- if(phase==='opening'){set('Abertura',node.classification==='theory'?'Teoria de abertura':develop?'Desenvolvimento':castle?'Roque e segurança do rei':center?'Disputa pelo centro':earlyQueen?'Saída da dama':'Precisão na abertura');
-  set('Princípios',castle?'Segurança do rei':develop?'Desenvolvimento':center?'Controle do centro':earlyQueen?'Segurança e desenvolvimento':'Princípios de abertura')}
- if(tactic)set('Táticas',node.chanceLost?'Oportunidade tática perdida':m.promotion?'Promoção':m.captured?'Captura e cálculo':m.san.includes('#')?'Xeque-mate':m.san.includes('+')?'Ataque com xeque':'Continuação tática');
- if(phase==='middlegame'&&!tactic){const openFile=m.piece==='r'&&![...squares].some(([sq,p])=>sq[0]===m.to[0]&&p.toLowerCase()==='p');
-  set('Estratégia',m.piece==='p'?'Estrutura de peões':openFile?'Coluna aberta':'Atividade e coordenação das peças');
-  if(!tags.has('Princípios'))set('Princípios',center?'Controle do centro':'Coordenação das peças')}
- if(phase==='endgame'){const passed=m.piece==='p'&&![...squares].some(([sq,p])=>p===(m.color==='w'?'p':'P')&&Math.abs(sq.charCodeAt(0)-m.to.charCodeAt(0))<=1&&(Number(sq[1])-Number(m.to[1]))*(m.color==='w'?1:-1)>0);
-  set('Final',m.piece==='k'?'Atividade do rei':passed?'Peão passado':'Técnica de final');
-  set('Princípios',m.piece==='k'?'Atividade do rei':'Coordenação no final')}
- if(!['opening','middlegame','endgame'].includes(phase)&&(castle||develop||center))set('Princípios',castle?'Segurança do rei':develop?'Desenvolvimento':'Controle do centro');
- return tags;
+function boardSquares(fen) {
+  const result = new Map();
+  const placement = String(fen || '').trim().split(/\s+/)[0] || '';
+  const ranks = placement.split('/');
+  if (ranks.length !== 8) return result;
+  for (let row = 0; row < 8; row++) {
+    let file = 0;
+    for (const symbol of ranks[row]) {
+      if (/[1-8]/.test(symbol)) {
+        file += Number(symbol);
+        continue;
+      }
+      if (!/[prnbqkPRNBQK]/.test(symbol) || file > 7) return new Map();
+      result.set('abcdefgh'[file] + (8 - row), {
+        type: symbol.toLowerCase(),
+        color: symbol === symbol.toUpperCase() ? 'w' : 'b',
+      });
+      file++;
+    }
+    if (file !== 8) return new Map();
+  }
+  return result;
 }
-const aspectPoints={brilliant:2.2,great:1.8,excellent:1.6,best:1.45,theory:1.35,good:1,inaccuracy:0,mistake:-.8,'chance-lost':-1.3,blunder:-2};
-export function aspectGrade(nodes){const scored=(nodes||[]).filter(n=>n&&Number.isFinite(aspectPoints[n.classification]));if(!scored.length)return null;
- const score=scored.reduce((sum,n)=>sum+aspectPoints[n.classification],0)/scored.length;
- const key=score>=1.95?'brilliant':score>=1.55?'excellent':score>=1.2?'great':score>=.7?'good':score>=.1?'inaccuracy':score>=-.75?'mistake':'blunder';
- return{key,score,count:scored.length,errors:scored.filter(n=>['inaccuracy','mistake','blunder','chance-lost'].includes(n.classification)).length,misses:scored.filter(n=>n.classification==='chance-lost').length};
+
+function pawnAttacksSquare(color, from, target) {
+  const direction = color === 'w' ? 1 : -1;
+  return Math.abs(from.charCodeAt(0) - target.charCodeAt(0)) === 1 &&
+    Number(target[1]) - Number(from[1]) === direction;
+}
+
+function isPassedPawn(square, color, pieces) {
+  const targetRank = Number(square[1]);
+  const targetFile = square.charCodeAt(0);
+  const enemy = color === 'w' ? 'b' : 'w';
+  for (const [enemySquare, piece] of pieces) {
+    if (piece.type !== 'p' || piece.color !== enemy) continue;
+    const ahead = color === 'w'
+      ? Number(enemySquare[1]) > targetRank
+      : Number(enemySquare[1]) < targetRank;
+    if (ahead && Math.abs(enemySquare.charCodeAt(0) - targetFile) <= 1) return false;
+  }
+  return true;
+}
+
+function isPawnSupported(square, color, pieces) {
+  for (const [from, piece] of pieces) {
+    if (piece.type === 'p' && piece.color === color && pawnAttacksSquare(color, from, square)) return true;
+  }
+  return false;
+}
+
+function isPawnAttacked(square, color, pieces) {
+  const enemy = color === 'w' ? 'b' : 'w';
+  for (const [from, piece] of pieces) {
+    if (piece.type === 'p' && piece.color === enemy && pawnAttacksSquare(enemy, from, square)) return true;
+  }
+  return false;
+}
+
+function isOutpost(square, color, pieces) {
+  const rank = Number(square[1]);
+  const advanced = color === 'w' ? rank >= 5 : rank <= 4;
+  const centralFile = 'cdef'.includes(square[0]);
+  return advanced && centralFile &&
+    isPawnSupported(square, color, pieces) &&
+    !isPawnAttacked(square, color, pieces);
+}
+
+function filePawnCounts(pieces, file) {
+  let white = 0;
+  let black = 0;
+  for (const [square, piece] of pieces) {
+    if (square[0] !== file || piece.type !== 'p') continue;
+    if (piece.color === 'w') white++;
+    else black++;
+  }
+  return { w: white, b: black };
+}
+
+function rookFileTheme(square, color, pieces) {
+  const rook = pieces.get(square);
+  if (rook?.type !== 'r' || rook.color !== color) return null;
+  const pawns = filePawnCounts(pieces, square[0]);
+  if (pawns.w === 0 && pawns.b === 0) return 'Coluna aberta';
+  if (pawns[color] === 0) return 'Coluna semiaberta';
+  return null;
+}
+
+function pawnStructureTheme(move, beforePieces, afterPieces) {
+  if (move.piece !== 'p') return null;
+  const pawn = afterPieces.get(move.to);
+  if (pawn?.type !== 'p' || pawn.color !== move.color) return null;
+
+  const before = filePawnCounts(beforePieces, move.to[0])[move.color];
+  const after = filePawnCounts(afterPieces, move.to[0])[move.color];
+  if (after >= 2 && after > before) return 'Peões dobrados';
+
+  const hasAdjacentPawn = pieces => [...pieces].some(([square, piece]) =>
+    piece.type === 'p' && piece.color === move.color &&
+    Math.abs(square.charCodeAt(0) - move.to.charCodeAt(0)) === 1
+  );
+  if (hasAdjacentPawn(beforePieces) && !hasAdjacentPawn(afterPieces)) {
+    return 'Peão isolado';
+  }
+  return null;
+}
+
+function kingSquare(pieces, color) {
+  for (const [square, piece] of pieces) {
+    if (piece.type === 'k' && piece.color === color) return square;
+  }
+  return null;
+}
+
+function centerDistance(square) {
+  if (!square) return Infinity;
+  return Math.abs(square.charCodeAt(0) - 100.5) + Math.abs(Number(square[1]) - 4.5);
+}
+
+function createsOpposition(beforePieces, afterPieces, color) {
+  const enemy = color === 'w' ? 'b' : 'w';
+  const beforeOwn = kingSquare(beforePieces, color);
+  const beforeEnemy = kingSquare(beforePieces, enemy);
+  const afterOwn = kingSquare(afterPieces, color);
+  const afterEnemy = kingSquare(afterPieces, enemy);
+  const alignedOpposition = (a, b) => {
+    if (!a || !b) return false;
+    const sameLine = a[0] === b[0] || a[1] === b[1];
+    const distance = Math.abs(a.charCodeAt(0) - b.charCodeAt(0)) +
+      Math.abs(Number(a[1]) - Number(b[1]));
+    return sameLine && distance >= 2 && distance % 2 === 0;
+  };
+  return alignedOpposition(afterOwn, afterEnemy) &&
+    !alignedOpposition(beforeOwn, beforeEnemy);
+}
+
+function improvesCentralPressure(Chess, node, color) {
+  const central = ['d4', 'e4', 'd5', 'e5'];
+  if (central.includes(node.move.to)) return true;
+  if (!Chess) return false;
+  try {
+    const before = new Chess(node.parent.fen);
+    const after = new Chess(node.fen || node.move.after);
+    return central.some(square =>
+      after.attackers(square, color).length > before.attackers(square, color).length
+    );
+  } catch {
+    return false;
+  }
+}
+
+function hasTacticalContinuation(Chess, node) {
+  const pv = node.coach?.choices?.[0]?.pv || [];
+  if (!pv.length) return false;
+  const board = new Chess(node.parent.fen);
+  for (const uci of pv.slice(0, 5)) {
+    let move;
+    try { move = board.move(decode(uci)); } catch { break; }
+    if (move.captured || move.promotion || move.san.includes('+') || board.isCheckmate()) return true;
+  }
+  return false;
+}
+
+export function aspectEvidence(node, phase, Chess = null) {
+  const move = node?.move;
+  if (!move || !node.parent || !node.coach) return new Map();
+
+  const tags = new Map();
+  const color = move.color;
+  const beforePieces = boardSquares(node.parent.fen);
+  const afterPieces = boardSquares(node.fen || move.after);
+  if (!beforePieces.size || !afterPieces.size) return tags;
+
+  const fromRank = Number(move.from[1]);
+  const toRank = Number(move.to[1]);
+  const homeRank = color === 'w' ? 1 : 8;
+  const forward = color === 'w' ? toRank > fromRank : toRank < fromRank;
+  const development = ['n', 'b'].includes(move.piece) &&
+    fromRank === homeRank && forward;
+  const castle = move.san.startsWith('O-O');
+  const earlyQueen = move.piece === 'q' && phase === 'opening' &&
+    Number(node.parent.fen.split(/\s+/)[5]) <= 6;
+  const central = improvesCentralPressure(Chess, node, color);
+  const pawn = afterPieces.get(move.to);
+  const passedPawn = move.piece === 'p' && pawn?.type === 'p' &&
+    pawn.color === color && isPassedPawn(move.to, color, afterPieces);
+  const pawnStructure = pawnStructureTheme(move, beforePieces, afterPieces);
+  const outpost = move.piece === 'n' && isOutpost(move.to, color, afterPieces);
+  const fileTheme = move.piece === 'r' && move.from[0] !== move.to[0]
+    ? rookFileTheme(move.to, color, afterPieces)
+    : null;
+  const opposition = phase === 'endgame' &&
+    createsOpposition(beforePieces, afterPieces, color);
+  const ownKingBefore = kingSquare(beforePieces, color);
+  const ownKingAfter = kingSquare(afterPieces, color);
+  const kingCentralized = phase === 'endgame' && move.piece === 'k' &&
+    centerDistance(ownKingAfter) < centerDistance(ownKingBefore);
+  const tactical = Boolean(
+    node.chanceLost || move.captured || move.promotion ||
+    move.san.includes('+') || move.san.includes('#') ||
+    (Chess && hasTacticalContinuation(Chess, node) &&
+      ['brilliant', 'great', 'best', 'excellent', 'inaccuracy', 'mistake', 'blunder'].includes(node.classification))
+  );
+
+  const set = (area, reason) => tags.set(area, reason);
+
+  if (phase === 'opening') {
+    if (node.classification === 'theory') {
+      set('Abertura', 'Teoria de abertura');
+    } else if (development) {
+      set('Abertura', 'Desenvolvimento de peças');
+    } else if (castle) {
+      set('Abertura', 'Roque e segurança do rei');
+    } else if (central) {
+      set('Abertura', 'Disputa pelo centro');
+    } else if (earlyQueen) {
+      set('Abertura', 'Saída precoce da dama');
+    }
+
+    if (castle) set('Princípios', 'Segurança do rei');
+    else if (development) set('Princípios', 'Desenvolvimento');
+    else if (central) set('Princípios', 'Controle do centro');
+    else if (earlyQueen) set('Princípios', 'Desenvolvimento antes de expor a dama');
+  }
+
+  if (tactical) {
+    set('Táticas', node.chanceLost
+      ? 'Oportunidade tática perdida'
+      : move.promotion
+        ? 'Promoção'
+        : move.captured
+          ? 'Captura e cálculo'
+          : move.san.includes('#')
+            ? 'Xeque-mate'
+            : move.san.includes('+')
+              ? 'Ataque com xeque'
+              : 'Continuação tática');
+  }
+
+  if (phase === 'middlegame') {
+    if (passedPawn) set('Estratégia', 'Avanço de peão passado');
+    else if (outpost) set('Estratégia', 'Posto avançado protegido');
+    else if (pawnStructure) set('Estratégia', pawnStructure);
+    else if (fileTheme) set('Estratégia', fileTheme);
+    if (central) set('Princípios', 'Pressão e ocupação do centro');
+    else if (outpost) set('Princípios', 'Casa avançada protegida');
+    else if (pawnStructure) set('Princípios', 'Estrutura de peões');
+  }
+
+  if (phase === 'endgame') {
+    if (passedPawn) {
+      set('Final', 'Peão passado');
+      set('Princípios', 'Avanço do peão passado');
+    } else if (move.piece === 'p' && pawn?.type === 'p' &&
+      pawn.color === color &&
+      (color === 'w' ? toRank >= 7 : toRank <= 2)) {
+      set('Final', 'Peão avançado');
+      set('Princípios', 'Avanço do peão');
+    } else if (kingCentralized) {
+      set('Final', 'Centralização do rei');
+      set('Princípios', 'Atividade do rei');
+    } else if (opposition) {
+      set('Final', 'Oposição entre os reis');
+      set('Princípios', 'Oposição');
+    } else if (fileTheme) {
+      set('Final', 'Atividade da torre em coluna aberta');
+      set('Princípios', fileTheme);
+    }
+  }
+
+  return tags;
+}
+
+const aspectPoints = {
+  brilliant: 2.2,
+  great: 1.8,
+  excellent: 1.6,
+  best: 1.45,
+  theory: 1.35,
+  good: 1,
+  inaccuracy: 0,
+  mistake: -.8,
+  'chance-lost': -1.3,
+  blunder: -2,
+};
+
+export function aspectGrade(nodes) {
+  const scored = (nodes || []).filter(node =>
+    node && Number.isFinite(aspectPoints[node.classification])
+  );
+  if (!scored.length) return null;
+  const score = scored.reduce((sum, node) =>
+    sum + aspectPoints[node.classification], 0
+  ) / scored.length;
+  const key = score >= 1.95 ? 'brilliant'
+    : score >= 1.55 ? 'excellent'
+      : score >= 1.2 ? 'great'
+        : score >= .7 ? 'good'
+          : score >= .1 ? 'inaccuracy'
+            : score >= -.75 ? 'mistake' : 'blunder';
+  return {
+    key,
+    score,
+    count: scored.length,
+    errors: scored.filter(node =>
+      ['inaccuracy', 'mistake', 'blunder', 'chance-lost'].includes(node.classification)
+    ).length,
+    misses: scored.filter(node => node.classification === 'chance-lost').length,
+  };
 }
