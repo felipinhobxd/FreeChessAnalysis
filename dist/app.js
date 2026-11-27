@@ -47,6 +47,10 @@ function readCommunityConsent() {
     // Preserve an earlier refusal, but require fresh consent after the IP/log disclosure changed.
     if (previousCommunityConsentStorageKeys.some(key => localStorage.getItem(key) === 'declined')) {
       localStorage.setItem(communityConsentStorageKey, 'declined');
+      const preferences = readStoredPreferences();
+      preferences['community-data'] = false;
+      localStorage.setItem(preferencesStorageKey, JSON.stringify(preferences));
+      clearCommunityQueue();
       return 'declined';
     }
   } catch { /* Consent remains opt-in when storage is unavailable. */ }

@@ -119,6 +119,27 @@ test('a previous explicit refusal remains respected after the consent update', a
   expect(state).toBe('declined');
 });
 
+test('a previous v2 refusal disables a stale enabled preference during migration', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('move-by-move/language', 'en');
+    localStorage.setItem('move-by-move/chess-profile', JSON.stringify({ platform: 'none', username: '' }));
+    localStorage.setItem('move-by-move/engine-choice/v1', '1');
+    localStorage.setItem('move-by-move/community-consent/v2', 'declined');
+    localStorage.setItem('livro-de-lances/preferencias/v1', JSON.stringify({ 'engine-mode': 'lite', 'community-data': true }));
+    localStorage.setItem('move-by-move/community-pending/v2', JSON.stringify([{ game_hash: 'old-pending-sample' }]));
+  });
+  await page.goto('/analysis');
+  await expect(page.locator('#language-gate')).toBeHidden();
+  const state = await page.evaluate(() => ({
+    choice: localStorage.getItem('move-by-move/community-consent/v3'),
+    preferences: JSON.parse(localStorage.getItem('livro-de-lances/preferencias/v1') || '{}'),
+    pending: localStorage.getItem('move-by-move/community-pending/v2'),
+  }));
+  expect(state.choice).toBe('declined');
+  expect(state.preferences['community-data']).toBe(false);
+  expect(state.pending).toBeNull();
+});
+
 test('community IP and provider-log disclosure is translated in all 14 supported languages', async ({ page }) => {
   await page.goto('/analysis');
   const languages = ['en', 'pt-BR', 'es', 'fr', 'de', 'it', 'nl', 'ru', 'zh-CN', 'ja', 'ko', 'tr', 'ar', 'hi'];
