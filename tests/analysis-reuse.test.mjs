@@ -64,7 +64,7 @@ test('live analysis and full review actually share only validated results', asyn
   const app = await readFile(new URL('../dist/app.js', import.meta.url), 'utf8');
   assert.match(app, /import \{ liveLinesFor, reviewLinesFor, reviewDataFromLive \} from '\.\/analysis-reuse\.js'/);
   assert.match(app, /liveLinesFor\(position\.reviewData, cache, depth, count\)/);
-  assert.match(app, /reviewLinesFor\(node\.reviewData, cache, depth, 3\)/);
+  assert.match(app, /reviewLinesFor\(node\.reviewData, cache, scanDepth, 3\)/);
   assert.match(app, /reviewLinesFor\(position\.reviewData, cache, depth, 3\)/);
   assert.match(app, /reviewDataFromLive\(cache, depth, result\.best, position\.lines, count\)/);
   assert.match(app, /result\.lines\.length === count/);
