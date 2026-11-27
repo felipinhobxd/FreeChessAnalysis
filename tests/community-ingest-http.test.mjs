@@ -281,6 +281,37 @@ test('duplicate-only RPC acknowledgements return HTTP 200, including at capacity
 });
 
 
+
+test('default HTTP path calls the shared request-budget RPC before the ingest RPC',async()=>{
+ const calls=[];
+ const handler=createIngestHandler({
+  getEnv:env,
+  now:()=>new Date(FIXED_NOW),
+  fetcher:async(url,options)=>{
+   calls.push({url,options});
+   if(url.endsWith('/rpc/fca_consume_community_request'))
+    return Response.json({allowed:true,remaining_requests:14,retry_after_seconds:60});
+   if(url.endsWith('/rpc/fca_ingest_community_games'))
+    return Response.json({accepted:1,duplicates:0,capacity_reached:false,remaining_capacity:39999});
+   throw new Error('unexpected RPC endpoint');
+  }
+ });
+ const response=await handler(request({
+  body:await payload([await validSample()]),
+  headers:{'cf-connecting-ip':'203.0.113.25'}
+ }));
+ assert.equal(response.status,200);
+ assert.equal(calls.length,2);
+ assert.ok(calls[0].url.endsWith('/rpc/fca_consume_community_request'));
+ assert.ok(calls[1].url.endsWith('/rpc/fca_ingest_community_games'));
+ const quotaBody=JSON.parse(calls[0].options.body);
+ assert.deepEqual(Object.keys(quotaBody),['p_network_hash']);
+ assert.equal(quotaBody.p_network_hash.length,66);
+ assert.ok(quotaBody.p_network_hash.startsWith('\\x'));
+ assert.equal(calls[0].options.headers.apikey,SERVICE_KEY);
+ assert.equal(calls[0].options.headers.Authorization,'Bearer '+SERVICE_KEY);
+});
+
 test('shared subnet request quota runs before chess replay and returns Retry-After',async()=>{
  let checks=0,rpcCalls=0,hashedNetwork='';
  const handler=createIngestHandler({
