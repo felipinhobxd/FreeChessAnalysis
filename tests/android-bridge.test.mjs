@@ -88,6 +88,8 @@ test('the Android bridge performs one evaluateJavascript call per batch', () => 
   const dispatch = method('dispatchNativeStockfishOutput');
   assert.equal((dispatch.match(/evaluateJavascript/g) || []).length, 1);
   assert.match(dispatch, /JSONObject\.quote\(lines\)/);
+  // The generated WebView JavaScript must use valid optional-call syntax.
+  assert.match(dispatch, /window\.__moveByMoveNativeStockfishReceive\?\.\(/);
   assert.match(dispatch, /session != nativeEngineSession/);
 });
 
