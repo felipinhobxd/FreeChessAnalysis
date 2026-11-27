@@ -71,7 +71,7 @@ test('mate changes and forcing tactical moves are refined', () => {
   assert.equal(shouldRefineMobileReview({
     before: score(0), after: score(0), move: move({ promotion: 'q', san: 'e8=Q+' }),
     bestMove: 'd2d4',
-  }), false);
+  }), true);
 });
 
 test('quiet, close alternatives do not receive unnecessary expensive refinement', () => {
@@ -100,7 +100,7 @@ test('the app uses a shallow mobile scan and selectively deepens critical positi
   assert.match(app, /const scanDepth = mobileAdaptive \? mobileReviewScanDepth\(depth\) : depth/);
   assert.ok(app.includes('const hasCompleteDeepCache = path.every(node =>'));
   assert.ok(app.includes('const activeScanDepth = adaptiveReview ? scanDepth : depth;'));
-  assert.match(app, /engine\.search\([\s\S]{0,180}scanDepth/);
+  assert.match(app, /engine\.search\([\s\S]{0,180}activeScanDepth/);
   assert.match(app, /engine\.search\([\s\S]{0,180}depth,/);
   assert.match(app, /gradeMove\(path\[index\], before\.lines, before\.best, index, after\.lines\[0\]\)/);
   assert.match(app, /Review concluída · varredura/);
