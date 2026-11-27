@@ -1129,7 +1129,8 @@ Object.assign(MESSAGES, {
     'Yerel Stockfish 19 analizleri bu cihazda kalır ve henüz topluluk istatistiklerine eklenmez.',
     'تبقى التحليلات باستخدام Stockfish 19 الأصلي على هذا الجهاز ولا تُضاف إلى إحصاءات المجتمع بعد.',
     'नेटिव Stockfish 19 की समीक्षाएँ इसी डिवाइस पर रहती हैं और अभी सामुदायिक आँकड़ों में नहीं जोड़ी जातीं।'
-
+  ]
+});
 
 const partialKeys = Object.keys(MESSAGES).filter(key => key.length > 3 && key !== 'Melhor').sort((a, b) => b.length - a.length);
 const englishReviewPatterns = [
