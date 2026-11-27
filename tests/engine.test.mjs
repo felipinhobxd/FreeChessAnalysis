@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Engine, analysisLimits, threadCountFor, hashSizeForDeviceMemory } from '../dist/engine.js';
+import { Engine, analysisLimits, threadCountFor, hashSizeForDeviceMemory, wasmThreadsFor } from '../dist/engine.js';
 import { STOCKFISH_INTEGRITY } from '../dist/engine-integrity.js';
 
 test('Full profile reserves one logical processor and scales up to sixteen threads', () => {
@@ -21,6 +21,14 @@ test('Full Hash scales with reported device memory and is capped at 512 MB', () 
   assert.equal(hashSizeForDeviceMemory(4), 256);
   assert.equal(hashSizeForDeviceMemory(8), 512);
   assert.equal(hashSizeForDeviceMemory(32), 512);
+});
+
+test('threaded WASM is selected only when cross-origin isolation and SharedArrayBuffer exist', () => {
+  assert.equal(wasmThreadsFor(15, true, true), 15);
+  assert.equal(wasmThreadsFor(11, true, true), 11);
+  assert.equal(wasmThreadsFor(11, false, true), 1);
+  assert.equal(wasmThreadsFor(11, true, false), 1);
+  assert.equal(wasmThreadsFor(0, true, true), 1);
 });
 
 function installBrowserMocks({ fetch, Worker, verifiedEngine = false }) {
