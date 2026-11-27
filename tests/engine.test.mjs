@@ -1,7 +1,37 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Engine, analysisLimits } from '../dist/engine.js';
+import { Engine, analysisLimits, threadCountFor, hashSizeForDeviceMemory, wasmThreadsFor } from '../dist/engine.js';
 import { STOCKFISH_INTEGRITY } from '../dist/engine-integrity.js';
+
+test('Full profile reserves one logical processor and scales up to sixteen threads', () => {
+  assert.equal(threadCountFor(1), 1);
+  assert.equal(threadCountFor(2), 1);
+  assert.equal(threadCountFor(4), 3);
+  assert.equal(threadCountFor(8), 7);
+  assert.equal(threadCountFor(12), 11);
+  assert.equal(threadCountFor(16), 15);
+  assert.equal(threadCountFor(24), 23);
+  assert.equal(threadCountFor(32), 31);
+  assert.equal(threadCountFor(64), 32);
+  assert.equal(threadCountFor(undefined), 1);
+});
+
+test('Full Hash scales with reported device memory and is capped at 512 MB', () => {
+  assert.equal(hashSizeForDeviceMemory(undefined), 64);
+  assert.equal(hashSizeForDeviceMemory(1), 64);
+  assert.equal(hashSizeForDeviceMemory(2), 128);
+  assert.equal(hashSizeForDeviceMemory(4), 256);
+  assert.equal(hashSizeForDeviceMemory(8), 512);
+  assert.equal(hashSizeForDeviceMemory(32), 512);
+});
+
+test('threaded WASM is selected only when cross-origin isolation and SharedArrayBuffer exist', () => {
+  assert.equal(wasmThreadsFor(15, true, true), 15);
+  assert.equal(wasmThreadsFor(11, true, true), 11);
+  assert.equal(wasmThreadsFor(11, false, true), 1);
+  assert.equal(wasmThreadsFor(11, true, false), 1);
+  assert.equal(wasmThreadsFor(0, true, true), 1);
+});
 
 function installBrowserMocks({ fetch, Worker, verifiedEngine = false }) {
   const originals = {
@@ -173,6 +203,7 @@ test('Full profile prefers the native ARM64 bridge and configures the device CPU
   let stopped = 0;
   const bridge = {
     supportsNativeStockfish: () => true,
+    getNativeStockfishProcessorCount: () => 12,
     startNativeStockfish: () => { started++; return true; },
     sendNativeStockfishCommand(command) {
       commands.push(command);
@@ -198,8 +229,8 @@ test('Full profile prefers the native ARM64 bridge and configures the device CPU
     assert.equal(profile.native, true);
     assert.equal(profile.name, 'ARM64 nativo');
     assert.equal(profile.version, '19.0');
-    assert.ok(profile.threads >= 1 && profile.threads <= 8);
-    assert.ok(profile.hash >= 64 && profile.hash <= 256);
+    assert.equal(profile.threads, 11);
+    assert.equal(profile.hash, 64);
     assert.ok(commands.includes('setoption name Threads value ' + profile.threads));
     assert.ok(commands.includes('setoption name Hash value ' + profile.hash));
     assert.ok(!commands.some(command => command.includes('stockfish-19-single.js')));

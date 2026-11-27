@@ -6,3 +6,7 @@ node_modules/
 /dist/vendor/
 /playwright-report/
 /test-results/
+
+# Downloaded/generated Android native executables and ABI compatibility markers.
+/android/app/src/main/jniLibs/*/libstockfish.so
+/android/app/src/main/jniLibs/*/libmovebymove_abi_stub.so

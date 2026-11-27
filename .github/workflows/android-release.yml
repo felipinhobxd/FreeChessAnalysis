@@ -7,12 +7,16 @@ on:
       - "android/**"
       - ".github/workflows/android-release.yml"
       - "tools/prepare-android-stockfish.sh"
+      - "tools/prepare-android-abi-stubs.sh"
+      - "tools/abi-stub.c"
   push:
     branches: [main]
     paths:
       - "android/**"
       - ".github/workflows/android-release.yml"
       - "tools/prepare-android-stockfish.sh"
+      - "tools/prepare-android-abi-stubs.sh"
+      - "tools/abi-stub.c"
 
 permissions:
   contents: write
@@ -55,7 +59,10 @@ jobs:
           packages: ''
 
       - name: Install Android SDK components
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
+
+      - name: Prepare install-compatible fallback ABIs
+        run: bash tools/prepare-android-abi-stubs.sh
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -89,7 +96,10 @@ jobs:
           APK="android/app/build/outputs/apk/release/app-release.apk"
           unzip -l "$APK" | grep -q 'lib/arm64-v8a/libstockfish.so'
           unzip -l "$APK" | grep -q 'assets/Stockfish-Copying.txt'
-          echo "Native ARM64 Stockfish and GPLv3 license are present in the APK."
+          unzip -l "$APK" | grep -q 'lib/armeabi-v7a/libmovebymove_abi_stub.so'
+          unzip -l "$APK" | grep -q 'lib/x86/libmovebymove_abi_stub.so'
+          unzip -l "$APK" | grep -q 'lib/x86_64/libmovebymove_abi_stub.so'
+          echo "Native ARM64 Stockfish, GPLv3 license and fallback ABI markers are present in the APK."
 
       - name: Prepare release asset
         shell: bash
@@ -122,12 +132,12 @@ jobs:
 
             - The **Full** profile uses the official Stockfish 19 ARM64 universal native Android executable when supported.
             - On Android 10+ ARM64 devices, the native engine runs directly on the phone CPU with multiple threads and device-adaptive Hash.
-            - Incompatible devices and browser users continue to use the verified WebAssembly engine.
+            - Devices without ARM64 native support install using tiny ABI compatibility markers and use the verified WebAssembly engine instead.
             - An internet connection is required to load the website and fetch any selected WebAssembly fallback build.
             - The bundled ARM64 engine is the unmodified official Stockfish 19 Android release, verified against its published SHA-256 digest. Source: https://github.com/official-stockfish/Stockfish/tree/sf_19
 
             **Installation:** Download the APK below, allow your browser or file manager to install apps from this source, and open Move by Move.
 
-            **Signing note:** This first sideload build uses the GitHub runner's debug signing key. It is suitable for testing, but it is not a permanent update-signing identity. Future versions intended to update this installation in place require a private, persistent release keystore configured in GitHub Actions secrets. Do not uninstall this build unless you are prepared to reinstall it from a future APK if its signing key changes.
+            **Signing note:** This sideload build uses the GitHub runner's temporary debug signing key. Because that key is not persistent between workflow runs, future APKs may not install as in-place updates over this build. Configure a private, persistent release keystore in GitHub Actions secrets before relying on seamless app updates.
 
             This is a direct-download APK, not a Google Play release.
