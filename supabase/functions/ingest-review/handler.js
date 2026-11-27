@@ -76,6 +76,7 @@ export function createIngestHandler(options={}){
  const fetcher=options.fetcher||globalThis.fetch;
  const now=options.now||(()=>new Date());
  const networkFromHeaders=options.networkFromHeaders||trustedNetworkFromHeaders;
+ const dbTimeoutMs=Number.isSafeInteger(options.dbTimeoutMs)&&options.dbTimeoutMs>0?options.dbTimeoutMs:DB_TIMEOUT_MS;
 
  return async request=>{
   const origin=request.headers.get('origin')||'';
@@ -145,7 +146,7 @@ export function createIngestHandler(options={}){
      'Content-Type':'application/json'
     },
     body:JSON.stringify({p_client_hash:client,p_network_hash:network,p_samples:samples}),
-    signal:AbortSignal.timeout(DB_TIMEOUT_MS)
+    signal:AbortSignal.timeout(dbTimeoutMs)
    });
   }catch{
    return reply({error:'Database unavailable'},503,origin);
