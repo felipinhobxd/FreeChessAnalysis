@@ -177,7 +177,6 @@ export function createIngestHandler(options={}){
 
   let response;
   try{
-   const sign=await signer(serviceKey);
    const day=requestDay;
    const client='\\x'+await sign('client:'+day+':'+payload.client_id);
    const network='\\x'+await sign('network:'+day+':'+networkPrefix);
