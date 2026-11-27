@@ -459,9 +459,13 @@ public final class MainActivity extends Activity {
                 } else {
                     scheduleFlushLocked();
                 }
+
+                // Queue each batch while holding the same lock used by timer
+                // flushes. This preserves stdout order if a timer fires while
+                // the reader thread is appending the next line.
+                if (previousBatch != null) dispatchNativeStockfishOutput(session, previousBatch);
+                if (completedBatch != null) dispatchNativeStockfishOutput(session, completedBatch);
             }
-            if (previousBatch != null) dispatchNativeStockfishOutput(session, previousBatch);
-            if (completedBatch != null) dispatchNativeStockfishOutput(session, completedBatch);
         }
 
         private void scheduleFlushLocked() {
@@ -492,11 +496,13 @@ public final class MainActivity extends Activity {
         }
 
         private void flush() {
-            String pending;
             synchronized (lock) {
-                pending = drainLocked();
+                String pending = drainLocked();
+                if (pending != null) {
+                    // Dispatch under the same lock as append() to keep batches ordered.
+                    dispatchNativeStockfishOutput(session, pending);
+                }
             }
-            if (pending != null) dispatchNativeStockfishOutput(session, pending);
         }
     }
 
