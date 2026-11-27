@@ -1907,7 +1907,9 @@ async function runLive(position, showInReport = false) {
     if (live !== task) return;
     update(result.lines);
     position.liveKey = key;
-    const seeded = reviewDataFromLive(cache, depth, result.best, position.lines, count);
+    const seeded = result.lines.length === count
+      ? reviewDataFromLive(cache, depth, result.best, position.lines, count)
+      : null;
     if (seeded && !reviewLinesFor(position.reviewData, cache, depth, 3)) {
       position.reviewData = seeded;
     }
