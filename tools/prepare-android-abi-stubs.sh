@@ -26,6 +26,7 @@ fi
 build_stub() {
   local abi="$1"
   local target="$2"
+  local expected_machine="$3"
   local destination="$DEST_ROOT/$abi/libmovebymove_abi_stub.so"
 
   mkdir -p "$(dirname "$destination")"
@@ -34,14 +35,19 @@ build_stub() {
     "$SOURCE" -o "$destination"
 
   test -s "$destination"
-  readelf -h "$destination" | grep -q 'Machine:'
-  echo "Prepared Android ABI fallback marker:"
+  local actual_machine
+  actual_machine="$(readelf -h "$destination" | sed -n 's/^[[:space:]]*Machine:[[:space:]]*//p')"
+  if [[ "$actual_machine" != "$expected_machine" ]]; then
+    echo "ABI marker for $abi has the wrong ELF machine: $actual_machine (expected $expected_machine)." >&2
+    exit 1
+  fi
+  echo "Prepared Android ABI fallback marker ($abi):"
   file "$destination"
 }
 
 # The actual Stockfish executable is ARM64 only. These tiny shared libraries
 # are installation markers, allowing 32-bit ARM and x86 devices to install the
 # Java/WebView app and use the existing WASM engine instead.
-build_stub "armeabi-v7a" "armv7a-linux-androideabi23"
-build_stub "x86" "i686-linux-android23"
-build_stub "x86_64" "x86_64-linux-android23"
+build_stub "armeabi-v7a" "armv7a-linux-androideabi23" "ARM"
+build_stub "x86" "i686-linux-android23" "Intel 80386"
+build_stub "x86_64" "x86_64-linux-android23" "Advanced Micro Devices X86-64"
