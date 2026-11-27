@@ -247,3 +247,21 @@ test('malformed PostgREST acknowledgements fail closed instead of claiming succe
   assert.equal(response.status,503);
  }
 });
+
+
+test('PostgREST abort timeout is enforced and returned as a sanitized 503',async()=>{
+ const body=await payload([await validSample()]);
+ const handler=createIngestHandler({
+  getEnv:env,
+  now:()=>new Date(FIXED_NOW),
+  dbTimeoutMs:5,
+  fetcher:(_url,{signal})=>new Promise((resolve,reject)=>{
+   const abort=()=>reject(signal.reason||new Error('aborted'));
+   if(signal.aborted){abort();return;}
+   signal.addEventListener('abort',abort,{once:true});
+  })
+ });
+ const response=await handler(request({body,headers:{'cf-connecting-ip':'203.0.113.25'}}));
+ assert.equal(response.status,503);
+ assert.equal((await response.json()).error,'Database unavailable');
+});
