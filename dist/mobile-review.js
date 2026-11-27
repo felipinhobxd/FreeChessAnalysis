@@ -53,5 +53,5 @@ export function shouldRefineMobileReview({
   if (loss >= 2) return true;
 
   const tactical = Boolean(move.captured || move.promotion || /[+#]/.test(move.san || ''));
-  return tactical && loss >= 0.75;
+  return tactical;
 }
