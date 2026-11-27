@@ -85,6 +85,18 @@ test('benchmark real Stockfish Lite game review on a throttled mobile browser', 
     await page.goto('/analysis');
     const engineRuns = await page.evaluate(async ({ positions, configs }) => {
       const { Engine } = await import('/engine.js');
+      const summarizeSamples = samples => {
+        const sorted = samples.map(sample => sample.elapsedMs).sort((a, b) => a - b);
+        const sum = samples.reduce((total, sample) => total + sample.elapsedMs, 0);
+        return {
+          searches: samples.length,
+          totalMs: Math.round(sum),
+          meanMs: Math.round(sum / Math.max(1, samples.length)),
+          medianMs: Math.round(sorted[Math.floor(sorted.length / 2)] || 0),
+          p95Ms: Math.round(sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * 0.95) - 1)] || 0),
+          averageDepth: Number((samples.reduce((total, sample) => total + sample.depth, 0) / Math.max(1, samples.length)).toFixed(1)),
+        };
+      };
       const reports = [];
       for (const config of configs) {
         const engine = new Engine('lite');
@@ -109,7 +121,7 @@ test('benchmark real Stockfish Lite game review on a throttled mobile browser', 
             engine: profile.identity,
             threads: profile.threads,
             initializationMs: Math.round(initializationMs),
-            ...summarize(samples),
+            ...summarizeSamples(samples),
           });
         } finally {
           engine.dispose();
