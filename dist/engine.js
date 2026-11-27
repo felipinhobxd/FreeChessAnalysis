@@ -227,7 +227,7 @@ export class Engine {
       if (option) maxThreads = Number(option[1]);
       return line === 'uciok' ? true : undefined;
     }, build.timeout);
-    if (!/^Stockfish 19(?:\\b|$)/i.test(identity)) throw new Error('Versão do motor incompatível.');
+    if (!/^Stockfish 19(?:\b|$)/i.test(identity)) throw new Error('Versão do motor incompatível.');
     if (build.threads > maxThreads) throw new Error('Compilação sem suporte às linhas de processamento.');
     await this.exchange([
       'setoption name Threads value ' + build.threads,
