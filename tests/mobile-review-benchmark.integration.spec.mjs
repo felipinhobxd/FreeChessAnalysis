@@ -1,9 +1,11 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { Chess } from 'chess.js';
 import { test, expect } from '@playwright/test';
+
+test.describe.configure({ retries: 0 });
 import { fileURLToPath } from 'node:url';
 
-function createDeterministicGame(plies = 6) {
+function createDeterministicGame(plies = 12) {
   const chess = new Chess();
   let seed = 0x19a2026;
   for (let ply = 0; ply < plies; ply++) {
@@ -62,7 +64,7 @@ test('benchmark Stockfish Lite depth and MultiPV combinations on mobile CPU limi
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
   await serveBundledLite(page);
 
-  const fixture = createDeterministicGame(6);
+  const fixture = createDeterministicGame(12);
   const replay = new Chess();
   const positions = [replay.fen()];
   replay.loadPgn(fixture.pgn);
@@ -70,7 +72,7 @@ test('benchmark Stockfish Lite depth and MultiPV combinations on mobile CPU limi
   const sampleBoard = new Chess();
   for (const [index, move] of history.entries()) {
     sampleBoard.move({ from: move.from, to: move.to, promotion: move.promotion });
-    if (index === 3 || index === history.length - 1) positions.push(sampleBoard.fen());
+    if (index === 5 || index === history.length - 1) positions.push(sampleBoard.fen());
   }
 
   const configurations = [
@@ -137,20 +139,23 @@ test('benchmark Stockfish Lite depth and MultiPV combinations on mobile CPU limi
   }
 });
 
-test('benchmark the actual full-game mobile Lite review end to end', async ({ browser }) => {
-  test.setTimeout(300_000);
-  const context = await browser.newContext({
+async function measureFullReview(browser, fixture, mobile) {
+  const context = await browser.newContext(mobile ? {
     viewport: { width: 390, height: 844 },
     screen: { width: 390, height: 844 },
     deviceScaleFactor: 2,
     isMobile: true,
     hasTouch: true,
+  } : {
+    viewport: { width: 1280, height: 900 },
+    deviceScaleFactor: 1,
+    isMobile: false,
+    hasTouch: false,
   });
   const page = await context.newPage();
   const cdp = await context.newCDPSession(page);
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
   await serveBundledLite(page);
-  const fixture = createDeterministicGame(6);
 
   try {
     await unlockApp(page);
@@ -163,26 +168,51 @@ test('benchmark the actual full-game mobile Lite review end to end', async ({ br
     await page.locator('#review-btn').click();
     await expect(page.locator('#review-progress')).toBeVisible();
     await expect.poll(async () => page.locator('#review-progress').evaluate(el => el.hidden), {
-      timeout: 270_000,
+      timeout: 300_000,
       intervals: [250, 500, 1000],
     }).toBe(true);
     await expect(page.locator('#report-status')).toContainText(/Revisão concluída/);
-    await expect(page.locator('#report-status')).toContainText('varredura 12');
-    await expect(page.locator('#report-status')).toContainText('até 14');
-    const fullReviewMs = await page.evaluate(start => performance.now() - start, reviewStartedAt);
-    const report = JSON.parse(await readFile(REPORT, 'utf8'));
-    report.fullReview = {
+
+    const elapsedMs = Math.round(await page.evaluate(start => performance.now() - start, reviewStartedAt));
+    const status = (await page.locator('#report-status').innerText()).trim();
+    if (mobile) {
+      await expect(page.locator('#report-status')).toContainText('varredura 12');
+      await expect(page.locator('#report-status')).toContainText('até 14');
+    } else {
+      await expect(page.locator('#report-status')).toContainText('profundidade 14');
+    }
+    return {
+      mode: mobile ? 'mobile-adaptive' : 'desktop-baseline',
       plies: fixture.plies,
       positions: fixture.plies + 1,
-      elapsedMs: Math.round(fullReviewMs),
-      seconds: Number((fullReviewMs / 1000).toFixed(2)),
-      millisecondsPerPosition: Math.round(fullReviewMs / (fixture.plies + 1)),
-      completedDepth: (await page.locator('#report-status').innerText()).trim(),
+      elapsedMs,
+      seconds: Number((elapsedMs / 1000).toFixed(2)),
+      millisecondsPerPosition: Math.round(elapsedMs / (fixture.plies + 1)),
+      completionStatus: status,
     };
-    report.generatedAt = new Date().toISOString();
-    await writeFile(REPORT, JSON.stringify(report, null, 2));
-    console.log('MOBILE_REVIEW_BENCHMARK ' + JSON.stringify(report));
   } finally {
     await context.close();
   }
+}
+
+test('compare full review baseline against adaptive mobile Lite review', async ({ browser }) => {
+  test.setTimeout(660_000);
+  const fixture = createDeterministicGame(12);
+
+  const baseline = await measureFullReview(browser, fixture, false);
+  const mobileAdaptive = await measureFullReview(browser, fixture, true);
+  const speedup = Number((baseline.elapsedMs / mobileAdaptive.elapsedMs).toFixed(2));
+  const timeSavedPercent = Number((100 * (1 - mobileAdaptive.elapsedMs / baseline.elapsedMs)).toFixed(1));
+
+  const report = JSON.parse(await readFile(REPORT, 'utf8'));
+  report.fullReview = {
+    baseline,
+    mobileAdaptive,
+    speedup,
+    timeSavedPercent,
+  };
+  report.generatedAt = new Date().toISOString();
+  await writeFile(REPORT, JSON.stringify(report, null, 2));
+  console.log('MOBILE_REVIEW_AB_BENCHMARK ' + JSON.stringify(report));
+  expect(mobileAdaptive.elapsedMs).toBeLessThan(baseline.elapsedMs);
 });
