@@ -97,9 +97,18 @@ function saveCommunityConsent(allowed) {
   refreshCommunityConsentUI();
   if (!allowed) clearCommunityQueue();
 }
+function hasNativeStockfish() {
+  try {
+    return typeof globalThis.MoveByMoveAndroid?.supportsNativeStockfish === 'function' &&
+      globalThis.MoveByMoveAndroid.supportsNativeStockfish() === true;
+  } catch {
+    return false;
+  }
+}
 function readEngineChoice() {
   const mode = readStoredPreferences()['engine-mode'];
-  return ['lite', 'full', 'economy'].includes(mode) ? mode : 'lite';
+  if (['lite', 'full', 'economy'].includes(mode)) return mode;
+  return hasNativeStockfish() ? 'full' : 'lite';
 }
 function hasSavedEngineChoice() {
   const mode = readStoredPreferences()['engine-mode'];
