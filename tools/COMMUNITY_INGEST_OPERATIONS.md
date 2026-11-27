@@ -39,3 +39,13 @@ The repository CI runs:
 Before deploying a new function version, verify that the production migrations include the 40,000-row capacity and 180-day retention policy, confirm the required Supabase secrets exist, and verify that `cf-connecting-ip` is present in hosted Edge Function requests. Deploy all files in `supabase/functions/ingest-review/`, not just `index.ts`.
 
 A deployment is a separate production action. A green GitHub/Vercel status does not mean the Supabase Edge Function has been deployed.
+
+## Platform logging and privacy
+
+The hosted Supabase Edge Function log stream currently includes request metadata such as `cf-connecting-ip`, request IDs, user-agent, and Cloudflare network metadata. The application HMACs the client and subnet identifiers before sending them to Postgres, but that does **not** remove the original request metadata from Supabase's own operational logs.
+
+The privacy notice should distinguish between:
+- the community dataset stored by the application (which stores HMAC-protected client/network keys, not plaintext IP addresses); and
+- request metadata processed or retained by the hosting provider's operational logging.
+
+Review who can access project logs and the provider's log-retention settings before describing IP handling as anonymous or claiming the IP is never collected.
