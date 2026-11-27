@@ -38,7 +38,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y qemu-user
           ENGINE="android/app/src/main/jniLibs/arm64-v8a/libstockfish.so"
-          printf 'uci\\nisready\\nquit\\n' | qemu-aarch64 "$ENGINE" | tee /tmp/stockfish-native-uci.log
+          printf 'uci\nisready\nquit\n' | qemu-aarch64 "$ENGINE" | tee /tmp/stockfish-native-uci.log
           grep -E '^id name Stockfish 19([[:space:]]|$)' /tmp/stockfish-native-uci.log
           grep -qx 'uciok' /tmp/stockfish-native-uci.log
           grep -qx 'readyok' /tmp/stockfish-native-uci.log
