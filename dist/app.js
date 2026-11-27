@@ -1517,7 +1517,7 @@ function renderPuzzles() {
         const hint = element('button', puzzle.hint ? 'Ocultar dica' : 'Ver dica', 'mini puzzle-hint-button');
         hint.type = 'button';
         hint.setAttribute('aria-expanded', String(puzzle.hint));
-        hint.onclick = () => { puzzle.hint = !puzzle.hint; render(); scheduleStudy(); $('puzzle-content').querySelector('.puzzle-hint-button')?.focus(); };
+        hint.onclick = () => { puzzle.hint = !puzzle.hint; selected = null; render(); scheduleStudy(); $('puzzle-content').querySelector('.puzzle-hint-button')?.focus(); };
         card.append(hint);
         if (puzzle.hint) {
           let message;
