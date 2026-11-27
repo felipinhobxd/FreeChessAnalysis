@@ -41,7 +41,13 @@ The repository CI runs:
 - PostgreSQL integration tests for the migrations/RPC
 - `deno check` for the deployed Edge Function entrypoint and its Deno/NPM import map
 
-Before deploying a new function version, verify that the production migrations include the 40,000-row capacity and 180-day retention policy, confirm the required Supabase secrets exist, and verify that `cf-connecting-ip` is present in hosted Edge Function requests. Deploy all files in `supabase/functions/ingest-review/`, not just `index.ts`.
+Before deploying the request-limiter version of the Edge Function:
+1. Apply `supabase/migrations/20261127131500_community_request_rate_limit.sql` first.
+2. Verify that `public.fca_consume_community_request(bytea)` exists and execution is restricted to `service_role`.
+3. Confirm the production 40,000-row capacity, 180-day retention job, required Supabase secrets, and trusted `cf-connecting-ip` header.
+4. Deploy all files in `supabase/functions/ingest-review/`, not just `index.ts`.
+
+The new Edge Function deliberately fails closed with HTTP 503 when its request-budget RPC is unavailable. Do not deploy the handler before applying the migration. This PR does not apply the migration or deploy the production function.
 
 A deployment is a separate production action. A green GitHub/Vercel status does not mean the Supabase Edge Function has been deployed.
 
