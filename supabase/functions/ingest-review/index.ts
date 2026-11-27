@@ -2,7 +2,7 @@ import {trustedNetworkFromHeaders} from './ip-network.js';
 import {cleanCommunitySample} from './validation.js';
 
 const ORIGINS=new Set(['https://freechessanalysis.vercel.app','http://localhost:8787','http://127.0.0.1:8787']);
-const MAX_BYTES=131072,BATCH=5,MAX_PLIES=500;
+const MAX_BYTES=131072,BATCH=5;
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CORS={'Access-Control-Allow-Methods':'POST, OPTIONS','Access-Control-Allow-Headers':'apikey, content-type','Access-Control-Expose-Headers':'Retry-After','Access-Control-Max-Age':'86400','Vary':'Origin'};
 function reply(body,status,origin,extraHeaders={}){
