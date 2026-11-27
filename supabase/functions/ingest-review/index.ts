@@ -1,3 +1,5 @@
+import {normalizeIpNetwork} from './ip-network.js';
+
 const ORIGINS=new Set(['https://freechessanalysis.vercel.app','http://localhost:8787','http://127.0.0.1:8787']);
 const MAX_BYTES=131072,BATCH=5,MAX_PLIES=500;
 const HASH=/^[a-f0-9]{64}$/,UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -81,9 +83,10 @@ Deno.serve(async request=>{
  const sign=await signer(serviceKey);
  const day=new Date().toISOString().slice(0,10);
  const client='\\x'+await sign('client:'+day+':'+payload.client_id);
- const address=request.headers.get('cf-connecting-ip')||request.headers.get('x-real-ip')||
-  (request.headers.get('x-forwarded-for')||'').split(',')[0].trim();
- const network=address&&address.length<=64?'\\x'+await sign('network:'+day+':'+address):null;
+ const address=request.headers.get('cf-connecting-ip')||'';
+ const networkPrefix=normalizeIpNetwork(address);
+ if(!networkPrefix)return reply({error:'Client network unavailable'},503,origin);
+ const network='\\x'+await sign('network:'+day+':'+networkPrefix);
  for(const sample of samples)sample.game_hash=await sign('game:'+sample.game_hash);
  const base=databaseUrl.endsWith('/')?databaseUrl.slice(0,-1):databaseUrl;
  let response;
