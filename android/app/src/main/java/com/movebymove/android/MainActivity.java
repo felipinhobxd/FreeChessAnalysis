@@ -12,6 +12,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.CookieManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.DownloadListener;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
@@ -20,6 +21,10 @@ import android.webkit.WebSettings;
 import android.webkit.ValueCallback;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 import android.widget.FrameLayout;
 import android.widget.ProgressBar;
 import android.widget.Toast;
@@ -30,11 +35,13 @@ public final class MainActivity extends Activity {
     private static final int BACKGROUND = Color.rgb(35, 38, 32);
     private static final int ACCENT = Color.rgb(184, 216, 139);
     private static final int FILE_CHOOSER_REQUEST_CODE = 1017;
+    private static final int CREATE_DOCUMENT_REQUEST_CODE = 1018;
 
     private WebView webView;
     private ProgressBar progressBar;
     private boolean threadingWarningShown;
     private ValueCallback<Uri[]> fileChooserCallback;
+    private String pendingExportContent;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -52,6 +59,7 @@ public final class MainActivity extends Activity {
         webView.setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
         webView.setFocusable(true);
         webView.setFocusableInTouchMode(true);
+        webView.addJavascriptInterface(new NativeFileBridge(), "MoveByMoveAndroid");
 
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -119,6 +127,7 @@ public final class MainActivity extends Activity {
                 progressBar.setProgress(100);
                 progressBar.setVisibility(View.GONE);
                 checkLocalMultithreadingSupport();
+                installPgnExportBridge();
             }
 
             @Override
@@ -218,6 +227,59 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private void installPgnExportBridge() {
+        if (webView == null) {
+            return;
+        }
+        String script = "(function(){"
+                + "if(window.__moveByMoveNativePgnExport) return;"
+                + "window.__moveByMoveNativePgnExport = true;"
+                + "const create = URL.createObjectURL.bind(URL);"
+                + "URL.createObjectURL = function(value){"
+                + "const address = create(value);"
+                + "if(value instanceof Blob && value.type === 'application/x-chess-pgn'){"
+                + "value.text().then(text => window.MoveByMoveAndroid.savePgn('partida.pgn', text));"
+                + "}"
+                + "return address;"
+                + "};"
+                + "})();";
+        webView.evaluateJavascript(script, null);
+    }
+
+    private void requestPgnExport(String fileName, String content) {
+        if (pendingExportContent != null || content == null || content.length() > 5_000_000) {
+            Toast.makeText(this, "O PGN está vazio, muito grande ou já está sendo salvo.", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        pendingExportContent = content;
+        String safeName = fileName == null ? "partida.pgn" : fileName.replaceAll("[^A-Za-z0-9._-]", "_");
+        if (safeName.isEmpty() || !safeName.toLowerCase(Locale.ROOT).endsWith(".pgn")) {
+            safeName = "partida.pgn";
+        }
+
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("text/plain");
+        intent.putExtra(Intent.EXTRA_TITLE, safeName);
+        try {
+            startActivityForResult(intent, CREATE_DOCUMENT_REQUEST_CODE);
+        } catch (ActivityNotFoundException ignored) {
+            pendingExportContent = null;
+            Toast.makeText(this, "Não foi possível abrir o seletor para salvar o PGN.", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private final class NativeFileBridge {
+        @JavascriptInterface
+        public void savePgn(String fileName, String content) {
+            if (webView == null || content == null || !isAppUrl(Uri.parse(webView.getUrl()))) {
+                return;
+            }
+            runOnUiThread(() -> requestPgnExport(fileName, content));
+        }
+    }
+
     private void checkLocalMultithreadingSupport() {
         if (threadingWarningShown || webView == null) {
             return;
@@ -268,6 +330,22 @@ public final class MainActivity extends Activity {
     @SuppressWarnings("deprecation")
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == CREATE_DOCUMENT_REQUEST_CODE) {
+            String content = pendingExportContent;
+            pendingExportContent = null;
+            if (resultCode == RESULT_OK && data != null && data.getData() != null && content != null) {
+                try (OutputStream output = getContentResolver().openOutputStream(data.getData(), "w")) {
+                    if (output == null) {
+                        throw new IOException("Could not open selected document.");
+                    }
+                    output.write(content.getBytes(StandardCharsets.UTF_8));
+                    Toast.makeText(this, "PGN salvo com sucesso.", Toast.LENGTH_SHORT).show();
+                } catch (IOException ignored) {
+                    Toast.makeText(this, "Não foi possível salvar o arquivo PGN.", Toast.LENGTH_LONG).show();
+                }
+            }
+            return;
+        }
         if (requestCode == FILE_CHOOSER_REQUEST_CODE) {
             if (fileChooserCallback != null) {
                 Uri[] results = WebChromeClient.FileChooserParams.parseResult(resultCode, data);
@@ -291,6 +369,7 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        pendingExportContent = null;
         if (fileChooserCallback != null) {
             fileChooserCallback.onReceiveValue(null);
             fileChooserCallback = null;
