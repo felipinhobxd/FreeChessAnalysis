@@ -98,6 +98,8 @@ test('the app uses a shallow mobile scan and selectively deepens critical positi
   assert.match(app, /mobileReviewScanDepth\(depth\)/);
   assert.match(app, /shouldRefineMobileReview\(/);
   assert.match(app, /const scanDepth = mobileAdaptive \? mobileReviewScanDepth\(depth\) : depth/);
+  assert.ok(app.includes('const hasCompleteDeepCache = path.every(node =>'));
+  assert.ok(app.includes('const activeScanDepth = adaptiveReview ? scanDepth : depth;'));
   assert.match(app, /engine\.search\([\s\S]{0,180}scanDepth/);
   assert.match(app, /engine\.search\([\s\S]{0,180}depth,/);
   assert.match(app, /gradeMove\(path\[index\], before\.lines, before\.best, index, after\.lines\[0\]\)/);
