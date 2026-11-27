@@ -9,6 +9,7 @@ const ORIGINS=new Set([
 const MAX_BYTES=131072;
 const BATCH=5;
 const DB_TIMEOUT_MS=8000;
+const REQUEST_LIMIT_TIMEOUT_MS=3000;
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CORS={
  'Access-Control-Allow-Methods':'POST, OPTIONS',
@@ -139,6 +140,37 @@ export function createIngestHandler(options={}){
   const networkPrefix=networkFromHeaders(request.headers);
   if(!networkPrefix)return reply({error:'Client network unavailable'},503,origin);
 
+  let sign;
+  let requestDay;
+  let requestQuota;
+  try{
+   sign=await signer(serviceKey);
+   const requestTime=now();
+   requestDay=(requestTime instanceof Date?requestTime:new Date(requestTime)).toISOString().slice(0,10);
+   const requestNetwork='\\x'+await sign('request-network:'+requestDay+':'+networkPrefix);
+   if(typeof options.requestQuotaChecker==='function'){
+    requestQuota=await options.requestQuotaChecker(requestNetwork);
+   }else{
+    const base=databaseUrl.endsWith('/')?databaseUrl.slice(0,-1):databaseUrl;
+    const quotaResponse=await fetcher(base+'/rest/v1/rpc/fca_consume_community_request',{
+     method:'POST',
+     headers:{apikey:serviceKey,Authorization:'Bearer '+serviceKey,'Content-Type':'application/json'},
+     body:JSON.stringify({p_network_hash:requestNetwork}),
+     signal:AbortSignal.timeout(Math.min(REQUEST_LIMIT_TIMEOUT_MS,dbTimeoutMs))
+    });
+    if(!quotaResponse||!quotaResponse.ok)throw new Error('Request quota unavailable');
+    requestQuota=await quotaResponse.json();
+   }
+  }catch{
+   return reply({error:'Request quota unavailable'},503,origin);
+  }
+  if(!requestQuota||typeof requestQuota.allowed!=='boolean'||
+     !Number.isSafeInteger(requestQuota.remaining_requests)||requestQuota.remaining_requests<0||requestQuota.remaining_requests>15||
+     !Number.isSafeInteger(requestQuota.retry_after_seconds)||requestQuota.retry_after_seconds<1||requestQuota.retry_after_seconds>60)
+   return reply({error:'Invalid request quota response'},503,origin);
+  if(!requestQuota.allowed)
+   return reply({accepted:0,duplicates:0,rate_limited:true},429,origin,{'Retry-After':String(requestQuota.retry_after_seconds)});
+
   const samples=await Promise.all(payload.samples.map(cleanCommunitySample));
   if(samples.some(sample=>!sample))
    return reply({error:'Invalid or illegal game sample'},400,origin);
@@ -146,8 +178,7 @@ export function createIngestHandler(options={}){
   let response;
   try{
    const sign=await signer(serviceKey);
-   const currentTime=now();
-   const day=(currentTime instanceof Date?currentTime:new Date(currentTime)).toISOString().slice(0,10);
+   const day=requestDay;
    const client='\\x'+await sign('client:'+day+':'+payload.client_id);
    const network='\\x'+await sign('network:'+day+':'+networkPrefix);
    for(const sample of samples)sample.game_hash=await sign('game:'+sample.game_hash);
