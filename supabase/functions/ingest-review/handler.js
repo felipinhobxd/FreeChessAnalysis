@@ -130,7 +130,8 @@ export function createIngestHandler(options={}){
   let response;
   try{
    const sign=await signer(serviceKey);
-   const day=(now() instanceof Date?now():new Date(now())).toISOString().slice(0,10);
+   const currentTime=now();
+   const day=(currentTime instanceof Date?currentTime:new Date(currentTime)).toISOString().slice(0,10);
    const client='\\x'+await sign('client:'+day+':'+payload.client_id);
    const network='\\x'+await sign('network:'+day+':'+networkPrefix);
    for(const sample of samples)sample.game_hash=await sign('game:'+sample.game_hash);
