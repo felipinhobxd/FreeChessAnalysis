@@ -127,9 +127,9 @@ test('non-JSON payloads and oversized declared bodies are rejected early',async(
 test('malformed JSON, extra top-level fields, and invalid batches never reach PostgREST',async()=>{
  let calls=0;
  const handler=makeHandler(async()=>{calls++;return new Response('{}');});
- assert.equal((await handler(request({body:'{'})).status,400);
- assert.equal((await handler(request({body:{client_id:'123e4567-e89b-42d3-a456-426614174000',samples:[],unexpected:true}})).status,400);
- assert.equal((await handler(request({body:{client_id:'bad',samples:[]}})).status,400);
+ assert.equal((await handler(request({body:'{'}))).status,400);
+ assert.equal((await handler(request({body:{client_id:'123e4567-e89b-42d3-a456-426614174000',samples:[],unexpected:true}}))).status,400);
+ assert.equal((await handler(request({body:{client_id:'bad',samples:[]}}))).status,400);
  assert.equal(calls,0);
 });
 
