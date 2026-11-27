@@ -1,4 +1,4 @@
-import {normalizeIpNetwork} from './ip-network.js';
+import {trustedNetworkFromHeaders} from './ip-network.js';
 
 const ORIGINS=new Set(['https://freechessanalysis.vercel.app','http://localhost:8787','http://127.0.0.1:8787']);
 const MAX_BYTES=131072,BATCH=5,MAX_PLIES=500;
@@ -83,8 +83,7 @@ Deno.serve(async request=>{
  const sign=await signer(serviceKey);
  const day=new Date().toISOString().slice(0,10);
  const client='\\x'+await sign('client:'+day+':'+payload.client_id);
- const address=request.headers.get('cf-connecting-ip')||'';
- const networkPrefix=normalizeIpNetwork(address);
+ const networkPrefix=trustedNetworkFromHeaders(request.headers);
  if(!networkPrefix)return reply({error:'Client network unavailable'},503,origin);
  const network='\\x'+await sign('network:'+day+':'+networkPrefix);
  for(const sample of samples)sample.game_hash=await sign('game:'+sample.game_hash);
