@@ -4,6 +4,7 @@ import { syncArchive, newSyncCode, syncCodeKey, validCode, prepareSyncArchive } 
 import { missedOpportunity, shortMateAfter, aspectEvidence, aspectGrade } from './review-evidence.js';
 import { syncSprites, resetSprites, liftSprite, moveLiftedSprite, releaseLiftedSprite } from './board-motion.js';
 import { Engine, analysisLimits } from './engine.js';
+import { compactSearchPosition, isIrreversibleTransition } from './engine-position.js';
 import { enqueueCommunityReview, flushCommunityQueue, clearCommunityQueue } from './community-data.js';
 import { calibrationModel } from './caps2-model.js';
 import { acceptedMove, inspectMove, isTrainingMove } from './coach.js';
@@ -96,9 +97,18 @@ function saveCommunityConsent(allowed) {
   refreshCommunityConsentUI();
   if (!allowed) clearCommunityQueue();
 }
+function hasNativeStockfish() {
+  try {
+    return typeof globalThis.MoveByMoveAndroid?.supportsNativeStockfish === 'function' &&
+      globalThis.MoveByMoveAndroid.supportsNativeStockfish() === true;
+  } catch {
+    return false;
+  }
+}
 function readEngineChoice() {
   const mode = readStoredPreferences()['engine-mode'];
-  return ['lite', 'full', 'economy'].includes(mode) ? mode : 'lite';
+  if (['lite', 'full', 'economy'].includes(mode)) return mode;
+  return hasNativeStockfish() ? 'full' : 'lite';
 }
 function hasSavedEngineChoice() {
   const mode = readStoredPreferences()['engine-mode'];
@@ -1040,7 +1050,8 @@ async function reviewExploration(node, engine, cache, depth, task) {
     if (position.terminal) return {lines:[position.terminal],best:null};
     const saved = position.reviewData;
     if (saved?.cache === cache && saved.depth === depth) return saved.result;
-    const raw = await engine.search(root.fen, pathTo(position).map(n => uci(n.move)), depth, 3, { signal:task.controller.signal });
+    const search = compactSearchPosition([root, ...pathTo(position)]);
+    const raw = await engine.search(search.fen, search.moves, depth, 3, { signal:task.controller.signal });
     if (live !== task) throw new DOMException('Cancelled','AbortError');
     if (!raw.lines.length) throw new Error('O motor não retornou uma avaliação.');
     const result = {...raw, lines:raw.lines.map(line => normalizeLine(line, position))};
@@ -1795,9 +1806,11 @@ async function useEngine(onLoad) {
   const engine = sharedEngine;
   try {
     const profile = await engine.start(build => {
-      const loading = build.name === 'Completo'
-        ? 'Carregando completo (~95 MB)'
-        : build.name === 'Eco' ? 'Carregando Lite econômico' : 'Carregando Lite';
+      const loading = build.native
+        ? 'Iniciando Stockfish nativo ARM64'
+        : build.name === 'Completo'
+          ? 'Carregando completo (~95 MB)'
+          : build.name === 'Eco' ? 'Carregando Lite econômico' : 'Carregando Lite';
       syncEngine('loading', loading);
       onLoad?.(loading);
     });
@@ -1880,7 +1893,8 @@ async function runLive(position, showInReport = false) {
       if (tab === 'lines') renderLines();
       if (showInReport) renderVariantEvaluation(position);
     }
-    const result = await engine.search(root.fen, pathTo(position).map(item => uci(item.move)), depth, count, { update, signal: task.controller.signal });
+    const search = compactSearchPosition([root, ...pathTo(position)]);
+    const result = await engine.search(search.fen, search.moves, depth, count, { update, signal: task.controller.signal });
     if (live !== task) return;
     update(result.lines);
     position.liveKey = key;
@@ -1948,16 +1962,18 @@ async function runReview() {
     if (review !== task) return;
     readyEngine();
     const commands = path.slice(1).map(node => uci(node.move));
+    let searchBaseIndex = 0;
     let nextPaint = 0;
     for (const [index, node] of path.entries()) {
       if (index > 0 && index % 16 === 0) {
         await new Promise(resolve => setTimeout(resolve, 0));
         if (review !== task) return;
       }
+      if (index > 0 && isIrreversibleTransition(path[index - 1], node)) searchBaseIndex = index;
       let result = node.terminal ? { lines: [node.terminal], best: null } : null;
       if (!result && node.reviewData?.depth === depth && node.reviewData.cache === cache) result = node.reviewData.result;
       if (!result) {
-        const raw = await engine.search(root.fen, commands.slice(0, index), depth, 3, { signal: task.controller.signal });
+        const raw = await engine.search(path[searchBaseIndex].fen, commands.slice(searchBaseIndex, index), depth, 3, { signal: task.controller.signal });
         if (!raw.lines.length) throw new Error('O motor não retornou uma avaliação.');
         result = { ...raw, lines: raw.lines.map(line => normalizeLine(line, node)) };
         node.reviewData = { depth, cache, result };
@@ -1990,6 +2006,8 @@ async function runReview() {
         .then(result => {
           if (result?.reason === 'queue-full') {
             toast(translate('Contribution queue full. Pending games are safe; this game was not added.'));
+          } else if (profile?.native && result?.reason === 'not-eligible') {
+            toast(translate('Native Stockfish 19 reviews stay on this device and are not added to community statistics yet.'));
           }
         })
         .catch(() => { /* Optional collection never blocks review. */ });
@@ -2185,7 +2203,7 @@ async function copyText(text, confirmation) {
 }
 
 const archiveKey = 'livro-de-lances/arquivo/v1';
-const cacheVersion = 1;
+const cacheVersion = 2;
 
 function studyFingerprint() {
   if (!studyId) {

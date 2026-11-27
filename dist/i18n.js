@@ -1113,6 +1113,22 @@ Object.assign(MESSAGES, {
     'Katkı kuyruğu dolu. Bekleyen oyunlar korundu; bu oyun kuyruğa eklenmedi.',
     'قائمة المساهمات ممتلئة. تم الاحتفاظ بالمباريات المعلّقة؛ ولم تُضف هذه المباراة.',
     'योगदान कतार भर गई है। लंबित खेल सुरक्षित हैं; यह खेल कतार में नहीं जोड़ा गया।'
+  ],
+  'Native Stockfish 19 reviews stay on this device and are not added to community statistics yet.': [
+    'Native Stockfish 19 reviews stay on this device and are not added to community statistics yet.',
+    'As revisões com Stockfish 19 nativo ficam no aparelho e ainda não entram nas estatísticas comunitárias.',
+    'Las revisiones con Stockfish 19 nativo permanecen en el dispositivo y todavía no se incluyen en las estadísticas comunitarias.',
+    'Les analyses avec Stockfish 19 natif restent sur cet appareil et ne sont pas encore ajoutées aux statistiques communautaires.',
+    'Analysen mit nativem Stockfish 19 bleiben auf diesem Gerät und fließen noch nicht in die Community-Statistiken ein.',
+    'Le analisi con Stockfish 19 nativo restano su questo dispositivo e per ora non vengono incluse nelle statistiche della community.',
+    'Analyses met de native Stockfish 19 blijven op dit apparaat en worden nog niet opgenomen in de communitystatistieken.',
+    'Анализы с нативным Stockfish 19 остаются на устройстве и пока не добавляются в общую статистику.',
+    '使用原生 Stockfish 19 的复盘会保留在本设备上，目前不会加入社区统计。',
+    'ネイティブ Stockfish 19 による解析はこの端末に保存され、現時点ではコミュニティ統計に追加されません。',
+    '네이티브 Stockfish 19 분석은 이 기기에만 보관되며 아직 커뮤니티 통계에 추가되지 않습니다.',
+    'Yerel Stockfish 19 analizleri bu cihazda kalır ve henüz topluluk istatistiklerine eklenmez.',
+    'تبقى التحليلات باستخدام Stockfish 19 الأصلي على هذا الجهاز ولا تُضاف إلى إحصاءات المجتمع بعد.',
+    'नेटिव Stockfish 19 की समीक्षाएँ इसी डिवाइस पर रहती हैं और अभी सामुदायिक आँकड़ों में नहीं जोड़ी जातीं।'
   ]
 });
 

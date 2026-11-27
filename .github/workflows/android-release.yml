@@ -6,11 +6,13 @@ on:
     paths:
       - "android/**"
       - ".github/workflows/android-release.yml"
+      - "tools/prepare-android-stockfish.sh"
   push:
     branches: [main]
     paths:
       - "android/**"
       - ".github/workflows/android-release.yml"
+      - "tools/prepare-android-stockfish.sh"
 
 permissions:
   contents: write
@@ -26,6 +28,20 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v4
+
+      - name: Prepare and verify pinned Stockfish 19 ARM64 binary
+        run: bash tools/prepare-android-stockfish.sh
+
+      - name: Smoke-test native Stockfish UCI under QEMU
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user
+          ENGINE="android/app/src/main/jniLibs/arm64-v8a/libstockfish.so"
+          printf 'uci\nisready\nquit\n' | qemu-aarch64 "$ENGINE" | tee /tmp/stockfish-native-uci.log
+          grep -E '^id name Stockfish 19([[:space:]]|$)' /tmp/stockfish-native-uci.log
+          grep -qx 'uciok' /tmp/stockfish-native-uci.log
+          grep -qx 'readyok' /tmp/stockfish-native-uci.log
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -67,6 +83,14 @@ jobs:
           test -s "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
 
+      - name: Verify native engine and license are packaged in the APK
+        shell: bash
+        run: |
+          APK="android/app/build/outputs/apk/release/app-release.apk"
+          unzip -l "$APK" | grep -q 'lib/arm64-v8a/libstockfish.so'
+          unzip -l "$APK" | grep -q 'assets/Stockfish-Copying.txt'
+          echo "Native ARM64 Stockfish and GPLv3 license are present in the APK."
+
       - name: Prepare release asset
         shell: bash
         run: |
@@ -96,10 +120,11 @@ jobs:
           body: |
             ## Move by Move for Android
 
-            - Stockfish 19 runs locally on the phone through WebAssembly.
-            - Select **Stockfish 19 Full** for the strongest analysis profile.
-            - Multiple engine threads are used only when the Android System WebView supports cross-origin isolation and SharedArrayBuffer. Otherwise, analysis still runs locally with one thread.
-            - An internet connection is required to load the app and download the selected Stockfish build.
+            - The **Full** profile uses the official Stockfish 19 ARM64 universal native Android executable when supported.
+            - On Android 10+ ARM64 devices, the native engine runs directly on the phone CPU with multiple threads and device-adaptive Hash.
+            - Incompatible devices and browser users continue to use the verified WebAssembly engine.
+            - An internet connection is required to load the website and fetch any selected WebAssembly fallback build.
+            - The bundled ARM64 engine is the unmodified official Stockfish 19 Android release, verified against its published SHA-256 digest. Source: https://github.com/official-stockfish/Stockfish/tree/sf_19
 
             **Installation:** Download the APK below, allow your browser or file manager to install apps from this source, and open Move by Move.
 

@@ -1,0 +1,8 @@
+Move by Move for Android includes the unmodified Stockfish 19 ARM64 universal Android executable.
+
+Copyright: Stockfish developers.
+License: GNU General Public License version 3 (GPL-3.0-or-later).
+Complete license text: Stockfish-Copying.txt in this directory.
+Exact upstream source: https://github.com/official-stockfish/Stockfish/tree/edb0d9db6731067ec50ce619ff372b463bc4dd5d
+Official binary release: https://github.com/official-stockfish/Stockfish/releases/tag/sf_19
+The Android build verifies the downloaded upstream archive against its published SHA-256 digest before packaging.

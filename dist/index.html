@@ -38,7 +38,7 @@
       <div class="engine-choice-list">
         <label class="engine-choice">
           <input type="radio" name="welcome-engine-mode" value="full">
-          <span class="engine-choice-copy"><strong>Stockfish 19 Full</strong><small>Maximum strength · about 95 MB to download</small></span>
+          <span class="engine-choice-copy"><strong>Stockfish 19 Full</strong><small>Maximum strength · uses more CPU, memory and battery</small></span>
         </label>
         <label class="engine-choice">
           <input type="radio" name="welcome-engine-mode" value="lite" checked>
@@ -64,6 +64,7 @@
       <details class="community-consent-details">
         <summary>What exactly is shared?</summary>
         <p>Only imported games that have been fully reviewed are eligible. We store the complete mainline move sequence in UCI format and a compact 10-byte record for each move: evaluations before and after the move, move accuracy, move classification, whether the move was forced, mate indicators and the engine's best-move suggestion. We also store the result, time control, platform category, aggregated player statistics, estimated ratings and Stockfish version/settings. Ratings copied from PGN headers are labelled as unverified. Data is automatically removed after 180 days.</p>
+        <p><strong>Engine compatibility:</strong> Community contributions currently accept reviews produced by the browser's Stockfish 19.0.1 build. Reviews produced by the native Stockfish 19 Android engine stay on the device and are not submitted to this dataset.</p>
         <p><strong>What is never uploaded?</strong> The full PGN file, comments, player names, usernames, account identifiers, game links and intermediate FEN positions are never uploaded. Only the starting FEN is stored when needed to reconstruct a non-standard starting position. Analysis still runs locally in your browser. This contribution is optional and you can change your choice at any time in Settings.</p>
       </details>
       <div class="community-consent-actions" role="group" aria-label="Community data consent">
