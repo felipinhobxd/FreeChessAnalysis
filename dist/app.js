@@ -9,6 +9,7 @@ import { liveLinesFor, reviewLinesFor, reviewDataFromLive } from './analysis-reu
 import { enqueueCommunityReview, flushCommunityQueue, clearCommunityQueue } from './community-data.js';
 import { calibrationModel } from './caps2-model.js';
 import { acceptedMove, inspectMove, isTrainingMove } from './coach.js';
+import { puzzleHintSquare } from './puzzle-hints.js';
 import { icon, unlockSound, boardSound, setBoardVolume, moveSound, mateCelebration, clearMateCelebration } from './board-ui.js';
 import { exportStudyPgn } from './study-export.js';
 import { initLanguage, setLanguage, getLanguage, translate } from './i18n.js';
@@ -478,6 +479,10 @@ function renderPieces() {
   const position = shownPosition();
   const board = new Chess(position.fen);
   const legal = new Set(selected ? board.moves({ square: selected, verbose: true }).map(move => move.to) : []);
+  const hintSquare = puzzle?.hint && puzzle.status === 'active' &&
+    puzzle.reviewIndex === puzzle.decisionIndex
+    ? puzzleHintSquare(Chess, position.fen, puzzle.node.coach)
+    : null;
   const orientBlack = puzzle ? puzzle.node.move.color === 'b' : flipped;
   const files = orientBlack ? 'hgfedcba' : 'abcdefgh';
   const ranks = orientBlack ? '12345678' : '87654321';
@@ -498,10 +503,14 @@ function renderPieces() {
       button.classList.toggle('check', piece?.type === 'k' && piece.color === board.turn() && board.isCheck());
       button.classList.toggle('puzzle-wrong', puzzle?.wrongSquare === square && puzzle.status === 'active');
       button.classList.toggle('puzzle-right', puzzle?.result?.move.to === square);
+      button.classList.toggle('puzzle-hint-piece', square === hintSquare);
       const rating = !puzzle && piece && position.move?.to === square && CLASSIFICATIONS[position.classification] ? CLASSIFICATIONS[position.classification][1] : null;
       const ariaName = piece ? square + ', ' + NAMES[piece.type] + (piece.color === 'w' ? ' das brancas' : ' das pretas') : square;
-      button.setAttribute('aria-label', ariaName + (rating ? ' · ' + rating : ''));
-      if (rating) button.title = rating;
+      button.setAttribute('aria-label', ariaName +
+        (hintSquare === square ? ' · Peça indicada pela dica' : '') +
+        (rating ? ' · ' + rating : ''));
+      if (hintSquare === square) button.title = 'Peça indicada pela dica';
+      else if (rating) button.title = rating;
       button.tabIndex = square === (focused || selected || files[0] + ranks[0]) ? 0 : -1;
       if (piece) {
         button.append(...pieceGraphic(piece, square, piece.color === board.turn() && !position.terminal && !demo && (!puzzle || puzzle.status === 'active')));
@@ -1390,19 +1399,11 @@ function createPuzzleState(node, saved) {
   return state;
 }
 
-function puzzleHint(node) {
-  if (node.chanceLost?.distance) {
-    return 'Procure um mate em ' + node.chanceLost.distance + '. Comece pelos xeques.';
-  }
-  const reply = node.coach.after?.pv?.[0];
-  if (reply) {
-    const board = boardAt(node);
-    const move = board.move(moveFromUci(reply));
-    if (move.san.endsWith('#')) return 'O adversário ameaçava mate imediato. Procure um jeito de evitar essa resposta.';
-    if (move.captured) return 'Na partida, o adversário podia capturar ' + NAMES[move.captured].toLowerCase() + ' em ' + move.to + '. Proteja essa peça ou crie uma ameaça mais forte.';
-    if (move.san.endsWith('+')) return 'Observe os xeques do adversário antes de escolher seu lance.';
-  }
-  return 'Compare os xeques, as capturas e as ameaças dos dois lados antes de jogar.';
+function puzzleHint(puzzle) {
+  const square = puzzleHintSquare(Chess, puzzle.node.parent.fen, puzzle.node.coach);
+  return square
+    ? 'Mova a peça destacada. O destino continua por sua conta.'
+    : 'Não foi possível identificar com segurança a peça desta dica.';
 }
 
 function startPuzzle(node) {
@@ -1520,7 +1521,7 @@ function renderPuzzles() {
         card.append(hint);
         if (puzzle.hint) {
           let message;
-          try { message = puzzleHint(puzzle.node); }
+          try { message = puzzleHint(puzzle); }
           catch { message = 'Compare os xeques, as capturas e as ameaças dos dois lados antes de jogar.'; }
           card.append(element('p', message, 'puzzle-hint'));
         }
