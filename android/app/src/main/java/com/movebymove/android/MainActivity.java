@@ -50,6 +50,7 @@ public final class MainActivity extends Activity {
     private boolean threadingWarningShown;
     private ValueCallback<Uri[]> fileChooserCallback;
     private String pendingExportContent;
+    private volatile boolean trustedAppPage;
     private final Object nativeEngineLock = new Object();
     private Process nativeEngineProcess;
     private BufferedWriter nativeEngineInput;
@@ -145,6 +146,7 @@ public final class MainActivity extends Activity {
 
             @Override
             public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                trustedAppPage = isAppUrl(Uri.parse(url));
                 progressBar.setVisibility(View.VISIBLE);
                 progressBar.setProgress(0);
             }
@@ -339,7 +341,7 @@ public final class MainActivity extends Activity {
     }
 
     private boolean isTrustedAppPage() {
-        return webView != null && isAppUrl(Uri.parse(webView.getUrl()));
+        return trustedAppPage;
     }
 
     private File nativeStockfishExecutable() {
@@ -610,6 +612,7 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        trustedAppPage = false;
         pendingExportContent = null;
         stopNativeStockfishProcess();
         if (fileChooserCallback != null) {
