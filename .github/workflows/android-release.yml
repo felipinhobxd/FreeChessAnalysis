@@ -15,6 +15,8 @@ on:
       - "android/**"
       - ".github/workflows/android-release.yml"
       - "tools/prepare-android-stockfish.sh"
+      - "tools/prepare-android-abi-stubs.sh"
+      - "tools/abi-stub.c"
 
 permissions:
   contents: write
