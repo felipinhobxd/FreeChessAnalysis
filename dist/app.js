@@ -1982,7 +1982,6 @@ async function runReview() {
     if (review !== task) return;
     readyEngine();
     const commands = path.slice(1).map(node => uci(node.move));
-    const baseResults = new Array(path.length);
     const searchBaseIndexes = new Array(path.length);
     const refinementPositions = new Set();
     const deepResults = new Map();
@@ -2015,7 +2014,6 @@ async function runReview() {
       }
       if (review !== task) return;
 
-      baseResults[index] = result;
       node.evaluation = result.lines[0];
       node.lines = result.lines;
       node.liveKey = null;
