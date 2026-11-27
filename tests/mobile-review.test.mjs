@@ -108,7 +108,7 @@ test('the app uses a shallow mobile scan and selectively deepens critical positi
     app.indexOf('    completed = true;', app.indexOf('if (adaptiveReview && refinementPositions.size)')),
   );
   assert.ok(refinement.includes('gradeMove(path[index], before.lines, before.best, index, after.lines[0])'));
-  assert.doesNotMatch(refinement, /node\\.(?:evaluation|lines|best|depth)\\s*=/);
+  assert.doesNotMatch(refinement, /node\.(?:evaluation|lines|best|depth)\s*=/);
 
   assert.match(app, /Revisão concluída · varredura/);
 });
