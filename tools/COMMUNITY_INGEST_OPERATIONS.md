@@ -42,7 +42,7 @@ The repository CI runs:
 - `deno check` for the deployed Edge Function entrypoint and its Deno/NPM import map
 
 Before deploying the request-limiter version of the Edge Function:
-1. Apply `supabase/migrations/20261127131500_community_request_rate_limit.sql` first.
+1. Apply `supabase/migrations/20261127134014_community_request_rate_limit.sql` first.
 2. Verify that `public.fca_consume_community_request(bytea)` exists and execution is restricted to `service_role`.
 3. Confirm the production 40,000-row capacity, 180-day retention job, required Supabase secrets, and trusted `cf-connecting-ip` header.
 4. Deploy all files in `supabase/functions/ingest-review/`, not just `index.ts`.
