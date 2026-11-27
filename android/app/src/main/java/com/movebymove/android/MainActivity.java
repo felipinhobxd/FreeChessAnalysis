@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.net.Uri;
+import android.app.ActivityManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.Gravity;
@@ -22,10 +23,17 @@ import android.webkit.WebSettings;
 import android.webkit.ValueCallback;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
+import org.json.JSONObject;
 import android.widget.FrameLayout;
 import android.widget.ProgressBar;
 import android.widget.Toast;
@@ -43,6 +51,10 @@ public final class MainActivity extends Activity {
     private boolean threadingWarningShown;
     private ValueCallback<Uri[]> fileChooserCallback;
     private String pendingExportContent;
+    private final Object nativeEngineLock = new Object();
+    private Process nativeEngineProcess;
+    private BufferedWriter nativeEngineInput;
+    private long nativeEngineSession;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -289,10 +301,224 @@ public final class MainActivity extends Activity {
     private final class NativeFileBridge {
         @JavascriptInterface
         public void savePgn(String fileName, String content) {
-            if (webView == null || content == null || !isAppUrl(Uri.parse(webView.getUrl()))) {
+            if (!isTrustedAppPage() || content == null) {
                 return;
             }
             runOnUiThread(() -> requestPgnExport(fileName, content));
+        }
+
+        @JavascriptInterface
+        public boolean supportsNativeStockfish() {
+            return isTrustedAppPage() && hasNativeArm64Engine();
+        }
+
+        @JavascriptInterface
+        public boolean startNativeStockfish() {
+            return isTrustedAppPage() && startNativeStockfishProcess();
+        }
+
+        @JavascriptInterface
+        public boolean sendNativeStockfishCommand(String command) {
+            if (!isTrustedAppPage() || command == null || command.length() > 4096 ||
+                    command.indexOf('\n') >= 0 || command.indexOf('\r') >= 0) {
+                return false;
+            }
+            try {
+                sendNativeStockfishCommand(command);
+                return true;
+            } catch (IllegalStateException error) {
+                return false;
+            }
+        }
+
+        @JavascriptInterface
+        public void stopNativeStockfish() {
+            if (isTrustedAppPage()) {
+                stopNativeStockfishProcess();
+            }
+        }
+    }
+
+    private boolean isTrustedAppPage() {
+        return webView != null && isAppUrl(Uri.parse(webView.getUrl()));
+    }
+
+    private File nativeStockfishExecutable() {
+        return new File(getApplicationInfo().nativeLibraryDir, "libstockfish.so");
+    }
+
+    private boolean hasNativeArm64Engine() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            return false;
+        }
+        boolean arm64 = false;
+        for (String abi : Build.SUPPORTED_ABIS) {
+            if ("arm64-v8a".equals(abi)) {
+                arm64 = true;
+                break;
+            }
+        }
+        File executable = nativeStockfishExecutable();
+        return arm64 && executable.isFile() && executable.canExecute();
+    }
+
+    private static boolean isProcessAlive(Process process) {
+        if (process == null) {
+            return false;
+        }
+        try {
+            process.exitValue();
+            return false;
+        } catch (IllegalThreadStateException running) {
+            return true;
+        }
+    }
+
+    private boolean startNativeStockfishProcess() {
+        if (!hasNativeArm64Engine()) {
+            return false;
+        }
+
+        synchronized (nativeEngineLock) {
+            if (isProcessAlive(nativeEngineProcess)) {
+                return true;
+            }
+
+            try {
+                File executable = nativeStockfishExecutable();
+                Process process = new ProcessBuilder(executable.getAbsolutePath())
+                        .redirectErrorStream(true)
+                        .start();
+                long session = ++nativeEngineSession;
+                nativeEngineProcess = process;
+                nativeEngineInput = new BufferedWriter(
+                        new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8)
+                );
+
+                Thread reader = new Thread(
+                        () -> readNativeStockfishOutput(session, process),
+                        "MoveByMove-Stockfish-Output"
+                );
+                reader.setDaemon(true);
+                reader.start();
+                return true;
+            } catch (IOException | SecurityException error) {
+                nativeEngineProcess = null;
+                nativeEngineInput = null;
+                return false;
+            }
+        }
+    }
+
+    private void readNativeStockfishOutput(long session, Process process) {
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                dispatchNativeStockfishOutput(session, line);
+            }
+        } catch (IOException ignored) {
+            // Process shutdown closes the stream; unexpected exits are reported below.
+        } finally {
+            boolean unexpected;
+            synchronized (nativeEngineLock) {
+                unexpected = session == nativeEngineSession && nativeEngineProcess == process;
+                if (unexpected) {
+                    nativeEngineProcess = null;
+                    nativeEngineInput = null;
+                }
+            }
+            if (unexpected) {
+                dispatchNativeStockfishError(session, "O processo nativo do Stockfish foi encerrado.");
+            }
+        }
+    }
+
+    private void dispatchNativeStockfishOutput(long session, String line) {
+        WebView target = webView;
+        if (target == null) {
+            return;
+        }
+        target.post(() -> {
+            if (target != webView || session != nativeEngineSession) {
+                return;
+            }
+            String script = "window.__moveByMoveNativeStockfishReceive?.("
+                    + JSONObject.quote(line) + ")";
+            target.evaluateJavascript(script, null);
+        });
+    }
+
+    private void dispatchNativeStockfishError(long session, String message) {
+        WebView target = webView;
+        if (target == null) {
+            return;
+        }
+        target.post(() -> {
+            if (target != webView || session != nativeEngineSession) {
+                return;
+            }
+            String script = "window.__moveByMoveNativeStockfishError?.("
+                    + JSONObject.quote(message) + ")";
+            target.evaluateJavascript(script, null);
+        });
+    }
+
+    private void sendNativeStockfishCommand(String command) {
+        synchronized (nativeEngineLock) {
+            if (!isProcessAlive(nativeEngineProcess) || nativeEngineInput == null) {
+                throw new IllegalStateException("O Stockfish nativo não está em execução.");
+            }
+            try {
+                nativeEngineInput.write(command);
+                nativeEngineInput.newLine();
+                nativeEngineInput.flush();
+            } catch (IOException error) {
+                throw new IllegalStateException("Falha ao enviar comando ao Stockfish nativo.", error);
+            }
+        }
+    }
+
+    private void stopNativeStockfishProcess() {
+        final Process process;
+        synchronized (nativeEngineLock) {
+            process = nativeEngineProcess;
+            BufferedWriter input = nativeEngineInput;
+            nativeEngineSession++;
+            nativeEngineProcess = null;
+            nativeEngineInput = null;
+            if (input != null) {
+                try {
+                    input.write("quit");
+                    input.newLine();
+                    input.flush();
+                } catch (IOException ignored) {
+                    // Continue with process termination.
+                }
+                try {
+                    input.close();
+                } catch (IOException ignored) {
+                    // The process is being stopped.
+                }
+            }
+        }
+
+        if (process != null) {
+            Thread cleanup = new Thread(() -> {
+                try {
+                    if (!process.waitFor(3, TimeUnit.SECONDS)) {
+                        process.destroy();
+                    }
+                    if (!process.waitFor(500, TimeUnit.MILLISECONDS)) {
+                        process.destroyForcibly();
+                    }
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    process.destroyForcibly();
+                }
+            }, "MoveByMove-Stockfish-Stop");
+            cleanup.setDaemon(true);
+            cleanup.start();
         }
     }
 
@@ -301,7 +527,7 @@ public final class MainActivity extends Activity {
             return;
         }
         webView.evaluateJavascript(
-                "!!window.crossOriginIsolated && typeof window.SharedArrayBuffer !== 'undefined'",
+                "!!window.MoveByMoveAndroid?.supportsNativeStockfish?.() || (!!window.crossOriginIsolated && typeof window.SharedArrayBuffer !== 'undefined')",
                 result -> {
                     if (!threadingWarningShown && "false".equals(result)) {
                         threadingWarningShown = true;
@@ -386,6 +612,7 @@ public final class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         pendingExportContent = null;
+        stopNativeStockfishProcess();
         if (fileChooserCallback != null) {
             fileChooserCallback.onReceiveValue(null);
             fileChooserCallback = null;
