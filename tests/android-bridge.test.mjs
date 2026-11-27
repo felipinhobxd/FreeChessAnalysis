@@ -38,6 +38,17 @@ test('the reader delegates every UCI line to the batcher and flushes on exit', (
   assert.ok(!reader.includes('dispatchNativeStockfishOutput(session, line)'));
 });
 
+test('native thread sizing reads the Android process processor count only for the trusted app', () => {
+  assert.match(java, /@JavascriptInterface\\s+public int getNativeStockfishProcessorCount\\(\\)/);
+  const methodStart = java.indexOf('public int getNativeStockfishProcessorCount()');
+  const methodEnd = java.indexOf('\\n        }', methodStart);
+  assert.ok(methodStart >= 0 && methodEnd > methodStart);
+  const method = java.slice(methodStart, methodEnd);
+  assert.match(method, /isTrustedAppPage\\(\\)/);
+  assert.match(method, /hasNativeArm64Engine\\(\\)/);
+  assert.match(method, /Runtime\\.getRuntime\\(\\)\\.availableProcessors\\(\\)/);
+});
+
 test('Android batching is bounded by line count, character count and delay', () => {
   const maxLines = Number(/NATIVE_OUTPUT_BATCH_MAX_LINES = ([\d_]+\d)/.exec(java)?.[1].replaceAll('_', ''));
   const maxChars = Number(/NATIVE_OUTPUT_BATCH_MAX_CHARS = ([\d_]+\d)/.exec(java)?.[1].replaceAll('_', ''));
