@@ -2083,15 +2083,9 @@ async function runReview() {
         }
       }
 
-      for (const [index, result] of deepResults) {
-        const node = path[index];
-        node.evaluation = result.lines[0];
-        node.lines = result.lines;
-        node.liveKey = null;
-        node.best = result.best;
-        node.depth = result.lines[0].depth;
-      }
-
+      // Keep the uniform scan evaluation on the position itself. Refined
+      // evaluations live in reviewData and are applied only to the move whose
+      // before/after pair was searched at the same requested depth.
       for (let index = 1; index < path.length; index++) {
         const before = deepResults.get(index - 1);
         const after = deepResults.get(index);
