@@ -25,6 +25,8 @@ jobs:
         run: deno check --config supabase/functions/ingest-review/deno.json supabase/functions/ingest-review/index.ts
       - run: npx playwright install --with-deps chromium
       - run: npm run build
+      - name: Benchmark missed-opportunity detection
+        run: node tools/benchmark-missed-opportunities.mjs
       - run: npm run test:e2e
         env:
           CI: true
