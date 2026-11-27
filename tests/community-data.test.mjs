@@ -9,7 +9,7 @@ globalThis.localStorage={
  removeItem:key=>data.delete(key)
 };
 const START_FEN='rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
-const CONSENT='move-by-move/community-consent/v2';
+const CONSENT='move-by-move/community-consent/v3';
 const PREFERENCES='livro-de-lances/preferencias/v1';
 
 function allowConsent(){
@@ -98,8 +98,9 @@ test('ineligible local, incomplete, oversized, unfinished and unsupported-engine
  assert.equal(await createCommunityReviewSample(path,headers,{...engine,version:'17.1'},14,true),null);
 });
 
-test('collection is consent-gated even when an old preference is true',async()=>{
+test('collection requires the new consent revision even when an older full-game consent and preference are present',async()=>{
  data.clear();
+ data.set('move-by-move/community-consent/v2','accepted');
  data.set(PREFERENCES,JSON.stringify({'community-data':true}));
  const {path,headers,engine}=fixture();
  assert.equal((await enqueueCommunityReview(path,headers,engine,14,true)).reason,'consent-required');

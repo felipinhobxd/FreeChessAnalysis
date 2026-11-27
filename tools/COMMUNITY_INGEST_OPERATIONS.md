@@ -49,3 +49,14 @@ The privacy notice should distinguish between:
 - request metadata processed or retained by the hosting provider's operational logging.
 
 Review who can access project logs and the provider's log-retention settings before describing IP handling as anonymous or claiming the IP is never collected.
+
+## User-facing privacy disclosure
+
+The consent screen uses consent revision v3. Earlier accepted choices are not carried forward because the disclosure now explains that Supabase operational logs may include the request IP address and network/request metadata. Earlier refusals remain refusals.
+
+The user-facing wording distinguishes two data paths:
+
+- The community game dataset stores HMAC-protected subnet identifiers, not plaintext IP addresses.
+- Supabase operational request logs are separate and may contain the source IP and request/network metadata. Their access and retention follow Supabase controls and project settings. Do not promise a specific log-retention period unless it has been independently verified.
+
+The consent copy also distinguishes intermediate FEN positions (not uploaded) from the starting FEN, which is stored only when required to reconstruct a non-standard initial position.

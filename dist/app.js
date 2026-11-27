@@ -35,14 +35,17 @@ function readStoredPreferences() {
     return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   } catch { return {}; }
 }
-const communityConsentStorageKey = 'move-by-move/community-consent/v2';
-const previousCommunityConsentStorageKey = 'move-by-move/community-consent/v1';
+const communityConsentStorageKey = 'move-by-move/community-consent/v3';
+const previousCommunityConsentStorageKeys = [
+  'move-by-move/community-consent/v2',
+  'move-by-move/community-consent/v1',
+];
 function readCommunityConsent() {
   try {
     const saved = localStorage.getItem(communityConsentStorageKey);
     if (saved === 'accepted' || saved === 'declined') return saved;
-    // A previous refusal remains a refusal. A previous acceptance does not cover full-game data.
-    if (localStorage.getItem(previousCommunityConsentStorageKey) === 'declined') {
+    // Preserve an earlier refusal, but require fresh consent after the IP/log disclosure changed.
+    if (previousCommunityConsentStorageKeys.some(key => localStorage.getItem(key) === 'declined')) {
       localStorage.setItem(communityConsentStorageKey, 'declined');
       return 'declined';
     }
