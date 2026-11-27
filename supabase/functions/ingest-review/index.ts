@@ -1,10 +1,9 @@
 import {trustedNetworkFromHeaders} from './ip-network.js';
+import {cleanCommunitySample} from './validation.js';
 
 const ORIGINS=new Set(['https://freechessanalysis.vercel.app','http://localhost:8787','http://127.0.0.1:8787']);
 const MAX_BYTES=131072,BATCH=5,MAX_PLIES=500;
-const HASH=/^[a-f0-9]{64}$/,UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const UCI=/^[a-h][1-8][a-h][1-8][qrbn]?$/;
-const START_FEN=/^[prnbqkPRNBQK1-8/]+ [wb] (?:-|[KQkq]{1,4}) (?:-|[a-h][36]) [0-9]+ [0-9]+$/;
+const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CORS={'Access-Control-Allow-Methods':'POST, OPTIONS','Access-Control-Allow-Headers':'apikey, content-type','Access-Control-Expose-Headers':'Retry-After','Access-Control-Max-Age':'86400','Vary':'Origin'};
 function reply(body,status,origin,extraHeaders={}){
  return new Response(body===null?null:JSON.stringify(body),{status,headers:{...CORS,...(ORIGINS.has(origin)?{'Access-Control-Allow-Origin':origin}:{}),...extraHeaders,'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
@@ -16,48 +15,6 @@ function secret(name,fallback){
 async function signer(secretKey){
  const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(secretKey),{name:'HMAC',hash:'SHA-256'},false,['sign']);
  return async value=>Array.from(new Uint8Array(await crypto.subtle.sign('HMAC',key,new TextEncoder().encode(value))),b=>b.toString(16).padStart(2,'0')).join('');
-}
-function num(value,min,max){
- if(value===null||value===undefined)return null;
- return Number.isInteger(value)&&value>=min&&value<=max?value:undefined;
-}
-function clean(value){
- if(!value||typeof value!=='object'||Array.isArray(value)||!HASH.test(value.game_hash||''))return null;
- if(!['w','d','b'].includes(value.result)||!['bullet','blitz','rapid','classical','unknown'].includes(value.time_class)||!['chesscom','lichess','unknown'].includes(value.source_pool))return null;
- if(!['none','pgn_unverified'].includes(value.rating_source)||!/^19\.[0-9]+\.[0-9]+$/.test(value.engine_version||'')||!['full','lite','economy'].includes(value.engine_mode))return null;
- const depth=num(value.analysis_depth,1,30);
- const plies=num(value.ply_count,8,MAX_PLIES);
- if(depth===undefined||plies===undefined)return null;
- if(typeof value.moves_uci!=='string'||value.moves_uci.length>3000)return null;
- const moves=value.moves_uci.split('.');
- if(moves.length!==plies||moves.some(move=>!UCI.test(move)))return null;
- const opening=moves.slice(0,24).join('');
- if(value.opening_uci!==opening||! /^(?:[a-h][1-8][a-h][1-8][qrbn]?){1,24}$/.test(value.opening_uci))return null;
- if(value.start_fen!==null&&value.start_fen!==undefined&&
-    (typeof value.start_fen!=='string'||value.start_fen.length>100||!START_FEN.test(value.start_fen)))return null;
- if(typeof value.move_data_base64!=='string'||value.move_data_base64.length>7000||
-    !/^[A-Za-z0-9+/]+={0,2}$/.test(value.move_data_base64))return null;
- let moveBytes;
- try{moveBytes=atob(value.move_data_base64).length;}catch{return null;}
- if(moveBytes!==plies*10)return null;
- const fields=[
-  ['white_rating',100,4000],['black_rating',100,4000],['white_estimate',100,4000],['black_estimate',100,4000],
-  ['white_accuracy_tenths',0,1000],['black_accuracy_tenths',0,1000],['white_moves',0,250],['black_moves',0,250],
-  ['white_blunders',0,250],['black_blunders',0,250],['white_mistakes',0,250],['black_mistakes',0,250],
-  ['white_inaccuracies',0,250],['black_inaccuracies',0,250],['white_chances_lost',0,250],['black_chances_lost',0,250]
- ];
- const output={
-  game_hash:value.game_hash,opening_uci:value.opening_uci,moves_uci:value.moves_uci,ply_count:plies,
-  start_fen:value.start_fen??null,move_data_base64:value.move_data_base64,
-  result:value.result,time_class:value.time_class,source_pool:value.source_pool,rating_source:value.rating_source,
-  engine_version:value.engine_version,engine_mode:value.engine_mode,analysis_depth:depth
- };
- for(const [key,min,max] of fields){output[key]=num(value[key],min,max);if(output[key]===undefined)return null;}
- if((output.white_rating!==null||output.black_rating!==null)&&output.rating_source!=='pgn_unverified')return null;
- const allowed=new Set(['game_hash','opening_uci','moves_uci','ply_count','start_fen','move_data_base64',
-  'result','time_class','source_pool','rating_source','engine_version','engine_mode','analysis_depth',...fields.map(item=>item[0])]);
- if(Object.keys(value).some(key=>!allowed.has(key)))return null;
- return output;
 }
 Deno.serve(async request=>{
  const origin=request.headers.get('origin')||'';
@@ -78,8 +35,8 @@ Deno.serve(async request=>{
  }catch{return reply({error:'Invalid JSON'},400,origin);}
  if(!payload||!UUID.test(payload.client_id||'')||!Array.isArray(payload.samples)||payload.samples.length<1||payload.samples.length>BATCH)
   return reply({error:'Invalid batch'},400,origin);
- const samples=payload.samples.map(clean);
- if(samples.some(sample=>!sample))return reply({error:'Invalid sample fields'},400,origin);
+ const samples=await Promise.all(payload.samples.map(cleanCommunitySample));
+ if(samples.some(sample=>!sample))return reply({error:'Invalid or illegal game sample'},400,origin);
  const sign=await signer(serviceKey);
  const day=new Date().toISOString().slice(0,10);
  const client='\\x'+await sign('client:'+day+':'+payload.client_id);
