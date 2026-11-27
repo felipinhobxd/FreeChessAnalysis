@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import {
   isMobileReviewDevice,
   MOBILE_REVIEW_SCAN_DEPTH,
@@ -89,4 +90,16 @@ test('forced moves do not consume a refinement search', () => {
     before: score(0), after: score(-200), move: move(), bestMove: 'd2d4',
     classification: 'blunder', forced: true,
   }), false);
+});
+
+test('the app uses a shallow mobile scan and selectively deepens critical positions', async () => {
+  const app = await readFile(new URL('../dist/app.js', import.meta.url), 'utf8');
+  assert.match(app, /isMobileReviewDevice\(\)/);
+  assert.match(app, /mobileReviewScanDepth\(depth\)/);
+  assert.match(app, /shouldRefineMobileReview\(/);
+  assert.match(app, /const scanDepth = mobileAdaptive \? mobileReviewScanDepth\(depth\) : depth/);
+  assert.match(app, /engine\.search\([\s\S]{0,180}scanDepth/);
+  assert.match(app, /engine\.search\([\s\S]{0,180}depth,/);
+  assert.match(app, /gradeMove\(path\[index\], before\.lines, before\.best, index, after\.lines\[0\]\)/);
+  assert.match(app, /Review concluída · varredura/);
 });
