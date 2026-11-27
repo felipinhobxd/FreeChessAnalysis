@@ -1,0 +1,108 @@
+name: Android APK
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "android/**"
+      - ".github/workflows/android-release.yml"
+  push:
+    branches: [main]
+    paths:
+      - "android/**"
+      - ".github/workflows/android-release.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: ''
+
+      - name: Install Android SDK components
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Read app version
+        id: version
+        shell: bash
+        run: |
+          APP_VERSION="$(tr -d '[:space:]' < android/version.txt)"
+          if [[ ! "$APP_VERSION" =~ ^[0-9]{1,2}\.[0-9]{1,2}\.[0-9]{1,2}$ ]]; then
+            echo "android/version.txt must use MAJOR.MINOR.PATCH (0-99 per part)." >&2
+            exit 1
+          fi
+          echo "value=$APP_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Build release APK
+        run: gradle --no-daemon --stacktrace :app:assembleRelease
+        working-directory: android
+
+      - name: Verify APK signature
+        run: |
+          APK="android/app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
+
+      - name: Prepare release asset
+        shell: bash
+        run: |
+          mkdir -p release
+          cp android/app/build/outputs/apk/release/app-release.apk \
+            "release/move-by-move-android-${{ steps.version.outputs.value }}.apk"
+
+      - name: Upload APK build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: move-by-move-android-${{ steps.version.outputs.value }}
+          path: release/move-by-move-android-${{ steps.version.outputs.value }}.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish GitHub Release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-v${{ steps.version.outputs.value }}
+          name: Move by Move Android v${{ steps.version.outputs.value }}
+          target_commitish: ${{ github.sha }}
+          draft: false
+          prerelease: false
+          make_latest: true
+          files: release/move-by-move-android-${{ steps.version.outputs.value }}.apk
+          body: |
+            ## Move by Move for Android
+
+            - Stockfish 19 runs locally on the phone through WebAssembly.
+            - Select **Stockfish 19 Full** for the strongest analysis profile.
+            - Multiple engine threads are used only when the Android System WebView supports cross-origin isolation and SharedArrayBuffer. Otherwise, analysis still runs locally with one thread.
+            - An internet connection is required to load the app and download the selected Stockfish build.
+
+            **Installation:** Download the APK below, allow your browser or file manager to install apps from this source, and open Move by Move.
+
+            **Signing note:** This first sideload build uses the GitHub runner's debug signing key. It is suitable for testing, but it is not a permanent update-signing identity. Future versions intended to update this installation in place require a private, persistent release keystore configured in GitHub Actions secrets. Do not uninstall this build unless you are prepared to reinstall it from a future APK if its signing key changes.
+
+            This is a direct-download APK, not a Google Play release.

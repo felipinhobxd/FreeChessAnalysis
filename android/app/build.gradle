@@ -1,0 +1,41 @@
+plugins {
+    id 'com.android.application'
+}
+
+def appVersion = rootProject.file('version.txt').text.trim()
+def versionParts = appVersion.tokenize('.').collect { it.toInteger() }
+if (versionParts.size() != 3 || versionParts.any { it < 0 || it > 99 }) {
+    throw new GradleException('android/version.txt must use MAJOR.MINOR.PATCH with each part from 0 to 99.')
+}
+def appVersionCode = versionParts[0] * 10000 + versionParts[1] * 100 + versionParts[2]
+if (appVersionCode < 1) {
+    throw new GradleException('The Android version code must be greater than zero.')
+}
+
+android {
+    namespace 'com.movebymove.android'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.movebymove.android'
+        minSdk 23
+        targetSdk 35
+        versionCode appVersionCode
+        versionName appVersion
+    }
+
+    buildTypes {
+        release {
+            // Temporary sideload signing for the first public build.
+            // Configure a private, persistent release keystore before future
+            // updates that should install over an existing APK.
+            signingConfig signingConfigs.debug
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
