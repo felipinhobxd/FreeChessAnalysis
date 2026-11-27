@@ -10,7 +10,9 @@ test('Full profile reserves one logical processor and scales up to sixteen threa
   assert.equal(threadCountFor(8), 7);
   assert.equal(threadCountFor(12), 11);
   assert.equal(threadCountFor(16), 15);
-  assert.equal(threadCountFor(32), 16);
+  assert.equal(threadCountFor(24), 23);
+  assert.equal(threadCountFor(32), 31);
+  assert.equal(threadCountFor(64), 32);
   assert.equal(threadCountFor(undefined), 1);
 });
 
