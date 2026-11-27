@@ -8,7 +8,6 @@ import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.SystemClock;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -32,6 +31,10 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import org.json.JSONObject;
 import android.widget.FrameLayout;
@@ -64,6 +67,11 @@ public final class MainActivity extends Activity {
     private Process nativeEngineProcess;
     private BufferedWriter nativeEngineInput;
     private long nativeEngineSession;
+    private final ScheduledExecutorService nativeOutputScheduler = Executors.newSingleThreadScheduledExecutor(task -> {
+        Thread thread = new Thread(task, "MoveByMove-Stockfish-Batcher");
+        thread.setDaemon(true);
+        return thread;
+    });
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -421,41 +429,89 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private final class NativeOutputBatcher {
+        private final long session;
+        private final Object lock = new Object();
+        private final StringBuilder buffer = new StringBuilder(2048);
+        private int batchLines;
+        private ScheduledFuture<?> pendingFlush;
+
+        NativeOutputBatcher(long session) {
+            this.session = session;
+        }
+
+        void append(String line) {
+            if (line == null || line.isEmpty()) return;
+            String previousBatch = null;
+            String completedBatch = null;
+            boolean terminal = isNativeFlushLine(line);
+            synchronized (lock) {
+                if (batchLines > 0 && (terminal
+                        || batchLines >= NATIVE_OUTPUT_BATCH_MAX_LINES
+                        || buffer.length() + line.length() + 1 > NATIVE_OUTPUT_BATCH_MAX_CHARS)) {
+                    previousBatch = drainLocked();
+                }
+
+                buffer.append(line).append('\n');
+                batchLines++;
+                if (terminal || buffer.length() >= NATIVE_OUTPUT_BATCH_MAX_CHARS) {
+                    completedBatch = drainLocked();
+                } else {
+                    scheduleFlushLocked();
+                }
+            }
+            if (previousBatch != null) dispatchNativeStockfishOutput(session, previousBatch);
+            if (completedBatch != null) dispatchNativeStockfishOutput(session, completedBatch);
+        }
+
+        private void scheduleFlushLocked() {
+            if (pendingFlush != null) return;
+            try {
+                // This is a real deadline: the batch is delivered even if Stockfish
+                // stops writing temporarily and no subsequent line arrives.
+                pendingFlush = nativeOutputScheduler.schedule(
+                        this::flush,
+                        NATIVE_OUTPUT_BATCH_WINDOW_MS,
+                        TimeUnit.MILLISECONDS
+                );
+            } catch (RejectedExecutionException ignored) {
+                // Activity teardown is already in progress; the reader's finally block flushes.
+            }
+        }
+
+        private String drainLocked() {
+            if (batchLines == 0) return null;
+            String value = buffer.substring(0, buffer.length() - 1);
+            buffer.setLength(0);
+            batchLines = 0;
+            if (pendingFlush != null) {
+                pendingFlush.cancel(false);
+                pendingFlush = null;
+            }
+            return value;
+        }
+
+        private void flush() {
+            String pending;
+            synchronized (lock) {
+                pending = drainLocked();
+            }
+            if (pending != null) dispatchNativeStockfishOutput(session, pending);
+        }
+    }
+
     private void readNativeStockfishOutput(long session, Process process) {
-        StringBuilder batch = new StringBuilder(2048);
-        int batchLines = 0;
-        long batchOpenedAt = 0L;
+        NativeOutputBatcher batcher = new NativeOutputBatcher(session);
         try (BufferedReader reader = new BufferedReader(
                 new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                if (line.isEmpty()) continue;
-                final boolean flush = isNativeFlushLine(line);
-                if (batchLines == 0) {
-                    batchOpenedAt = SystemClock.elapsedRealtime();
-                } else if (flush
-                        || batchLines >= NATIVE_OUTPUT_BATCH_MAX_LINES
-                        || batch.length() + line.length() + 1 > NATIVE_OUTPUT_BATCH_MAX_CHARS
-                        || SystemClock.elapsedRealtime() - batchOpenedAt >= NATIVE_OUTPUT_BATCH_WINDOW_MS) {
-                    dispatchNativeStockfishOutput(session, batch.substring(0, batch.length() - 1));
-                    batch.setLength(0);
-                    batchLines = 0;
-                    batchOpenedAt = SystemClock.elapsedRealtime();
-                }
-                batch.append(line).append('\n');
-                batchLines++;
-                if (flush) {
-                    dispatchNativeStockfishOutput(session, batch.substring(0, batch.length() - 1));
-                    batch.setLength(0);
-                    batchLines = 0;
-                }
+                batcher.append(line);
             }
         } catch (IOException ignored) {
             // Process shutdown closes the stream; unexpected exits are reported below.
         } finally {
-            if (batchLines > 0) {
-                dispatchNativeStockfishOutput(session, batch.substring(0, batch.length() - 1));
-            }
+            batcher.flush();
             boolean unexpected;
             synchronized (nativeEngineLock) {
                 unexpected = session == nativeEngineSession && nativeEngineProcess == process;
@@ -660,6 +716,7 @@ public final class MainActivity extends Activity {
         trustedAppPage = false;
         pendingExportContent = null;
         stopNativeStockfishProcess();
+        nativeOutputScheduler.shutdownNow();
         if (fileChooserCallback != null) {
             fileChooserCallback.onReceiveValue(null);
             fileChooserCallback = null;
