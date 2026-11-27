@@ -32,6 +32,17 @@ jobs:
       - name: Prepare and verify pinned Stockfish 19 ARM64 binary
         run: bash tools/prepare-android-stockfish.sh
 
+      - name: Smoke-test native Stockfish UCI under QEMU
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user
+          ENGINE="android/app/src/main/jniLibs/arm64-v8a/libstockfish.so"
+          printf 'uci\\nisready\\nquit\\n' | qemu-aarch64 "$ENGINE" | tee /tmp/stockfish-native-uci.log
+          grep -E '^id name Stockfish 19([[:space:]]|$)' /tmp/stockfish-native-uci.log
+          grep -qx 'uciok' /tmp/stockfish-native-uci.log
+          grep -qx 'readyok' /tmp/stockfish-native-uci.log
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
