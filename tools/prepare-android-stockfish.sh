@@ -15,17 +15,15 @@ curl --fail --location --retry 3 --retry-delay 2 "$ASSET_URL" --output "$ARCHIVE
 echo "$ASSET_SHA256  $ARCHIVE" | sha256sum --check -
 tar -xzf "$ARCHIVE" -C "$TEMP_DIR"
 
-STOCKFISH_BINARY=""
-while IFS= read -r -d '' candidate; do
-  description="$(file -b "$candidate")"
-  if [[ "$description" == *"ELF 64-bit"* && "$description" == *"ARM aarch64"* ]]; then
-    STOCKFISH_BINARY="$candidate"
-    break
-  fi
-done < <(find "$TEMP_DIR" -type f -print0)
+STOCKFISH_BINARY="$TEMP_DIR/stockfish/stockfish-android-arm64-universal"
+if [[ ! -s "$STOCKFISH_BINARY" ]]; then
+  echo "The verified Stockfish archive is missing its official ARM64 universal executable." >&2
+  exit 1
+fi
 
-if [[ -z "$STOCKFISH_BINARY" ]]; then
-  echo "The verified Stockfish archive did not contain an ARM64 ELF executable." >&2
+description="$(file -b "$STOCKFISH_BINARY")"
+if [[ "$description" != *"ELF 64-bit"* || "$description" != *"ARM aarch64"* ]]; then
+  echo "The official Stockfish executable has an unexpected format: $description" >&2
   exit 1
 fi
 
