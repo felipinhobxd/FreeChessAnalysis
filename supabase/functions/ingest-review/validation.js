@@ -163,6 +163,7 @@ export async function cleanCommunitySample(value){
   let chess;
   try{chess=initialFen?new Chess(initialFen):new Chess();}catch{return null;}
 
+  let previousAfter=null;
   for(let index=0;index<plies;index++){
    const offset=index*MOVE_BYTES;
    const side=chess.turn();
@@ -184,6 +185,16 @@ export async function cleanCommunitySample(value){
    if((flags&8)&&(!(flags&1)||![-32000,0,32000].includes(before)))return null;
    if((flags&16)&&(!(flags&2)||![-32000,0,32000].includes(after)))return null;
 
+   if(previousAfter){
+    const beforeValid=Boolean(flags&1),beforeMate=Boolean(flags&8);
+    if(previousAfter.valid!==beforeValid||previousAfter.mate!==beforeMate)return null;
+    if(beforeValid){
+     if(beforeMate){
+      if(previousAfter.score!==before)return null;
+     }else if(Math.abs(previousAfter.score-before)>50)return null;
+    }
+   }
+
    if(packedBest!==0xffff){
     const bestMove=decodePackedMove(packedBest);
     if(!bestMove||!legalMoves.some(candidate=>sameMove(candidate,bestMove)))return null;
@@ -204,6 +215,7 @@ export async function cleanCommunitySample(value){
    if(field)sideCounts[side][field]++;
    try{chess.move({from:actualMove.from,to:actualMove.to,...(actualMove.promotion?{promotion:actualMove.promotion}:{})});}
    catch{return null;}
+   previousAfter={valid:Boolean(flags&2),mate:Boolean(flags&16),score:after};
   }
 
   if(sideCounts.w.moves!==output.white_moves||sideCounts.b.moves!==output.black_moves||
@@ -215,6 +227,8 @@ export async function cleanCommunitySample(value){
   if(chess.isCheckmate()){
    const winner=chess.turn()==='w'?'b':'w';
    if(output.result!==winner)return null;
+  }else if((chess.isStalemate()||chess.isInsufficientMaterial())&&output.result!=='d'){
+   return null;
   }
 
   const raw=[
