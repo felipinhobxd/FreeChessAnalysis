@@ -8,6 +8,7 @@ import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -44,6 +45,14 @@ public final class MainActivity extends Activity {
     private static final int ACCENT = Color.rgb(184, 216, 139);
     private static final int FILE_CHOOSER_REQUEST_CODE = 1017;
     private static final int CREATE_DOCUMENT_REQUEST_CODE = 1018;
+
+    // Output lines from the native engine are grouped and delivered with a
+    // single evaluateJavascript crossing per batch. The JavaScript receiver
+    // (engine.js attachWorker) splits batched payloads on line breaks, so the
+    // UCI protocol itself is unchanged.
+    private static final int NATIVE_OUTPUT_BATCH_MAX_LINES = 48;
+    private static final int NATIVE_OUTPUT_BATCH_MAX_CHARS = 65_536;
+    private static final long NATIVE_OUTPUT_BATCH_WINDOW_MS = 8L;
 
     private WebView webView;
     private ProgressBar progressBar;
@@ -413,15 +422,40 @@ public final class MainActivity extends Activity {
     }
 
     private void readNativeStockfishOutput(long session, Process process) {
+        StringBuilder batch = new StringBuilder(2048);
+        int batchLines = 0;
+        long batchOpenedAt = 0L;
         try (BufferedReader reader = new BufferedReader(
                 new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                dispatchNativeStockfishOutput(session, line);
+                if (line.isEmpty()) continue;
+                final boolean flush = isNativeFlushLine(line);
+                if (batchLines == 0) {
+                    batchOpenedAt = SystemClock.elapsedRealtime();
+                } else if (flush
+                        || batchLines >= NATIVE_OUTPUT_BATCH_MAX_LINES
+                        || batch.length() + line.length() + 1 > NATIVE_OUTPUT_BATCH_MAX_CHARS
+                        || SystemClock.elapsedRealtime() - batchOpenedAt >= NATIVE_OUTPUT_BATCH_WINDOW_MS) {
+                    dispatchNativeStockfishOutput(session, batch.substring(0, batch.length() - 1));
+                    batch.setLength(0);
+                    batchLines = 0;
+                    batchOpenedAt = SystemClock.elapsedRealtime();
+                }
+                batch.append(line).append('\n');
+                batchLines++;
+                if (flush) {
+                    dispatchNativeStockfishOutput(session, batch.substring(0, batch.length() - 1));
+                    batch.setLength(0);
+                    batchLines = 0;
+                }
             }
         } catch (IOException ignored) {
             // Process shutdown closes the stream; unexpected exits are reported below.
         } finally {
+            if (batchLines > 0) {
+                dispatchNativeStockfishOutput(session, batch.substring(0, batch.length() - 1));
+            }
             boolean unexpected;
             synchronized (nativeEngineLock) {
                 unexpected = session == nativeEngineSession && nativeEngineProcess == process;
@@ -436,7 +470,12 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private void dispatchNativeStockfishOutput(long session, String line) {
+    /** Synchronization and terminal lines flush immediately so the page never waits for a batch window. */
+    private static boolean isNativeFlushLine(String line) {
+        return "uciok".equals(line) || "readyok".equals(line) || line.startsWith("bestmove");
+    }
+
+    private void dispatchNativeStockfishOutput(long session, String lines) {
         WebView target = webView;
         if (target == null) {
             return;
@@ -445,8 +484,8 @@ public final class MainActivity extends Activity {
             if (target != webView || session != nativeEngineSession) {
                 return;
             }
-            String script = "window.__moveByMoveNativeStockfishReceive?.("
-                    + JSONObject.quote(line) + ")";
+            String script = "window.__moveByMoveNativeStockfishReceive?("
+                    + JSONObject.quote(lines) + ")";
             target.evaluateJavascript(script, null);
         });
     }
