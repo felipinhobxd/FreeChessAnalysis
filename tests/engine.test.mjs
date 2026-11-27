@@ -164,3 +164,72 @@ test('Economy analysis limits reduce search work without changing normal profile
   assert.deepEqual(analysisLimits('lite', 'review', 18, 3), { depth: 18, lines: 3 });
   assert.deepEqual(analysisLimits('full', 'live', 24, 5), { depth: 24, lines: 5 });
 });
+
+
+test('Full profile prefers the native ARM64 bridge and configures the device CPU', async () => {
+  const originalBridge = Object.getOwnPropertyDescriptor(globalThis, 'MoveByMoveAndroid');
+  const commands = [];
+  let started = 0;
+  let stopped = 0;
+  const bridge = {
+    supportsNativeStockfish: () => true,
+    startNativeStockfish: () => { started++; return true; },
+    sendNativeStockfishCommand(command) {
+      commands.push(command);
+      const response = command === 'uci'
+        ? 'id name Stockfish 19\noption name Threads type spin default 1 min 1 max 512\nuciok'
+        : command === 'isready' ? 'readyok' : null;
+      if (response) {
+        queueMicrotask(() => globalThis.__moveByMoveNativeStockfishReceive?.(response));
+      }
+      return true;
+    },
+    stopNativeStockfish: () => { stopped++; },
+  };
+  Object.defineProperty(globalThis, 'MoveByMoveAndroid', {
+    configurable: true,
+    value: bridge,
+  });
+
+  const engine = new Engine('full');
+  try {
+    const profile = await engine.start();
+    assert.equal(started, 1);
+    assert.equal(profile.native, true);
+    assert.equal(profile.name, 'ARM64 nativo');
+    assert.equal(profile.version, '19.0');
+    assert.ok(profile.threads >= 1 && profile.threads <= 8);
+    assert.ok(profile.hash >= 64 && profile.hash <= 256);
+    assert.ok(commands.includes('setoption name Threads value ' + profile.threads));
+    assert.ok(commands.includes('setoption name Hash value ' + profile.hash));
+    assert.ok(!commands.some(command => command.includes('stockfish-19-single.js')));
+  } finally {
+    engine.dispose();
+    assert.equal(stopped, 1);
+    if (originalBridge) Object.defineProperty(globalThis, 'MoveByMoveAndroid', originalBridge);
+    else delete globalThis.MoveByMoveAndroid;
+  }
+});
+
+test('Engine only sends MultiPV changes when the requested line count changes', async () => {
+  const sent = [];
+  const engine = new Engine('lite');
+  engine.exchange = async (commands, parse) => {
+    sent.push(...commands);
+    parse('info depth 8 multipv 1 score cp 35 pv e2e4 e7e5');
+    if (commands.includes('setoption name MultiPV value 2')) {
+      parse('info depth 8 multipv 2 score cp 20 pv d2d4 d7d5');
+    }
+    return parse('bestmove e2e4');
+  };
+
+  try {
+    await engine.search('fixture', [], 8, 1);
+    await engine.search('fixture', ['e2e4'], 8, 1);
+    await engine.search('fixture', ['e2e4', 'e7e5'], 8, 2);
+    assert.equal(sent.filter(command => command === 'setoption name MultiPV value 1').length, 1);
+    assert.equal(sent.filter(command => command === 'setoption name MultiPV value 2').length, 1);
+  } finally {
+    engine.dispose();
+  }
+});
