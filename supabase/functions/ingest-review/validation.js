@@ -100,7 +100,7 @@ export async function cleanCommunitySample(value){
      !['bullet','blitz','rapid','classical','unknown'].includes(value.time_class)||
      !['chesscom','lichess','unknown'].includes(value.source_pool)||
      !['none','pgn_unverified'].includes(value.rating_source)||
-     !/^19\\.[0-9]+\\.[0-9]+$/.test(value.engine_version||'')||
+     !/^19\.[0-9]+\.[0-9]+$/.test(value.engine_version||'')||
      !['full','lite','economy'].includes(value.engine_mode))return null;
 
   const depth=value.analysis_depth;
