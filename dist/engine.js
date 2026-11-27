@@ -4,16 +4,40 @@ const PACKAGE = 'stockfish@19.0.1/bin/';
 const MIRRORS = ['https://unpkg.com/', 'https://cdn.jsdelivr.net/npm/'];
 const FALLBACK_LITE = 'https://chessanalysis.dev/engine/sf19.0.1/stockfish-19-lite-single.js';
 
-function availableThreads() {
-  const reported = Number(globalThis.navigator?.hardwareConcurrency);
+const MAX_FULL_THREADS = 16;
+const MAX_FULL_HASH_MB = 512;
+
+// Reserve one logical processor for the browser UI, but let powerful desktops
+// and phones use more than the previous eight-thread ceiling.
+export function threadCountFor(logicalCount) {
+  const reported = Number(logicalCount);
   const logical = Number.isFinite(reported) && reported > 0 ? Math.floor(reported) : 2;
-  return Math.max(1, Math.min(8, logical - 1));
+  return Math.max(1, Math.min(MAX_FULL_THREADS, logical - 1));
+}
+
+export function hashSizeForDeviceMemory(deviceMemory) {
+  const memory = Number(deviceMemory);
+  if (!Number.isFinite(memory) || memory <= 0) return 64;
+  return Math.max(64, Math.min(MAX_FULL_HASH_MB, Math.round(memory * 64)));
+}
+
+function availableThreads() {
+  let reported = Number(globalThis.navigator?.hardwareConcurrency);
+  if (nativeStockfishAvailable()) {
+    try {
+      // WebView may expose a lower or privacy-capped hardwareConcurrency value.
+      // Ask the Android process that will actually host native Stockfish.
+      const nativeCount = Number(globalThis.MoveByMoveAndroid.getNativeStockfishProcessorCount?.());
+      if (Number.isFinite(nativeCount) && nativeCount > 0) reported = nativeCount;
+    } catch {
+      // Fall back to the browser's hardwareConcurrency value.
+    }
+  }
+  return threadCountFor(reported);
 }
 
 function fullHashSize() {
-  const memory = Number(globalThis.navigator?.deviceMemory);
-  if (!Number.isFinite(memory) || memory <= 0) return 64;
-  return Math.max(64, Math.min(256, Math.round(memory * 32)));
+  return hashSizeForDeviceMemory(globalThis.navigator?.deviceMemory);
 }
 
 function nativeStockfishAvailable() {
