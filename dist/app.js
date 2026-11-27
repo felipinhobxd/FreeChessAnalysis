@@ -1997,6 +1997,8 @@ async function runReview() {
         .then(result => {
           if (result?.reason === 'queue-full') {
             toast(translate('Contribution queue full. Pending games are safe; this game was not added.'));
+          } else if (profile?.native && result?.reason === 'not-eligible') {
+            toast(translate('Native Stockfish 19 reviews stay on this device and are not added to community statistics yet.'));
           }
         })
         .catch(() => { /* Optional collection never blocks review. */ });
