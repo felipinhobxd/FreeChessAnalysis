@@ -4,6 +4,27 @@ const PACKAGE = 'stockfish@19.0.1/bin/';
 const MIRRORS = ['https://unpkg.com/', 'https://cdn.jsdelivr.net/npm/'];
 const FALLBACK_LITE = 'https://chessanalysis.dev/engine/sf19.0.1/stockfish-19-lite-single.js';
 
+function availableThreads() {
+  const reported = Number(globalThis.navigator?.hardwareConcurrency);
+  const logical = Number.isFinite(reported) && reported > 0 ? Math.floor(reported) : 2;
+  return Math.max(1, Math.min(8, logical - 1));
+}
+
+function fullHashSize() {
+  const memory = Number(globalThis.navigator?.deviceMemory);
+  if (!Number.isFinite(memory) || memory <= 0) return 64;
+  return Math.max(64, Math.min(256, Math.round(memory * 32)));
+}
+
+function nativeStockfishAvailable() {
+  try {
+    return typeof globalThis.MoveByMoveAndroid?.supportsNativeStockfish === 'function' &&
+      globalThis.MoveByMoveAndroid.supportsNativeStockfish() === true;
+  } catch {
+    return false;
+  }
+}
+
 function engineBuilds(mode) {
   const lite = {
     name: 'Lite',
@@ -17,19 +38,32 @@ function engineBuilds(mode) {
   if (mode === 'economy') return [{ ...lite, name: 'Eco', mode: 'economy', hash: 8 }];
   if (mode !== 'full') return [lite];
 
-  const threads = globalThis.crossOriginIsolated
-    ? Math.max(1, Math.min(8, Math.floor((navigator.hardwareConcurrency || 2) / 2)))
-    : 1;
+  const threads = availableThreads();
+  const hash = fullHashSize();
+  const native = nativeStockfishAvailable() ? [{
+    name: 'ARM64 nativo',
+    mode: 'full',
+    version: '19.0',
+    file: 'stockfish-19-arm64-universal',
+    threads,
+    hash,
+    timeout: 30000,
+    native: true,
+  }] : [];
+  const wasmThreads = globalThis.crossOriginIsolated ? threads : 1;
   const full = {
     name: 'Completo',
     mode: 'full',
     version: '19.0.1',
     file: 'stockfish-19-single',
     threads: 1,
-    hash: 64,
+    hash,
     timeout: 55000,
   };
-  return threads > 1 ? [{ ...full, file: 'stockfish-19', threads }, full, lite] : [full, lite];
+  const wasm = wasmThreads > 1
+    ? [{ ...full, file: 'stockfish-19', threads: wasmThreads }, full, lite]
+    : [full, lite];
+  return [...native, ...wasm];
 }
 
 
@@ -40,6 +74,55 @@ export function analysisLimits(mode, purpose, requestedDepth, requestedLines = 1
   if (purpose === 'review') return { depth: Math.min(depth, 12), lines };
   if (purpose === 'live') return { depth: Math.min(depth, 14), lines: Math.min(lines, 2) };
   return { depth, lines };
+}
+
+class AndroidNativeStockfishWorker {
+  constructor() {
+    const bridge = globalThis.MoveByMoveAndroid;
+    if (typeof bridge?.startNativeStockfish !== 'function' ||
+        typeof bridge?.sendNativeStockfishCommand !== 'function' ||
+        !bridge.startNativeStockfish()) {
+      throw new Error('O Stockfish nativo ARM64 não pôde ser iniciado.');
+    }
+
+    this.bridge = bridge;
+    this.active = true;
+    this.onmessage = null;
+    this.onerror = null;
+    this.receive = data => {
+      if (this.active) this.onmessage?.({ data: String(data) });
+    };
+    this.fail = message => {
+      if (!this.active) return;
+      const event = { message: String(message || 'Falha no Stockfish nativo.'), preventDefault() {} };
+      this.onerror?.(event);
+    };
+    globalThis.__moveByMoveNativeStockfishReceive = this.receive;
+    globalThis.__moveByMoveNativeStockfishError = this.fail;
+  }
+
+  postMessage(command) {
+    if (!this.active) return;
+    try {
+      if (!this.bridge.sendNativeStockfishCommand(String(command))) {
+        throw new Error('Não foi possível enviar um comando ao Stockfish nativo.');
+      }
+    } catch (error) {
+      this.fail(error?.message || error);
+    }
+  }
+
+  terminate() {
+    if (!this.active) return;
+    this.active = false;
+    if (globalThis.__moveByMoveNativeStockfishReceive === this.receive) {
+      delete globalThis.__moveByMoveNativeStockfishReceive;
+    }
+    if (globalThis.__moveByMoveNativeStockfishError === this.fail) {
+      delete globalThis.__moveByMoveNativeStockfishError;
+    }
+    try { this.bridge.stopNativeStockfish(); } catch { /* The native process is already gone. */ }
+  }
 }
 
 const aborted = () => new DOMException('Análise cancelada', 'AbortError');
@@ -53,6 +136,7 @@ export class Engine {
     this.controller = new AbortController();
     this.tail = Promise.resolve();
     this.initialization = null;
+    this.multiPV = null;
   }
 
   start(onProgress) {
@@ -71,6 +155,19 @@ export class Engine {
     const signal = this.controller.signal;
     for (const build of engineBuilds(this.mode)) {
       onProgress?.(build);
+      if (build.native) {
+        try {
+          signal.throwIfAborted();
+          this.attachWorker(new AndroidNativeStockfishWorker());
+          return await this.configureWorker(build);
+        } catch (error) {
+          this.closeWorker();
+          signal.throwIfAborted();
+          failure = error;
+          continue;
+        }
+      }
+
       const sources = MIRRORS.map(prefix => prefix + PACKAGE + build.file + '.js');
       if (build.name === 'Lite') sources.push(FALLBACK_LITE);
       for (const source of sources) {
@@ -99,29 +196,8 @@ export class Engine {
             script,
           ].join('\n');
           this.url = URL.createObjectURL(new Blob([bootstrap], { type: 'text/javascript' }));
-          this.worker = new Worker(this.url + '#' + encodeURIComponent(wasm));
-          this.worker.onmessage = ({ data }) => String(data).split(/\r?\n/).forEach(line => this.pending?.read(line));
-          this.worker.onerror = event => {
-            event.preventDefault();
-            const error = new Error(event.message || 'Falha no WebAssembly');
-            this.closeWorker(error);
-          };
-          let identity = '';
-          let maxThreads = 1;
-          await this.exchange(['uci'], line => {
-            if (line.startsWith('id name ')) identity = line.slice(8);
-            const option = /^option name Threads .* max (\d+)/.exec(line);
-            if (option) maxThreads = Number(option[1]);
-            return line === 'uciok' ? true : undefined;
-          }, build.timeout);
-          if (!/^Stockfish 19(?:\b|$)/i.test(identity)) throw new Error('Versão do motor incompatível.');
-          if (build.threads > maxThreads) throw new Error('Compilação sem suporte às linhas de processamento.');
-          await this.exchange([
-            'setoption name Threads value ' + build.threads,
-            'setoption name Hash value ' + build.hash,
-            'isready',
-          ], line => line === 'readyok' ? true : undefined, 18000);
-          return { name: build.name, mode: build.mode, version: build.version, file: build.file, hash: build.hash, threads: build.threads, identity };
+          this.attachWorker(new Worker(this.url + '#' + encodeURIComponent(wasm)));
+          return await this.configureWorker(build);
         } catch (error) {
           this.closeWorker();
           signal.throwIfAborted();
@@ -130,6 +206,45 @@ export class Engine {
       }
     }
     throw new Error('Não foi possível iniciar o Stockfish 19. Verifique a conexão e tente novamente.', { cause: failure });
+  }
+
+  attachWorker(worker) {
+    this.worker = worker;
+    worker.onmessage = ({ data }) => String(data).split(/\r?\n/).forEach(line => this.pending?.read(line));
+    worker.onerror = event => {
+      event.preventDefault?.();
+      const error = new Error(event.message || 'Falha no motor de xadrez.');
+      this.closeWorker(error);
+    };
+  }
+
+  async configureWorker(build) {
+    let identity = '';
+    let maxThreads = 1;
+    await this.exchange(['uci'], line => {
+      if (line.startsWith('id name ')) identity = line.slice(8);
+      const option = /^option name Threads .* max (\d+)/.exec(line);
+      if (option) maxThreads = Number(option[1]);
+      return line === 'uciok' ? true : undefined;
+    }, build.timeout);
+    if (!/^Stockfish 19(?:\\b|$)/i.test(identity)) throw new Error('Versão do motor incompatível.');
+    if (build.threads > maxThreads) throw new Error('Compilação sem suporte às linhas de processamento.');
+    await this.exchange([
+      'setoption name Threads value ' + build.threads,
+      'setoption name Hash value ' + build.hash,
+      'isready',
+    ], line => line === 'readyok' ? true : undefined, 18000);
+    this.multiPV = null;
+    return {
+      name: build.name,
+      mode: build.mode,
+      version: build.version,
+      file: build.file,
+      hash: build.hash,
+      threads: build.threads,
+      identity,
+      native: Boolean(build.native),
+    };
   }
 
   exchange(commands, parse, timeout) {
@@ -169,11 +284,16 @@ export class Engine {
       const stop = () => this.worker?.postMessage('stop');
       signal?.addEventListener('abort', stop, { once: true });
       try {
-        const best = await this.exchange([
-          'setoption name MultiPV value ' + lines,
+        const commands = [];
+        if (this.multiPV !== lines) {
+          commands.push('setoption name MultiPV value ' + lines);
+          this.multiPV = lines;
+        }
+        commands.push(
           'position fen ' + rootFen + (moves.length ? ' moves ' + moves.join(' ') : ''),
           'go depth ' + depth,
-        ], line => {
+        );
+        const best = await this.exchange(commands, line => {
           const best = /^bestmove (\S+)/.exec(line);
           if (best) return best[1];
           const result = /^info depth (\d+).*? multipv (\d+) score (cp|mate) (-?\d+)(?: lowerbound| upperbound)?.*? pv (.+)$/.exec(line);
@@ -214,6 +334,7 @@ export class Engine {
     }
     if (this.url) URL.revokeObjectURL(this.url);
     this.url = null;
+    this.multiPV = null;
     const pending = this.pending;
     if (pending) pending.fail(error);
   }
