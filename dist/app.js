@@ -5,6 +5,7 @@ import { missedOpportunity, shortMateAfter, aspectEvidence, aspectGrade } from '
 import { syncSprites, resetSprites, liftSprite, moveLiftedSprite, releaseLiftedSprite } from './board-motion.js';
 import { Engine, analysisLimits } from './engine.js';
 import { compactSearchPosition, isIrreversibleTransition } from './engine-position.js';
+import { liveLinesFor, reviewLinesFor, reviewDataFromLive } from './analysis-reuse.js';
 import { enqueueCommunityReview, flushCommunityQueue, clearCommunityQueue } from './community-data.js';
 import { calibrationModel } from './caps2-model.js';
 import { acceptedMove, inspectMove, isTrainingMove } from './coach.js';
@@ -1049,13 +1050,13 @@ async function reviewExploration(node, engine, cache, depth, task) {
   async function evaluate(position) {
     if (position.terminal) return {lines:[position.terminal],best:null};
     const saved = position.reviewData;
-    if (saved?.cache === cache && saved.depth === depth) return saved.result;
+    if (reviewLinesFor(saved, cache, depth, 3)) return saved.result;
     const search = compactSearchPosition([root, ...pathTo(position)]);
     const raw = await engine.search(search.fen, search.moves, depth, 3, { signal:task.controller.signal });
     if (live !== task) throw new DOMException('Cancelled','AbortError');
     if (!raw.lines.length) throw new Error('O motor não retornou uma avaliação.');
     const result = {...raw, lines:raw.lines.map(line => normalizeLine(line, position))};
-    position.reviewData = {cache,depth,result};
+    position.reviewData = {cache,depth,multiPV:3,result};
     return result;
   }
   const parent = node.parent;
@@ -1893,11 +1894,23 @@ async function runLive(position, showInReport = false) {
       if (tab === 'lines') renderLines();
       if (showInReport) renderVariantEvaluation(position);
     }
+    const reusableLines = liveLinesFor(position.reviewData, cache, depth, count);
+    if (reusableLines) {
+      update(reusableLines);
+      position.liveKey = key;
+      status(engineLabel + position.depth);
+      if (showInReport) renderVariantEvaluation(position);
+      return;
+    }
     const search = compactSearchPosition([root, ...pathTo(position)]);
     const result = await engine.search(search.fen, search.moves, depth, count, { update, signal: task.controller.signal });
     if (live !== task) return;
     update(result.lines);
     position.liveKey = key;
+    const seeded = reviewDataFromLive(cache, depth, result.best, position.lines, count);
+    if (seeded && !reviewLinesFor(position.reviewData, cache, depth, 3)) {
+      position.reviewData = seeded;
+    }
     status(engineLabel + position.depth);
   } catch (error) {
     if (live === task) engineFailure(error, statusId);
@@ -1971,12 +1984,12 @@ async function runReview() {
       }
       if (index > 0 && isIrreversibleTransition(path[index - 1], node)) searchBaseIndex = index;
       let result = node.terminal ? { lines: [node.terminal], best: null } : null;
-      if (!result && node.reviewData?.depth === depth && node.reviewData.cache === cache) result = node.reviewData.result;
+      if (!result && reviewLinesFor(node.reviewData, cache, depth, 3)) result = node.reviewData.result;
       if (!result) {
         const raw = await engine.search(path[searchBaseIndex].fen, commands.slice(searchBaseIndex, index), depth, 3, { signal: task.controller.signal });
         if (!raw.lines.length) throw new Error('O motor não retornou uma avaliação.');
         result = { ...raw, lines: raw.lines.map(line => normalizeLine(line, node)) };
-        node.reviewData = { depth, cache, result };
+        node.reviewData = { depth, cache, multiPV: 3, result };
       }
       if (review !== task) return;
       node.evaluation = result.lines[0];
