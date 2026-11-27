@@ -1,29 +1,23 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { Chess } from 'chess.js';
 import { test, expect } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 
-function createDeterministicGame(plies = 12) {
+function createDeterministicGame(plies = 8) {
   const chess = new Chess();
   let seed = 0x19a2026;
-  const positions = [chess.fen()];
-
   for (let ply = 0; ply < plies; ply++) {
     const legal = chess.moves({ verbose: true });
     if (!legal.length) break;
-    // Keep the fixture going instead of choosing a move that ends the game.
     const candidates = legal.filter(move => !move.san.endsWith('#'));
     const pool = candidates.length ? candidates : legal;
     seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
     const selected = pool[seed % pool.length];
     chess.move({ from: selected.from, to: selected.to, promotion: selected.promotion });
-    if ((ply + 1) % 6 === 0) positions.push(chess.fen());
   }
-
   return {
     pgn: '[Event "Mobile review performance fixture"]\n[Result "*"]\n\n' + chess.pgn() + ' *',
     plies: chess.history().length,
-    positions,
   };
 }
 
@@ -45,8 +39,30 @@ async function unlockApp(page) {
   await expect(page.locator('#board .square')).toHaveCount(64);
 }
 
-test('benchmark real Stockfish Lite game review on a throttled mobile browser', async ({ browser }) => {
-  test.setTimeout(360_000);
+function summarize(samples) {
+  const sorted = samples.map(sample => sample.elapsedMs).sort((a, b) => a - b);
+  const total = samples.reduce((sum, sample) => sum + sample.elapsedMs, 0);
+  return {
+    searches: samples.length,
+    totalMs: Math.round(total),
+    meanMs: Math.round(total / Math.max(1, samples.length)),
+    medianMs: Math.round(sorted[Math.floor(sorted.length / 2)] || 0),
+    p95Ms: Math.round(sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * 0.95) - 1)] || 0),
+    averageDepth: Number((samples.reduce((sum, sample) => sum + sample.depth, 0) / Math.max(1, samples.length)).toFixed(1)),
+  };
+}
+
+const REPORT = 'artifacts/mobile-review-benchmark.json';
+const ENVIRONMENT = {
+  browser: 'Chromium via Playwright',
+  viewport: '390x844',
+  touch: true,
+  cpuThrottle: '4x',
+  engine: 'Stockfish 19 Lite single-thread WASM',
+};
+
+test('benchmark Stockfish Lite depth and MultiPV combinations on mobile CPU limits', async ({ browser }) => {
+  test.setTimeout(240_000);
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
     screen: { width: 390, height: 844 },
@@ -59,7 +75,19 @@ test('benchmark real Stockfish Lite game review on a throttled mobile browser', 
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
   await serveBundledLite(page);
 
-  const fixture = createDeterministicGame(12);
+  const fixture = createDeterministicGame(8);
+  const chess = new Chess();
+  const positions = [chess.fen()];
+  for (const san of chess.loadPgn(fixture.pgn), chess.history()) void san;
+  const replay = new Chess();
+  replay.loadPgn(fixture.pgn);
+  const history = replay.history({ verbose: true });
+  const sampleBoard = new Chess();
+  for (const [index, move] of history.entries()) {
+    sampleBoard.move({ from: move.from, to: move.to, promotion: move.promotion });
+    if (index === 3 || index === history.length - 1) positions.push(sampleBoard.fen());
+  }
+
   const configurations = [
     { id: 'baseline-depth14-multipv3', depth: 14, lines: 3 },
     { id: 'depth14-multipv1', depth: 14, lines: 1 },
@@ -72,25 +100,13 @@ test('benchmark real Stockfish Lite game review on a throttled mobile browser', 
     await page.goto('/analysis');
     const engineRuns = await page.evaluate(async ({ positions, configs }) => {
       const { Engine } = await import('/engine.js');
-      const summarizeSamples = samples => {
-        const sorted = samples.map(sample => sample.elapsedMs).sort((a, b) => a - b);
-        const sum = samples.reduce((total, sample) => total + sample.elapsedMs, 0);
-        return {
-          searches: samples.length,
-          totalMs: Math.round(sum),
-          meanMs: Math.round(sum / Math.max(1, samples.length)),
-          medianMs: Math.round(sorted[Math.floor(sorted.length / 2)] || 0),
-          p95Ms: Math.round(sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * 0.95) - 1)] || 0),
-          averageDepth: Number((samples.reduce((total, sample) => total + sample.depth, 0) / Math.max(1, samples.length)).toFixed(1)),
-        };
-      };
+      const engine = new Engine('lite');
       const reports = [];
-      for (const config of configs) {
-        const engine = new Engine('lite');
-        const initStart = performance.now();
-        try {
-          const profile = await engine.start();
-          const initializationMs = performance.now() - initStart;
+      const initializationStart = performance.now();
+      try {
+        const profile = await engine.start();
+        const initializationMs = Math.round(performance.now() - initializationStart);
+        for (const config of configs) {
           const samples = [];
           for (const fen of positions) {
             const start = performance.now();
@@ -98,25 +114,60 @@ test('benchmark real Stockfish Lite game review on a throttled mobile browser', 
             samples.push({
               elapsedMs: performance.now() - start,
               depth: Math.max(0, ...result.lines.map(line => Number(line.depth) || 0)),
-              pvCount: result.lines.length,
             });
           }
+          const sorted = samples.map(sample => sample.elapsedMs).sort((a, b) => a - b);
+          const total = samples.reduce((sum, sample) => sum + sample.elapsedMs, 0);
           reports.push({
             id: config.id,
             depth: config.depth,
             multiPV: config.lines,
-            engine: profile.identity,
-            threads: profile.threads,
-            initializationMs: Math.round(initializationMs),
-            ...summarizeSamples(samples),
+            ...{
+              searches: samples.length,
+              totalMs: Math.round(total),
+              meanMs: Math.round(total / Math.max(1, samples.length)),
+              medianMs: Math.round(sorted[Math.floor(sorted.length / 2)] || 0),
+              p95Ms: Math.round(sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * 0.95) - 1)] || 0),
+              averageDepth: Number((samples.reduce((sum, sample) => sum + sample.depth, 0) / Math.max(1, samples.length)).toFixed(1)),
+            },
           });
-        } finally {
-          engine.dispose();
         }
+        return { engine: profile.identity, threads: profile.threads, initializationMs, configurations: reports };
+      } finally {
+        engine.dispose();
       }
-      return reports;
-    }, { positions: fixture.positions, configs: configurations });
+    }, { positions, configs: configurations });
 
+    await mkdir('artifacts', { recursive: true });
+    const report = {
+      generatedAt: new Date().toISOString(),
+      environment: { ...ENVIRONMENT, fixturePlies: fixture.plies, sampledPositions: positions.length },
+      engineRuns,
+      fullReview: null,
+    };
+    await writeFile(REPORT, JSON.stringify(report, null, 2));
+    console.log('MOBILE_ENGINE_BENCHMARK ' + JSON.stringify(engineRuns));
+  } finally {
+    await context.close();
+  }
+});
+
+test('benchmark the actual full-game mobile Lite review end to end', async ({ browser }) => {
+  test.setTimeout(300_000);
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    screen: { width: 390, height: 844 },
+    deviceScaleFactor: 2,
+    isMobile: true,
+    hasTouch: true,
+  });
+  const page = await context.newPage();
+  const cdp = await context.newCDPSession(page);
+  await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+  await serveBundledLite(page);
+  const fixture = createDeterministicGame(8);
+
+  try {
     await unlockApp(page);
     await page.locator('#game-input').fill(fixture.pgn);
     await page.locator('#submit').click();
@@ -127,34 +178,22 @@ test('benchmark real Stockfish Lite game review on a throttled mobile browser', 
     await page.locator('#review-btn').click();
     await expect(page.locator('#review-progress')).toBeVisible();
     await expect.poll(async () => page.locator('#review-progress').evaluate(el => el.hidden), {
-      timeout: 300_000,
+      timeout: 270_000,
       intervals: [250, 500, 1000],
     }).toBe(true);
     await expect(page.locator('#report-status')).toContainText(/Review complete|Revisão concluída/);
     const fullReviewMs = await page.evaluate(start => performance.now() - start, reviewStartedAt);
-
-    const report = {
-      generatedAt: new Date().toISOString(),
-      environment: {
-        browser: 'Chromium via Playwright',
-        viewport: '390x844',
-        touch: true,
-        cpuThrottle: '4x',
-        engine: 'Stockfish 19 Lite single-thread WASM',
-        fixturePlies: fixture.plies,
-        sampledPositions: fixture.positions.length,
-      },
-      engineRuns,
-      fullReview: {
-        plies: fixture.plies,
-        positions: fixture.plies + 1,
-        elapsedMs: Math.round(fullReviewMs),
-        seconds: Number((fullReviewMs / 1000).toFixed(2)),
-        millisecondsPerPosition: Math.round(fullReviewMs / (fixture.plies + 1)),
-      },
+    const report = JSON.parse(await readFile(REPORT, 'utf8'));
+    report.fullReview = {
+      plies: fixture.plies,
+      positions: fixture.plies + 1,
+      elapsedMs: Math.round(fullReviewMs),
+      seconds: Number((fullReviewMs / 1000).toFixed(2)),
+      millisecondsPerPosition: Math.round(fullReviewMs / (fixture.plies + 1)),
+      completedDepth: (await page.locator('#report-status').innerText()).trim(),
     };
-    await mkdir('artifacts', { recursive: true });
-    await writeFile('artifacts/mobile-review-benchmark.json', JSON.stringify(report, null, 2));
+    report.generatedAt = new Date().toISOString();
+    await writeFile(REPORT, JSON.stringify(report, null, 2));
     console.log('MOBILE_REVIEW_BENCHMARK ' + JSON.stringify(report));
   } finally {
     await context.close();
