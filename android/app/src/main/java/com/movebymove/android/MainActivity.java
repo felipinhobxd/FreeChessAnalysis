@@ -11,6 +11,7 @@ import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowInsets;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.DownloadListener;
@@ -52,6 +53,21 @@ public final class MainActivity extends Activity {
 
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(BACKGROUND);
+        if (Build.VERSION.SDK_INT >= 35) {
+            root.setOnApplyWindowInsetsListener((view, windowInsets) -> {
+                android.graphics.Insets systemBars = windowInsets.getInsets(
+                        WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout()
+                );
+                android.graphics.Insets ime = windowInsets.getInsets(WindowInsets.Type.ime());
+                view.setPadding(
+                        systemBars.left,
+                        systemBars.top,
+                        systemBars.right,
+                        Math.max(systemBars.bottom, ime.bottom)
+                );
+                return WindowInsets.CONSUMED;
+            });
+        }
 
         webView = new WebView(this);
         webView.setBackgroundColor(BACKGROUND);
