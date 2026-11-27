@@ -17,6 +17,7 @@ import { recordedRating } from './game-rating.js';
 import { classifyReviewMove, winPercent } from './review-classification.js';
 import { REVIEW_CHART_MARKERS, chartMarkerPoints, chartSelectionFor } from './review-chart.js';
 import { aggregateGameAccuracy, estimatePerformance, moveAccuracyBetween, phaseForPosition } from './review-metrics.js';
+import { isMobileReviewDevice, mobileReviewScanDepth, shouldRefineMobileReview } from './mobile-review.js';
 
 const $ = id => document.getElementById(id);
 const languageState = initLanguage();
@@ -1080,14 +1081,14 @@ async function reviewExploration(node, engine, cache, depth, task) {
   gradeMove(node, before.lines, before.best, pathTo(node).length);
 }
 
-function gradeMove(node, choices, best, index) {
+function gradeMove(node, choices, best, index, after = node.evaluation) {
   const before = choices[0];
-  node.coach = {before,after:node.evaluation,best,choices};
+  node.coach = {before,after,best,choices};
   node.forced = new Chess(node.parent.fen).moves().length <= 1;
-  node.accuracy = moveAccuracyBetween(before,node.evaluation,node.move.color);
+  node.accuracy = moveAccuracyBetween(before,after,node.move.color);
   node.aspects = null;
   node.chanceLost = missedOpportunity(Chess,node.parent,node);
-  node.classification = reviewClass(node,before,node.evaluation,best,choices,index);
+  node.classification = reviewClass(node,before,after,best,choices,index);
 }
 
 function moveSan(ChessClass,fen,command){try{return new ChessClass(fen).move(moveFromUci(command)).san}catch{return command||''}}
@@ -1964,6 +1965,9 @@ async function runReview() {
   const task = { controller: new AbortController() };
   review = task;
   const { depth } = analysisLimits(setting('engine-mode'), 'review', setting('review-depth'), 3);
+  const mobileAdaptive = setting('engine-mode') === 'lite' &&
+    isMobileReviewDevice() && mobileReviewScanDepth(depth) < depth;
+  const scanDepth = mobileAdaptive ? mobileReviewScanDepth(depth) : depth;
   const progress = $('review-progress');
   progress.hidden = false;
   progress.max = path.length;
@@ -1978,32 +1982,63 @@ async function runReview() {
     if (review !== task) return;
     readyEngine();
     const commands = path.slice(1).map(node => uci(node.move));
+    const baseResults = new Array(path.length);
+    const searchBaseIndexes = new Array(path.length);
+    const refinementPositions = new Set();
+    const deepResults = new Map();
     let searchBaseIndex = 0;
     let nextPaint = 0;
+
     for (const [index, node] of path.entries()) {
       if (index > 0 && index % 16 === 0) {
         await new Promise(resolve => setTimeout(resolve, 0));
         if (review !== task) return;
       }
       if (index > 0 && isIrreversibleTransition(path[index - 1], node)) searchBaseIndex = index;
+      searchBaseIndexes[index] = searchBaseIndex;
+
       let result = node.terminal ? { lines: [node.terminal], best: null } : null;
-      if (!result && reviewLinesFor(node.reviewData, cache, depth, 3)) result = node.reviewData.result;
+      if (!result && reviewLinesFor(node.reviewData, cache, scanDepth, 3)) {
+        result = node.reviewData.result;
+      }
       if (!result) {
-        const raw = await engine.search(path[searchBaseIndex].fen, commands.slice(searchBaseIndex, index), depth, 3, { signal: task.controller.signal });
+        const raw = await engine.search(
+          path[searchBaseIndex].fen,
+          commands.slice(searchBaseIndex, index),
+          scanDepth,
+          3,
+          { signal: task.controller.signal },
+        );
         if (!raw.lines.length) throw new Error('O motor não retornou uma avaliação.');
         result = { ...raw, lines: raw.lines.map(line => normalizeLine(line, node)) };
-        node.reviewData = { depth, cache, multiPV: 3, result };
+        node.reviewData = { depth: scanDepth, cache, multiPV: 3, result };
       }
       if (review !== task) return;
+
+      baseResults[index] = result;
       node.evaluation = result.lines[0];
       node.lines = result.lines;
       node.liveKey = null;
       node.best = result.best;
       node.depth = result.lines[0].depth;
+
       if (index > 0) {
         const before = path[index - 1];
         gradeMove(node, before.lines, before.best, index);
+        if (mobileAdaptive && shouldRefineMobileReview({
+          before: node.coach.before,
+          after: node.coach.after,
+          move: node.move,
+          bestMove: node.coach.best,
+          classification: node.classification,
+          forced: node.forced,
+          chanceLost: node.chanceLost,
+        })) {
+          refinementPositions.add(index - 1);
+          refinementPositions.add(index);
+        }
       }
+
       progress.value = index + 1;
       $('report-status').textContent = 'Avaliando ' + (index + 1) + ' de ' + path.length + ' posições…';
       if (node === cursor || performance.now() >= nextPaint || index === path.length - 1) {
@@ -2016,9 +2051,55 @@ async function runReview() {
         nextPaint = performance.now() + 100;
       }
     }
+
+    if (mobileAdaptive && refinementPositions.size) {
+      const refinementIndexes = [...refinementPositions].filter(index => !path[index]?.terminal);
+      progress.max = path.length + refinementIndexes.length;
+      progress.value = path.length;
+      for (const [offset, index] of refinementIndexes.entries()) {
+        if (review !== task) return;
+        const node = path[index];
+        const baseIndex = searchBaseIndexes[index] ?? 0;
+        const raw = await engine.search(
+          path[baseIndex].fen,
+          commands.slice(baseIndex, index),
+          depth,
+          3,
+          { signal: task.controller.signal },
+        );
+        if (!raw.lines.length) throw new Error('O motor não retornou uma avaliação refinada.');
+        const result = { ...raw, lines: raw.lines.map(line => normalizeLine(line, node)) };
+        deepResults.set(index, result);
+        node.reviewData = { depth, cache, multiPV: 3, result };
+        progress.value = path.length + offset + 1;
+        $('report-status').textContent =
+          'Refinando posições decisivas: ' + (offset + 1) + ' de ' + refinementIndexes.length + '…';
+        if (offset % 4 === 3) {
+          await new Promise(resolve => setTimeout(resolve, 0));
+          if (review !== task) return;
+        }
+      }
+
+      for (const [index, result] of deepResults) {
+        const node = path[index];
+        node.evaluation = result.lines[0];
+        node.lines = result.lines;
+        node.liveKey = null;
+        node.best = result.best;
+        node.depth = result.lines[0].depth;
+      }
+
+      for (let index = 1; index < path.length; index++) {
+        const before = deepResults.get(index - 1);
+        const after = deepResults.get(index);
+        if (before && after) gradeMove(path[index], before.lines, before.best, index, after.lines[0]);
+      }
+    }
+
     completed = true;
     if (setting('community-data')) {
-      void enqueueCommunityReview(path, gameHeaders, profile, depth, typeof originalPgn === 'string')
+      const publishedDepth = mobileAdaptive ? scanDepth : depth;
+      void enqueueCommunityReview(path, gameHeaders, profile, publishedDepth, typeof originalPgn === 'string')
         .then(result => {
           if (result?.reason === 'queue-full') {
             toast(translate('Contribution queue full. Pending games are safe; this game was not added.'));
@@ -2028,9 +2109,15 @@ async function runReview() {
         })
         .catch(() => { /* Optional collection never blocks review. */ });
     }
-    studyAnalysis = { version: cacheVersion, depth, positions: path.map(node => ({ lines: node.lines, best: node.best })) };
+    studyAnalysis = {
+      version: cacheVersion,
+      depth: mobileAdaptive ? scanDepth : depth,
+      positions: path.map(node => ({ lines: node.lines, best: node.best })),
+    };
     scheduleStudy();
-    $('report-status').textContent = 'Revisão concluída · profundidade ' + depth;
+    $('report-status').textContent = mobileAdaptive
+      ? 'Revisão concluída · varredura ' + scanDepth + ' · até ' + depth
+      : 'Revisão concluída · profundidade ' + depth;
     readyEngine();
   } catch (error) {
     if (review === task) engineFailure(error, 'report-status');
