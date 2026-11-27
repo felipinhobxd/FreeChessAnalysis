@@ -4,7 +4,7 @@ const PACKAGE = 'stockfish@19.0.1/bin/';
 const MIRRORS = ['https://unpkg.com/', 'https://cdn.jsdelivr.net/npm/'];
 const FALLBACK_LITE = 'https://chessanalysis.dev/engine/sf19.0.1/stockfish-19-lite-single.js';
 
-const MAX_FULL_THREADS = 16;
+const MAX_FULL_THREADS = 32;
 const MAX_FULL_HASH_MB = 512;
 
 // Reserve one logical processor for the browser UI, but let powerful desktops
