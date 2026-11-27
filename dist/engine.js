@@ -21,6 +21,14 @@ export function hashSizeForDeviceMemory(deviceMemory) {
   return Math.max(64, Math.min(MAX_FULL_HASH_MB, Math.round(memory * 64)));
 }
 
+export function wasmThreadsFor(available, crossOriginIsolated, sharedArrayBufferAvailable) {
+  if (!crossOriginIsolated || !sharedArrayBufferAvailable) return 1;
+  const count = Number(available);
+  return Number.isFinite(count) && count > 0
+    ? Math.max(1, Math.min(MAX_FULL_THREADS, Math.floor(count)))
+    : 1;
+}
+
 function availableThreads() {
   let reported = Number(globalThis.navigator?.hardwareConcurrency);
   if (nativeStockfishAvailable()) {
@@ -74,7 +82,11 @@ function engineBuilds(mode) {
     timeout: 30000,
     native: true,
   }] : [];
-  const wasmThreads = globalThis.crossOriginIsolated ? threads : 1;
+  const wasmThreads = wasmThreadsFor(
+    threads,
+    globalThis.crossOriginIsolated,
+    typeof globalThis.SharedArrayBuffer !== 'undefined',
+  );
   const full = {
     name: 'Completo',
     mode: 'full',
