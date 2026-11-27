@@ -17,6 +17,12 @@ jobs:
         with:
           node-version: 24
       - run: npm ci --include=dev
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: 2.9.8
+          cache: true
+      - name: Type-check Supabase Edge Function with Deno
+        run: deno check --config supabase/functions/ingest-review/deno.json supabase/functions/ingest-review/index.ts
       - run: npx playwright install --with-deps chromium
       - run: npm run build
       - run: npm run test:e2e

@@ -8,7 +8,8 @@ const PENDING='move-by-move/community-pending/v2';
 const SENT='move-by-move/community-sent/v2';
 const CLIENT='move-by-move/community-client/v1';
 const CAPACITY='move-by-move/community-capacity/v2';
-const CONSENT='move-by-move/community-consent/v2';
+const CONSENT='move-by-move/community-consent/v3';
+const RETRY='move-by-move/community-retry/v1';
 const PREFERENCES='livro-de-lances/preferencias/v1';
 const LEGACY_PENDING='move-by-move/community-pending/v1';
 const LEGACY_SENT='move-by-move/community-sent/v1';
@@ -133,26 +134,60 @@ function schedule(ms=8000){
  timer=setTimeout(()=>{timer=null;void flushCommunityQueue();},ms);
 }
 let timer=null,inflight=null;
+function retryState(){
+ const state=read(RETRY,null);
+ return state&&Number.isFinite(state.retry_at)&&state.retry_at>0?state:null;
+}
+function clearRetry(){try{localStorage.removeItem(RETRY);}catch{}}
+function deferRetry(delay,reason,status){
+ const previous=retryState();
+ const attempts=Math.min(16,(Number(previous?.attempts)||0)+1);
+ const wait=Math.max(1000,Math.min(24*60*60*1000,Math.floor(delay)));
+ const retryAt=Date.now()+wait;
+ write(RETRY,{retry_at:retryAt,attempts,reason,status});
+ schedule(wait);
+ return retryAt;
+}
+function exponentialRetryDelay(){
+ const attempts=Math.min(10,(Number(retryState()?.attempts)||0)+1);
+ return Math.min(6*60*60*1000,60000*2**Math.min(attempts-1,8));
+}
+function rateLimitDelay(res){
+ const raw=res?.headers?.get?.('Retry-After');
+ if(typeof raw==='string'&&/^\d+$/.test(raw.trim()))
+  return Math.max(1000,Math.min(24*60*60*1000,Number(raw.trim())*1000));
+ const date=typeof raw==='string'?Date.parse(raw):NaN;
+ if(Number.isFinite(date))return Math.max(1000,Math.min(24*60*60*1000,date-Date.now()));
+ const now=new Date();
+ return Math.max(1000,Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate()+1)-Date.now()+1000);
+}
 export function clearCommunityQueue(){
  if(timer!==null)clearTimeout(timer);timer=null;
- try{localStorage.removeItem(PENDING);}catch{}
+ try{localStorage.removeItem(PENDING);localStorage.removeItem(RETRY);}catch{}
 }
 export async function enqueueCommunityReview(path,headers,engine,depth,isImported=true){
  if(!hasConsent())return {queued:false,reason:'consent-required'};
  if(read(CAPACITY,false))return {queued:false,reason:'capacity-reached'};
  const sample=await createCommunityReviewSample(path,headers,engine,depth,isImported);
+ if(!hasConsent())return {queued:false,reason:'consent-required'};
  if(!sample)return {queued:false,reason:'not-eligible'};
  const pending=queue(),sent=read(SENT,[]);
  if(pending.some(x=>x.game_hash===sample.game_hash)||(Array.isArray(sent)&&sent.includes(sample.game_hash)))return {queued:false,reason:'duplicate'};
- pending.push(sample);if(pending.length>MAX_QUEUE)pending.splice(0,pending.length-MAX_QUEUE);
+ if(pending.length>=MAX_QUEUE){schedule();return {queued:false,reason:'queue-full'};}
+ pending.push(sample);
  if(!write(PENDING,pending))return {queued:false,reason:'storage-unavailable'};
  if(pending.length>=BATCH)void flushCommunityQueue();else schedule();
  return {queued:true,plies:sample.ply_count};
 }
 export async function flushCommunityQueue(fetcher=globalThis.fetch){
  if(!hasConsent()){clearCommunityQueue();return {sent:0,reason:'consent-required'};}
- if(read(CAPACITY,false)){clearCommunityQueue();return {sent:0,reason:'capacity-reached'};}
+ if(read(CAPACITY,false))return {sent:0,reason:'capacity-reached'};
  if(inflight)return inflight;
+ const retry=retryState();
+ if(retry&&retry.retry_at>Date.now()){
+  schedule(retry.retry_at-Date.now());
+  return {sent:0,reason:'retry-deferred',status:retry.status,retryAt:retry.retry_at};
+ }
  const pending=queue();if(!pending.length||typeof fetcher!=='function')return {sent:0};
  if(timer!==null)clearTimeout(timer);timer=null;
  const batch=pending.slice(0,BATCH),hashes=new Set(batch.map(x=>x.game_hash));
@@ -161,19 +196,44 @@ export async function flushCommunityQueue(fetcher=globalThis.fetch){
    const res=await fetcher(ENDPOINT,{method:'POST',headers:{apikey:PUB,'Content-Type':'application/json'},
     body:JSON.stringify({client_id:clientId(),samples:batch}),keepalive:true});
    const data=await res.json().catch(()=>({}));
+   if(res.status===429||data?.rate_limited){
+    const retryAt=deferRetry(rateLimitDelay(res),'rate-limited',res.status);
+    return {sent:0,status:res.status,reason:'rate-limited',retryAt};
+   }
+   const accepted=data?.accepted,duplicates=data?.duplicates;
+   const fullyAccounted=Number.isSafeInteger(accepted)&&accepted>=0&&Number.isSafeInteger(duplicates)&&duplicates>=0&&accepted+duplicates===batch.length;
+   if(data?.capacity_reached&&!fullyAccounted){
+    write(CAPACITY,true);
+    return {sent:0,status:res.status,reason:'capacity-reached',pending:batch.length};
+   }
+   if(res.ok&&fullyAccounted){
+    const current=queue(),remaining=current.filter(x=>!hashes.has(x.game_hash));
+    if(!write(PENDING,remaining)){
+     const retryAt=deferRetry(exponentialRetryDelay(),'storage-error',res.status);
+     return {sent:0,status:res.status,reason:'storage-unavailable',retryAt};
+    }
+    const recent=read(SENT,[]);
+    write(SENT,[...new Set([...(Array.isArray(recent)?recent:[]),...hashes])].slice(-RECENT));
+    clearRetry();
+    if(data?.capacity_reached)write(CAPACITY,true);
+    else if(remaining.length)schedule(1000);
+    return {sent:batch.length,status:res.status,result:data,reason:data?.capacity_reached?'capacity-reached':undefined};
+   }
    if(data?.capacity_reached){
-    write(CAPACITY,true);clearCommunityQueue();
-    return {sent:batch.length,status:res.status,reason:'capacity-reached'};
+    write(CAPACITY,true);
+    return {sent:0,status:res.status,reason:'capacity-reached',pending:batch.length};
    }
-   if(res.ok||res.status===202||res.status===429||(res.status>=400&&res.status<500)){
-    const current=queue();write(PENDING,current.filter(x=>!hashes.has(x.game_hash)));
-    const recent=read(SENT,[]);write(SENT,[...new Set([...(Array.isArray(recent)?recent:[]),...hashes])].slice(-RECENT));
-    if(res.ok&&current.length>batch.length)schedule(1000);
-    return {sent:batch.length,status:res.status,result:data};
-   }
-   schedule(60000);return {sent:0,status:res.status};
-  }catch{schedule(60000);return {sent:0,status:0};}finally{inflight=null;}
+   const reason=res.ok?'incomplete-ack':'http-error';
+   const retryAt=deferRetry(exponentialRetryDelay(),reason,res.status);
+   return {sent:0,status:res.status,reason,retryAt};
+  }catch{
+   const retryAt=deferRetry(exponentialRetryDelay(),'network-error',0);
+   return {sent:0,status:0,reason:'network-error',retryAt};
+  }finally{inflight=null;}
  })();
  return inflight;
 }
-if(typeof window!=='undefined')window.addEventListener('pagehide',()=>{if(hasConsent())void flushCommunityQueue();});
+if(typeof window!=='undefined'){
+ window.addEventListener('pagehide',()=>{if(hasConsent())void flushCommunityQueue();});
+ if(hasConsent()&&queue().length)schedule(1000);
+}

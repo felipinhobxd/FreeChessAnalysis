@@ -35,14 +35,24 @@ function readStoredPreferences() {
     return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   } catch { return {}; }
 }
-const communityConsentStorageKey = 'move-by-move/community-consent/v2';
-const previousCommunityConsentStorageKey = 'move-by-move/community-consent/v1';
+const communityConsentStorageKey = 'move-by-move/community-consent/v3';
+const previousCommunityConsentStorageKeys = [
+  'move-by-move/community-consent/v2',
+  'move-by-move/community-consent/v1',
+];
 function readCommunityConsent() {
   try {
     const saved = localStorage.getItem(communityConsentStorageKey);
     if (saved === 'accepted' || saved === 'declined') return saved;
-    // A previous refusal remains a refusal. A previous acceptance does not cover full-game data.
-    if (localStorage.getItem(previousCommunityConsentStorageKey) === 'declined') {
+    // Newer revisions supersede older choices; old acceptances need fresh v3 consent.
+    const previous = previousCommunityConsentStorageKeys
+      .map(key => localStorage.getItem(key))
+      .find(choice => choice === 'accepted' || choice === 'declined');
+    clearCommunityQueue();
+    const preferences = readStoredPreferences();
+    preferences['community-data'] = false;
+    localStorage.setItem(preferencesStorageKey, JSON.stringify(preferences));
+    if (previous === 'declined') {
       localStorage.setItem(communityConsentStorageKey, 'declined');
       return 'declined';
     }

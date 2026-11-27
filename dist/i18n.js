@@ -1045,6 +1045,58 @@ Object.assign(MESSAGES, {
   ]
 });
 
+
+Object.assign(MESSAGES, {
+  "Privacy note:": [
+    "Privacy note:",
+    "Aviso de privacidade:",
+    "Nota de privacidad:",
+    "Note de confidentialité :",
+    "Datenschutzhinweis:",
+    "Nota sulla privacy:",
+    "Privacyverklaring:",
+    "Примечание о конфиденциальности:",
+    "隐私说明：",
+    "プライバシーに関する注意：",
+    "개인정보 안내:",
+    "Gizlilik notu:",
+    "ملاحظة الخصوصية:",
+    "गोपनीयता सूचना:"
+  ],
+  "Request and IP logs:": [
+    "Request and IP logs:",
+    "Registros de requisição e IP:",
+    "Registros de solicitudes e IP:",
+    "Journaux des requêtes et des adresses IP :",
+    "Anfrage- und IP-Protokolle:",
+    "Log delle richieste e degli indirizzi IP:",
+    "Verzoeken- en IP-logboeken:",
+    "Журналы запросов и IP-адресов:",
+    "请求与 IP 日志：",
+    "リクエストとIPのログ：",
+    "요청 및 IP 로그:",
+    "İstek ve IP günlükleri:",
+    "سجلات الطلبات وعناوين IP:",
+    "अनुरोध और IP लॉग:"
+  ],
+  "When you contribute, Supabase may record your IP address and request/network metadata in its operational logs. These logs are separate from the community game dataset, which stores HMAC-protected subnet identifiers rather than plaintext IP addresses. Access and retention of provider logs follow Supabase and project settings; this app does not set or promise a specific retention period for them.": [
+    "When you contribute, Supabase may record your IP address and request/network metadata in its operational logs. These logs are separate from the community game dataset, which stores HMAC-protected subnet identifiers rather than plaintext IP addresses. Access and retention of provider logs follow Supabase and project settings; this app does not set or promise a specific retention period for them.",
+    "Quando você envia uma contribuição, o Supabase pode registrar seu endereço IP e metadados de rede/requisição nos logs operacionais. Esses logs são separados da base comunitária de partidas, que armazena identificadores de sub-rede protegidos por HMAC, e não endereços IP em texto puro. O acesso e a retenção desses logs seguem os controles do Supabase e as configurações do projeto; este app não define nem promete um prazo específico de retenção para eles.",
+    "Cuando contribuyes, Supabase puede registrar tu dirección IP y metadatos de red o de la solicitud en sus registros operativos. Estos registros son independientes de la base comunitaria de partidas, que guarda identificadores de subred protegidos con HMAC y no direcciones IP en texto plano. El acceso y la conservación de esos registros se rigen por los controles de Supabase y la configuración del proyecto; esta aplicación no establece ni promete un plazo específico de conservación.",
+    "Lorsque vous contribuez, Supabase peut enregistrer votre adresse IP ainsi que des métadonnées réseau ou de requête dans ses journaux opérationnels. Ces journaux sont distincts de la base communautaire des parties, qui stocke des identifiants de sous-réseau protégés par HMAC et non des adresses IP en clair. L’accès à ces journaux et leur durée de conservation dépendent des contrôles de Supabase et des paramètres du projet ; cette application ne fixe ni ne promet de durée précise.",
+    "Wenn du Daten beiträgst, kann Supabase deine IP-Adresse sowie Netzwerk- und Anfrage-Metadaten in seinen Betriebsprotokollen erfassen. Diese Protokolle sind vom gemeinschaftlichen Spieldatensatz getrennt. Dieser enthält HMAC-geschützte Subnetzkennungen und keine IP-Adressen im Klartext. Zugriff und Aufbewahrung dieser Protokolle richten sich nach den Kontrollen von Supabase und den Projekteinstellungen; diese App legt keine bestimmte Aufbewahrungsdauer fest und verspricht sie auch nicht.",
+    "Quando contribuisci, Supabase può registrare il tuo indirizzo IP e i metadati di rete o della richiesta nei propri log operativi. Questi log sono separati dal database comunitario delle partite, che conserva identificatori di subnet protetti tramite HMAC e non indirizzi IP in chiaro. L'accesso e la conservazione dei log seguono i controlli di Supabase e le impostazioni del progetto; questa app non stabilisce né garantisce un periodo di conservazione specifico.",
+    "Wanneer je gegevens bijdraagt, kan Supabase je IP-adres en netwerk- of aanvraagmetadata opnemen in operationele logboeken. Deze logboeken staan los van de gemeenschappelijke partijendatabase, waarin subnet-id's met HMAC worden beschermd en geen IP-adressen in platte tekst worden opgeslagen. Toegang tot en bewaring van deze logboeken vallen onder de controles van Supabase en de projectinstellingen; deze app stelt geen specifieke bewaartermijn vast en belooft die ook niet.",
+    "При отправке данных Supabase может записывать ваш IP-адрес и метаданные сети или запроса в эксплуатационные журналы. Эти журналы хранятся отдельно от общей базы партий: в ней сохраняются защищённые с помощью HMAC идентификаторы подсетей, а не IP-адреса в открытом виде. Доступ к журналам и срок их хранения регулируются средствами Supabase и настройками проекта; приложение не устанавливает и не гарантирует конкретный срок хранения.",
+    "贡献数据时，Supabase 可能会在运行日志中记录您的 IP 地址以及网络或请求元数据。这些日志与社区棋局数据集相互独立；数据集中保存的是经过 HMAC 保护的子网标识符，而不是明文 IP 地址。日志的访问和保留由 Supabase 的控制措施及项目设置决定；本应用不会设定或承诺具体的日志保留期限。",
+    "データを提供すると、Supabase の運用ログに IP アドレスやネットワーク・リクエストのメタデータが記録される場合があります。このログはコミュニティ対局データとは別のものです。対局データには平文の IP アドレスではなく、HMAC で保護されたサブネット識別子が保存されます。ログへのアクセスと保存期間は Supabase の管理機能およびプロジェクト設定に従います。このアプリは具体的なログ保存期間を設定または保証しません。",
+    "데이터를 제공하면 Supabase 운영 로그에 IP 주소와 네트워크 또는 요청 메타데이터가 기록될 수 있습니다. 이 로그는 커뮤니티 대국 데이터셋과 별개입니다. 데이터셋에는 일반 텍스트 IP 주소가 아니라 HMAC로 보호된 서브넷 식별자가 저장됩니다. 로그 접근 및 보존은 Supabase의 관리 기능과 프로젝트 설정을 따르며, 이 앱은 특정 로그 보존 기간을 설정하거나 보장하지 않습니다.",
+    "Katkı gönderdiğinizde Supabase, IP adresinizi ve ağ/istek meta verilerini operasyonel günlüklerine kaydedebilir. Bu günlükler topluluk oyun veri kümesinden ayrıdır; veri kümesinde düz metin IP adresleri yerine HMAC ile korunan alt ağ tanımlayıcıları saklanır. Günlüklere erişim ve bunların saklanma süresi Supabase denetimlerine ve proje ayarlarına tabidir; bu uygulama belirli bir günlük saklama süresi belirlemez veya garanti etmez.",
+    "عند إرسال مساهمة، قد تسجل Supabase عنوان IP الخاص بك وبيانات الشبكة أو الطلب الوصفية في سجلاتها التشغيلية. هذه السجلات منفصلة عن مجموعة بيانات المباريات المجتمعية؛ إذ تُخزَّن في المجموعة معرّفات الشبكات الفرعية المحمية بواسطة HMAC، وليس عناوين IP بنص واضح. يخضع الوصول إلى هذه السجلات والاحتفاظ بها لضوابط Supabase وإعدادات المشروع؛ ولا يحدد هذا التطبيق مدة احتفاظ معينة بهذه السجلات ولا يضمنها.",
+    "जब आप योगदान भेजते हैं, तो Supabase अपने संचालन लॉग में आपका IP पता और नेटवर्क/अनुरोध मेटाडेटा दर्ज कर सकता है। ये लॉग सामुदायिक खेल डेटासेट से अलग हैं। डेटासेट में सामान्य-पाठ IP पते नहीं, बल्कि HMAC से सुरक्षित सबनेट पहचानकर्ता रखे जाते हैं। इन लॉग तक पहुँच और उन्हें कितने समय तक रखा जाता है, यह Supabase के नियंत्रणों और प्रोजेक्ट सेटिंग्स पर निर्भर करता है; यह ऐप लॉग रखने की कोई निश्चित अवधि तय या सुनिश्चित नहीं करता।"
+  ]
+});
+
 const partialKeys = Object.keys(MESSAGES).filter(key => key.length > 3 && key !== 'Melhor').sort((a, b) => b.length - a.length);
 const englishReviewPatterns = [
   [/Revisão concluída · profundidade (\d+)/g, 'Review complete · depth $1'],

@@ -58,7 +58,7 @@ test('community consent requires an explicit choice, persists, and can be change
 
   let consent = await page.evaluate(() => ({
     preferences: JSON.parse(localStorage.getItem('livro-de-lances/preferencias/v1') || '{}'),
-    choice: localStorage.getItem('move-by-move/community-consent/v2'),
+    choice: localStorage.getItem('move-by-move/community-consent/v3'),
   }));
   expect(consent.preferences['community-data']).toBe(true);
   expect(consent.choice).toBe('accepted');
@@ -73,7 +73,7 @@ test('community consent requires an explicit choice, persists, and can be change
   await page.locator('#community-consent-decline').click();
   consent = await page.evaluate(() => ({
     preferences: JSON.parse(localStorage.getItem('livro-de-lances/preferencias/v1') || '{}'),
-    choice: localStorage.getItem('move-by-move/community-consent/v2'),
+    choice: localStorage.getItem('move-by-move/community-consent/v3'),
   }));
   expect(consent.preferences['community-data']).toBe(false);
   expect(consent.choice).toBe('declined');
@@ -82,12 +82,12 @@ test('community consent requires an explicit choice, persists, and can be change
   await expect(page.locator('#community-data')).not.toBeChecked();
 });
 
-test('a previous acceptance does not authorize the expanded full-game dataset', async ({ page }) => {
+test('a previous acceptance does not authorize the new IP and provider-log disclosure', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('move-by-move/language', 'en');
     localStorage.setItem('move-by-move/chess-profile', JSON.stringify({ platform: 'none', username: '' }));
     localStorage.setItem('move-by-move/engine-choice/v1', '1');
-    localStorage.setItem('move-by-move/community-consent/v1', 'accepted');
+    localStorage.setItem('move-by-move/community-consent/v2', 'accepted');
     localStorage.setItem('livro-de-lances/preferencias/v1', JSON.stringify({ 'engine-mode': 'lite', 'community-data': true }));
   });
   await page.goto('/analysis');
@@ -98,7 +98,7 @@ test('a previous acceptance does not authorize the expanded full-game dataset', 
   await page.locator('#community-consent-decline').click();
   await page.locator('#language-enter').click();
   const state = await page.evaluate(() => ({
-    v2: localStorage.getItem('move-by-move/community-consent/v2'),
+    v2: localStorage.getItem('move-by-move/community-consent/v3'),
     enabled: JSON.parse(localStorage.getItem('livro-de-lances/preferencias/v1') || '{}')['community-data'],
   }));
   expect(state.v2).toBe('declined');
@@ -115,8 +115,80 @@ test('a previous explicit refusal remains respected after the consent update', a
   });
   await page.goto('/analysis');
   await expect(page.locator('#language-gate')).toBeHidden();
-  const state = await page.evaluate(() => localStorage.getItem('move-by-move/community-consent/v2'));
+  const state = await page.evaluate(() => localStorage.getItem('move-by-move/community-consent/v3'));
   expect(state).toBe('declined');
+});
+
+test('a previous v2 refusal disables a stale enabled preference during migration', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('move-by-move/language', 'en');
+    localStorage.setItem('move-by-move/chess-profile', JSON.stringify({ platform: 'none', username: '' }));
+    localStorage.setItem('move-by-move/engine-choice/v1', '1');
+    localStorage.setItem('move-by-move/community-consent/v2', 'declined');
+    localStorage.setItem('livro-de-lances/preferencias/v1', JSON.stringify({ 'engine-mode': 'lite', 'community-data': true }));
+    localStorage.setItem('move-by-move/community-pending/v2', JSON.stringify([{ game_hash: 'old-pending-sample' }]));
+  });
+  await page.goto('/analysis');
+  await expect(page.locator('#language-gate')).toBeHidden();
+  const state = await page.evaluate(() => ({
+    choice: localStorage.getItem('move-by-move/community-consent/v3'),
+    preferences: JSON.parse(localStorage.getItem('livro-de-lances/preferencias/v1') || '{}'),
+    pending: localStorage.getItem('move-by-move/community-pending/v2'),
+  }));
+  expect(state.choice).toBe('declined');
+  expect(state.preferences['community-data']).toBe(false);
+  expect(state.pending).toBeNull();
+});
+
+for (const [v1, v2, expected] of [
+  ['declined', 'accepted', null],
+  ['accepted', 'declined', 'declined'],
+  ['accepted', null, null],
+  ['declined', 'invalid', 'declined'],
+]) {
+  test(`consent migration uses latest valid revision: v1=${v1}, v2=${v2}`, async ({ page }) => {
+    await page.addInitScript(({v1, v2}) => {
+      localStorage.setItem('move-by-move/language', 'en');
+      localStorage.setItem('move-by-move/chess-profile', JSON.stringify({platform:'none',username:''}));
+      localStorage.setItem('move-by-move/engine-choice/v1', '1');
+      localStorage.setItem('move-by-move/community-consent/v1', v1);
+      if (v2 !== null) localStorage.setItem('move-by-move/community-consent/v2', v2);
+      localStorage.setItem('livro-de-lances/preferencias/v1', JSON.stringify({'engine-mode':'lite','community-data':true}));
+      localStorage.setItem('move-by-move/community-pending/v2', JSON.stringify([{game_hash:'old'}]));
+    }, {v1, v2});
+    await page.goto('/analysis');
+    const state = await page.evaluate(() => ({
+      choice:localStorage.getItem('move-by-move/community-consent/v3'),
+      enabled:JSON.parse(localStorage.getItem('livro-de-lances/preferencias/v1'))['community-data'],
+      pending:localStorage.getItem('move-by-move/community-pending/v2'),
+    }));
+    expect(state).toEqual({choice:expected,enabled:false,pending:null});
+    if (expected === null) {
+      await expect(page.locator('#language-gate')).toBeVisible();
+      await expect(page.locator('#language-enter')).toBeDisabled();
+      await expect(page.locator('#community-consent-decline')).toHaveAttribute('aria-pressed','false');
+    } else {
+      await expect(page.locator('#language-gate')).toBeHidden();
+    }
+  });
+}
+
+test('community IP and provider-log disclosure is translated in all 14 supported languages', async ({ page }) => {
+  await page.goto('/analysis');
+  const languages = ['en', 'pt-BR', 'es', 'fr', 'de', 'it', 'nl', 'ru', 'zh-CN', 'ja', 'ko', 'tr', 'ar', 'hi'];
+  let portugueseDisclosure = '';
+  for (const language of languages) {
+    await page.locator('#language-select').selectOption(language);
+    const disclosure = (await page.locator('#community-consent-ip').innerText()).trim();
+    expect(disclosure.length).toBeGreaterThan(150);
+    if (language !== 'en') expect(disclosure).not.toContain('When you contribute, Supabase may record');
+    if (language === 'pt-BR') portugueseDisclosure = disclosure;
+  }
+  await page.locator('#language-select').selectOption('pt-BR');
+  await page.locator('#community-consent-decline').click();
+  await page.locator('#language-enter').click();
+  await page.locator('#settings-btn').click();
+  await expect(page.locator('#community-settings-privacy')).toHaveText(portugueseDisclosure);
 });
 
 test('returning visitors without an explicit consent decision see the prompt once', async ({ page }) => {

@@ -30,6 +30,8 @@ declare
  limited_client bytea:=decode(repeat('33',32),'hex');
  i integer;
  state_count integer;
+ quota_count bigint;
+ capacity integer;
 begin
  sample:=jsonb_build_object(
   'game_hash',repeat('a',64),
@@ -53,7 +55,27 @@ begin
  result:=public.fca_ingest_community_games(client,network,jsonb_build_array(sample));
  if (result->>'accepted')::int<>1 then raise exception 'Full-game insert failed: %',result;end if;
  result:=public.fca_ingest_community_games(client,network,jsonb_build_array(sample));
- if (result->>'duplicates')::int<>1 then raise exception 'Full-game deduplication failed: %',result;end if;
+ select max_samples-sample_count into capacity from fca_private.community_game_ingest_state where singleton=true;
+ if result is distinct from jsonb_build_object('accepted',0,'duplicates',1,'capacity_reached',false,'remaining_capacity',capacity) then
+  raise exception 'Duplicate acknowledgement contract failed: %',result;
+ end if;
+ select sum(sample_count) into quota_count from fca_private.community_ingest_limits;
+ result:=public.fca_ingest_community_games(client,network,jsonb_build_array(sample,sample,sample,sample,sample));
+ if result is distinct from jsonb_build_object('accepted',0,'duplicates',5,'capacity_reached',false,'remaining_capacity',capacity) then
+  raise exception 'Repeated duplicates in batch failed: %',result;
+ end if;
+ if (select sum(sample_count) from fca_private.community_ingest_limits) is distinct from quota_count then
+  raise exception 'Duplicate retries consumed quota';
+ end if;
+ result:=public.fca_ingest_community_games(client,network,jsonb_build_array(
+  sample,jsonb_set(sample,'{game_hash}',to_jsonb(repeat('d',64)))
+ ));
+ if result is distinct from jsonb_build_object('accepted',1,'duplicates',1,'capacity_reached',false,'remaining_capacity',capacity-1) then
+  raise exception 'Mixed batch acknowledgement regressed: %',result;
+ end if;
+ if (select sum(sample_count) from fca_private.community_ingest_limits) is distinct from quota_count+2 then
+  raise exception 'Mixed batch must charge only one new game per quota';
+ end if;
 
  if (select octet_length(move_data) from fca_private.community_game_samples where game_hash=decode(repeat('a',64),'hex'))<>80 then
   raise exception 'Per-ply binary payload length is incorrect';
@@ -90,6 +112,15 @@ begin
  end if;
  select sample_count into state_count from fca_private.community_game_ingest_state where singleton=true;
  if state_count<>40000 then raise exception 'Global sample counter incorrect: %',state_count;end if;
+ update fca_private.community_ingest_limits set sample_count=500 where limit_kind='network' and key_hash=network;
+ select sum(sample_count) into quota_count from fca_private.community_ingest_limits;
+ result:=public.fca_ingest_community_games(limited_client,network,jsonb_build_array(sample,sample));
+ if result is distinct from jsonb_build_object('accepted',0,'duplicates',2,'capacity_reached',true,'remaining_capacity',0) then
+  raise exception 'Full capacity duplicate retry must succeed even for exhausted client: %',result;
+ end if;
+ if (select sum(sample_count) from fca_private.community_ingest_limits) is distinct from quota_count then
+  raise exception 'Full-capacity duplicate retries consumed quota';
+ end if;
 end $$;
 reset role;
 rollback;

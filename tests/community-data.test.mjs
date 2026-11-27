@@ -1,5 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
+import {createIngestHandler} from '../supabase/functions/ingest-review/handler.js';
+import {Chess} from 'chess.js';
 import {createCommunityReviewSample,enqueueCommunityReview,flushCommunityQueue,clearCommunityQueue} from '../dist/community-data.js';
 
 const data=new Map();
@@ -9,7 +11,7 @@ globalThis.localStorage={
  removeItem:key=>data.delete(key)
 };
 const START_FEN='rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
-const CONSENT='move-by-move/community-consent/v2';
+const CONSENT='move-by-move/community-consent/v3';
 const PREFERENCES='livro-de-lances/preferencias/v1';
 
 function allowConsent(){
@@ -98,8 +100,9 @@ test('ineligible local, incomplete, oversized, unfinished and unsupported-engine
  assert.equal(await createCommunityReviewSample(path,headers,{...engine,version:'17.1'},14,true),null);
 });
 
-test('collection is consent-gated even when an old preference is true',async()=>{
+test('collection requires the new consent revision even when an older full-game consent and preference are present',async()=>{
  data.clear();
+ data.set('move-by-move/community-consent/v2','accepted');
  data.set(PREFERENCES,JSON.stringify({'community-data':true}));
  const {path,headers,engine}=fixture();
  assert.equal((await enqueueCommunityReview(path,headers,engine,14,true)).reason,'consent-required');
@@ -115,7 +118,7 @@ test('queue batches, sends complete games and deduplicates reviews',async()=>{
  let body;
  const result=await flushCommunityQueue(async(_url,options)=>{
   body=JSON.parse(options.body);
-  return {ok:true,status:200,json:async()=>({accepted:1,remaining_capacity:49999})};
+  return {ok:true,status:200,json:async()=>({accepted:1,duplicates:0,capacity_reached:false,remaining_capacity:49999})};
  });
  assert.equal(result.sent,1);
  assert.equal(body.samples.length,1);
@@ -139,4 +142,158 @@ test('revoking consent stops transmission and clears queued full games',async()=
  assert.equal(result.reason,'consent-required');
  assert.equal(calls,0);
  assert.deepEqual(JSON.parse(data.get('move-by-move/community-pending/v2')||'[]'),[]);
+});
+
+
+test('HTTP 429 preserves queued games and defers retry until the server retry window',async()=>{
+ data.clear();clearCommunityQueue();allowConsent();
+ const {path,headers,engine}=fixture();
+ await enqueueCommunityReview(path,headers,engine,14,true);
+ const result=await flushCommunityQueue(async()=>({
+  ok:false,status:429,
+  headers:{get:name=>name==='Retry-After'?'3600':null},
+  json:async()=>({accepted:0,rate_limited:true})
+ }));
+ assert.equal(result.sent,0);
+ assert.equal(result.reason,'rate-limited');
+ assert.equal(JSON.parse(data.get('move-by-move/community-pending/v2')||'[]').length,1);
+ assert.deepEqual(JSON.parse(data.get('move-by-move/community-sent/v2')||'[]'),[]);
+ const retry=JSON.parse(data.get('move-by-move/community-retry/v1'));
+ assert.equal(retry.reason,'rate-limited');
+ assert.ok(retry.retry_at>Date.now());
+ let calls=0;
+ const deferred=await flushCommunityQueue(async()=>{calls++;return {ok:true,status:200,json:async()=>({accepted:1,duplicates:0})};});
+ assert.equal(deferred.reason,'retry-deferred');
+ assert.equal(calls,0);
+ clearCommunityQueue();
+});
+
+test('HTTP client errors and server errors preserve queued games instead of marking them sent',async()=>{
+ for(const status of [400,401,403,500]){
+  data.clear();clearCommunityQueue();allowConsent();
+  const {path,headers,engine}=fixture();
+  await enqueueCommunityReview(path,headers,engine,14,true);
+  const result=await flushCommunityQueue(async()=>({
+   ok:false,status,headers:{get:()=>null},json:async()=>({error:'temporary or invalid request'})
+  }));
+  assert.equal(result.sent,0,'status '+status);
+  assert.equal(result.reason,'http-error','status '+status);
+  assert.equal(JSON.parse(data.get('move-by-move/community-pending/v2')||'[]').length,1,'status '+status);
+  assert.deepEqual(JSON.parse(data.get('move-by-move/community-sent/v2')||'[]'),[],'status '+status);
+  assert.ok(data.has('move-by-move/community-retry/v1'),'status '+status);
+  clearCommunityQueue();
+ }
+});
+
+test('partial success acknowledgement does not remove an entire batch from the queue',async()=>{
+ data.clear();clearCommunityQueue();allowConsent();
+ const first=fixture(50),second=fixture(51);
+ await enqueueCommunityReview(first.path,first.headers,first.engine,14,true);
+ await enqueueCommunityReview(second.path,second.headers,second.engine,14,true);
+ const result=await flushCommunityQueue(async()=>({
+  ok:true,status:200,json:async()=>({accepted:1,duplicates:0,capacity_reached:false})
+ }));
+ assert.equal(result.sent,0);
+ assert.equal(result.reason,'incomplete-ack');
+ assert.equal(JSON.parse(data.get('move-by-move/community-pending/v2')||'[]').length,2);
+ assert.deepEqual(JSON.parse(data.get('move-by-move/community-sent/v2')||'[]'),[]);
+ clearCommunityQueue();
+});
+
+test('global capacity stops new uploads but does not silently erase the unconfirmed queue',async()=>{
+ data.clear();clearCommunityQueue();allowConsent();
+ const first=fixture(50),second=fixture(51);
+ await enqueueCommunityReview(first.path,first.headers,first.engine,14,true);
+ await enqueueCommunityReview(second.path,second.headers,second.engine,14,true);
+ const result=await flushCommunityQueue(async()=>({
+  ok:true,status:200,json:async()=>({accepted:1,duplicates:0,capacity_reached:true,remaining_capacity:0})
+ }));
+ assert.equal(result.sent,0);
+ assert.equal(result.reason,'capacity-reached');
+ assert.equal(JSON.parse(data.get('move-by-move/community-pending/v2')||'[]').length,2);
+ assert.equal(data.get('move-by-move/community-capacity/v2'),'true');
+ clearCommunityQueue();
+});
+
+test('a lost HTTP acknowledgement retries as duplicates and clears only confirmed queued games',async()=>{
+ data.clear();clearCommunityQueue();allowConsent();
+ const {path,headers,engine}=fixture(8);
+ const chess=new Chess();
+ for(const node of path.slice(1)){
+  node.classification='good';node.forced=false;
+  node.coach={before:{type:'cp',white:0},after:{type:'cp',white:0},best:node.move.from+node.move.to};
+  chess.move(node.move);
+ }
+ await enqueueCommunityReview(path,headers,engine,14);
+ let stored=false;
+ const handler=createIngestHandler({
+  getEnv:name=>({SUPABASE_ANON_KEY:'test-key',SUPABASE_SERVICE_ROLE_KEY:'test-secret',SUPABASE_URL:'https://db.test'})[name],
+  fetcher:async()=>{
+   const ack={accepted:stored?0:1,duplicates:stored?1:0,capacity_reached:false,remaining_capacity:39999};
+   stored=true;
+   return Response.json(ack);
+  }
+ });
+ let attempts=0;
+ const transport=async(_url,options)=>{
+  attempts++;
+  const response=await handler(new Request('https://edge.test/',{
+   method:'POST',headers:{origin:'https://freechessanalysis.vercel.app',apikey:'test-key','content-type':'application/json','cf-connecting-ip':'203.0.113.1'},
+   body:options.body
+  }));
+  assert.equal(response.status,200);
+  if(attempts===1)throw new Error('response lost after server commit');
+  return response;
+ };
+ assert.equal((await flushCommunityQueue(transport)).reason,'network-error');
+ assert.equal(JSON.parse(data.get('move-by-move/community-pending/v2')).length,1);
+ data.delete('move-by-move/community-retry/v1');
+ assert.equal((await flushCommunityQueue(transport)).sent,1);
+ assert.equal(attempts,2);
+ assert.deepEqual(JSON.parse(data.get('move-by-move/community-pending/v2')),[]);
+ clearCommunityQueue();
+});
+
+test('full queue rejects a new sample explicitly and preserves all 50 unconfirmed games',async()=>{
+ data.clear();clearCommunityQueue();allowConsent();
+ const {path,headers,engine}=fixture(8);
+ const sample=await createCommunityReviewSample(path,headers,engine,14);
+ const pending=Array.from({length:50},(_,i)=>({...sample,game_hash:i.toString(16).padStart(64,'0')}));
+ const key='move-by-move/community-pending/v2';
+ const serialized=JSON.stringify(pending);
+ data.set(key,serialized);
+ const result=await enqueueCommunityReview(path,headers,engine,14);
+ assert.deepEqual(result,{queued:false,reason:'queue-full'});
+ assert.equal(data.get(key),serialized);
+ assert.equal(data.has('move-by-move/community-sent/v2'),false);
+ clearCommunityQueue();
+});
+
+test('the 50th sample fits and enqueue during a failed upload never evicts pending games',async()=>{
+ data.clear();clearCommunityQueue();allowConsent();
+ const {path,headers,engine}=fixture(8);
+ const sample=await createCommunityReviewSample(path,headers,engine,14);
+ const key='move-by-move/community-pending/v2';
+ data.set(key,JSON.stringify(Array.from({length:49},(_,i)=>({...sample,game_hash:i.toString(16).padStart(64,'0')}))));
+ let rejectUpload;
+ const upload=flushCommunityQueue(()=>new Promise((_resolve,reject)=>{rejectUpload=reject;}));
+ assert.equal((await enqueueCommunityReview(path,headers,engine,14)).queued,true);
+ const before=data.get(key);
+ const second=fixture(9);
+ assert.equal((await enqueueCommunityReview(second.path,second.headers,second.engine,14)).reason,'queue-full');
+ rejectUpload(new Error('offline'));
+ assert.equal((await upload).reason,'network-error');
+ assert.equal(data.get(key),before);
+ assert.equal(JSON.parse(before).length,50);
+ clearCommunityQueue();
+});
+
+test('revocation during asynchronous sample creation prevents adding a pending game',async()=>{
+ data.clear();clearCommunityQueue();allowConsent();
+ const {path,headers,engine}=fixture(8);
+ const enqueue=enqueueCommunityReview(path,headers,engine,14);
+ data.set(CONSENT,'declined');
+ clearCommunityQueue();
+ assert.equal((await enqueue).reason,'consent-required');
+ assert.equal(data.has('move-by-move/community-pending/v2'),false);
 });
