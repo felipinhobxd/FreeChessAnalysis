@@ -3,7 +3,7 @@ import { Chess } from 'chess.js';
 import { test, expect } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 
-function createDeterministicGame(plies = 18) {
+function createDeterministicGame(plies = 12) {
   const chess = new Chess();
   let seed = 0x19a2026;
   const positions = [chess.fen()];
@@ -17,7 +17,7 @@ function createDeterministicGame(plies = 18) {
     seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
     const selected = pool[seed % pool.length];
     chess.move({ from: selected.from, to: selected.to, promotion: selected.promotion });
-    if ((ply + 1) % 9 === 0) positions.push(chess.fen());
+    if ((ply + 1) % 6 === 0) positions.push(chess.fen());
   }
 
   return {
@@ -59,7 +59,7 @@ test('benchmark real Stockfish Lite game review on a throttled mobile browser', 
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
   await serveBundledLite(page);
 
-  const fixture = createDeterministicGame(18);
+  const fixture = createDeterministicGame(12);
   const configurations = [
     { id: 'baseline-depth14-multipv3', depth: 14, lines: 3 },
     { id: 'depth14-multipv1', depth: 14, lines: 1 },
