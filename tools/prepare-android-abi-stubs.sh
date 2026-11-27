@@ -3,7 +3,12 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 NDK_VERSION="27.2.12479018"
-NDK_ROOT="${ANDROID_NDK_HOME:-${ANDROID_HOME:-}/ndk/$NDK_VERSION}"
+SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+if [[ -z "$SDK_ROOT" ]]; then
+  echo "ANDROID_HOME or ANDROID_SDK_ROOT must point to the installed Android SDK." >&2
+  exit 1
+fi
+NDK_ROOT="$SDK_ROOT/ndk/$NDK_VERSION"
 CLANG="$NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/clang"
 SOURCE="$ROOT/tools/abi-stub.c"
 DEST_ROOT="$ROOT/android/app/src/main/jniLibs"
