@@ -67,6 +67,7 @@ test('live analysis and full review actually share only validated results', asyn
   assert.match(app, /reviewLinesFor\(node\.reviewData, cache, depth, 3\)/);
   assert.match(app, /reviewLinesFor\(position\.reviewData, cache, depth, 3\)/);
   assert.match(app, /reviewDataFromLive\(cache, depth, result\.best, position\.lines, count\)/);
+  assert.match(app, /result\.lines\.length === count/);
   assert.match(app, /position\.reviewData = seeded/);
   assert.match(app, /multiPV:3/);
 });
