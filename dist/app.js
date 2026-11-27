@@ -1981,6 +1981,11 @@ async function runReview() {
     const { engine, profile, cache } = await useEngine(text => { if (review === task) $('report-status').textContent = text + '…'; });
     if (review !== task) return;
     readyEngine();
+    const hasCompleteDeepCache = path.every(node =>
+      node.terminal || reviewLinesFor(node.reviewData, cache, depth, 3)
+    );
+    const adaptiveReview = mobileAdaptive && !hasCompleteDeepCache;
+    const activeScanDepth = adaptiveReview ? scanDepth : depth;
     const commands = path.slice(1).map(node => uci(node.move));
     const searchBaseIndexes = new Array(path.length);
     const refinementPositions = new Set();
@@ -1997,20 +2002,20 @@ async function runReview() {
       searchBaseIndexes[index] = searchBaseIndex;
 
       let result = node.terminal ? { lines: [node.terminal], best: null } : null;
-      if (!result && reviewLinesFor(node.reviewData, cache, scanDepth, 3)) {
+      if (!result && reviewLinesFor(node.reviewData, cache, activeScanDepth, 3)) {
         result = node.reviewData.result;
       }
       if (!result) {
         const raw = await engine.search(
           path[searchBaseIndex].fen,
           commands.slice(searchBaseIndex, index),
-          scanDepth,
+          activeScanDepth,
           3,
           { signal: task.controller.signal },
         );
         if (!raw.lines.length) throw new Error('O motor não retornou uma avaliação.');
         result = { ...raw, lines: raw.lines.map(line => normalizeLine(line, node)) };
-        node.reviewData = { depth: scanDepth, cache, multiPV: 3, result };
+        node.reviewData = { depth: activeScanDepth, cache, multiPV: 3, result };
       }
       if (review !== task) return;
 
@@ -2023,7 +2028,7 @@ async function runReview() {
       if (index > 0) {
         const before = path[index - 1];
         gradeMove(node, before.lines, before.best, index);
-        if (mobileAdaptive && shouldRefineMobileReview({
+        if (adaptiveReview && shouldRefineMobileReview({
           before: node.coach.before,
           after: node.coach.after,
           move: node.move,
@@ -2050,7 +2055,7 @@ async function runReview() {
       }
     }
 
-    if (mobileAdaptive && refinementPositions.size) {
+    if (adaptiveReview && refinementPositions.size) {
       const refinementIndexes = [...refinementPositions].filter(index => !path[index]?.terminal);
       progress.max = path.length + refinementIndexes.length;
       progress.value = path.length;
@@ -2096,7 +2101,7 @@ async function runReview() {
 
     completed = true;
     if (setting('community-data')) {
-      const publishedDepth = mobileAdaptive ? scanDepth : depth;
+      const publishedDepth = adaptiveReview ? activeScanDepth : depth;
       void enqueueCommunityReview(path, gameHeaders, profile, publishedDepth, typeof originalPgn === 'string')
         .then(result => {
           if (result?.reason === 'queue-full') {
@@ -2109,12 +2114,12 @@ async function runReview() {
     }
     studyAnalysis = {
       version: cacheVersion,
-      depth: mobileAdaptive ? scanDepth : depth,
+      depth: adaptiveReview ? activeScanDepth : depth,
       positions: path.map(node => ({ lines: node.lines, best: node.best })),
     };
     scheduleStudy();
-    $('report-status').textContent = mobileAdaptive
-      ? 'Revisão concluída · varredura ' + scanDepth + ' · até ' + depth
+    $('report-status').textContent = adaptiveReview
+      ? 'Revisão concluída · varredura ' + activeScanDepth + ' · até ' + depth
       : 'Revisão concluída · profundidade ' + depth;
     readyEngine();
   } catch (error) {
