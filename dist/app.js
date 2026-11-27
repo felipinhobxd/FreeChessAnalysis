@@ -1797,9 +1797,11 @@ async function useEngine(onLoad) {
   const engine = sharedEngine;
   try {
     const profile = await engine.start(build => {
-      const loading = build.name === 'Completo'
-        ? 'Carregando completo (~95 MB)'
-        : build.name === 'Eco' ? 'Carregando Lite econômico' : 'Carregando Lite';
+      const loading = build.native
+        ? 'Iniciando Stockfish nativo ARM64'
+        : build.name === 'Completo'
+          ? 'Carregando completo (~95 MB)'
+          : build.name === 'Eco' ? 'Carregando Lite econômico' : 'Carregando Lite';
       syncEngine('loading', loading);
       onLoad?.(loading);
     });
