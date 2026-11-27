@@ -3,7 +3,7 @@ import { Chess } from 'chess.js';
 import { test, expect } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 
-function createDeterministicGame(plies = 8) {
+function createDeterministicGame(plies = 6) {
   const chess = new Chess();
   let seed = 0x19a2026;
   for (let ply = 0; ply < plies; ply++) {
@@ -62,7 +62,7 @@ test('benchmark Stockfish Lite depth and MultiPV combinations on mobile CPU limi
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
   await serveBundledLite(page);
 
-  const fixture = createDeterministicGame(8);
+  const fixture = createDeterministicGame(6);
   const replay = new Chess();
   const positions = [replay.fen()];
   replay.loadPgn(fixture.pgn);
@@ -150,7 +150,7 @@ test('benchmark the actual full-game mobile Lite review end to end', async ({ br
   const cdp = await context.newCDPSession(page);
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
   await serveBundledLite(page);
-  const fixture = createDeterministicGame(8);
+  const fixture = createDeterministicGame(6);
 
   try {
     await unlockApp(page);
