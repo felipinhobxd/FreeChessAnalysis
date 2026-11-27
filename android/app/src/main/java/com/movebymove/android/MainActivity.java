@@ -332,6 +332,14 @@ public final class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public int getNativeStockfishProcessorCount() {
+            if (!isTrustedAppPage() || !hasNativeArm64Engine()) {
+                return 0;
+            }
+            return Math.max(1, Runtime.getRuntime().availableProcessors());
+        }
+
+        @JavascriptInterface
         public boolean startNativeStockfish() {
             return isTrustedAppPage() && startNativeStockfishProcess();
         }
