@@ -365,6 +365,15 @@ test('sharing a side line keeps the original review and puzzle progress in the l
 
   await page.locator('#tab-puzzles').click();
   await page.locator('#puzzles').getByRole('button', { name: /Blunder/ }).click();
+  await page.locator('.puzzle-hint-button').click();
+  await expect(square(page, 'g7')).toHaveClass(/puzzle-hint-piece/);
+  await expect(square(page, 'g6')).not.toHaveClass(/puzzle-hint-piece/);
+  await expect(page.locator('#board .puzzle-hint-piece')).toHaveCount(1);
+  await expect(page.locator('.puzzle-hint')).toContainText('Mova a peça destacada');
+  await page.locator('.puzzle-hint-button').click();
+  await expect(page.locator('#board .puzzle-hint-piece')).toHaveCount(0);
+  await page.locator('.puzzle-hint-button').click();
+  await expect(page.locator('#board .puzzle-hint-piece')).toHaveCount(1);
   await square(page, 'g7').click();
   await square(page, 'g6').click();
   await expect(page.locator('#puzzles').getByRole('heading', { name: 'Puzzle solved' })).toBeVisible();
