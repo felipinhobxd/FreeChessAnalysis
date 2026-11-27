@@ -38,6 +38,7 @@ async function buildSample({moves=MOVES,startFen=null,result='w'}={}){
   b:{moves:0,blunders:0,mistakes:0,inaccuracies:0,chances_lost:0}
  };
  const ids=[6,7,8,10,9];
+ let currentScore=30;
  for(let index=0;index<moves.length;index++){
   const uci=moves[index];
   const side=chess.turn();
@@ -46,8 +47,11 @@ async function buildSample({moves=MOVES,startFen=null,result='w'}={}){
    (move.promotion||'')===(uci[4]||''));
   const best=actual||legal[0];
   const offset=index*10;
-  view.setInt16(offset,30,true);
-  view.setInt16(offset+2,20,true);
+  const beforeScore=currentScore;
+  const afterScore=currentScore+((index%3)-1)*5;
+  view.setInt16(offset,beforeScore,true);
+  view.setInt16(offset+2,afterScore,true);
+  currentScore=afterScore;
   view.setUint16(offset+4,900,true);
   const classification=ids[index%ids.length];
   view.setUint8(offset+6,classification);
@@ -179,4 +183,14 @@ test('time classes and source metadata cannot carry estimates the client model w
  unknown.black_rating=null;
  unknown.rating_source='none';
  assert.equal(await cleanCommunitySample(unknown),null);
+});
+
+
+test('evaluation values must remain continuous between one move and the next position',async()=>{
+ const sample=await buildSample();
+ const bytes=Buffer.from(sample.move_data_base64,'base64');
+ const view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
+ view.setInt16(10,1500,true);
+ sample.move_data_base64=bytes.toString('base64');
+ assert.equal(await cleanCommunitySample(sample),null);
 });
