@@ -7,7 +7,8 @@ const ENDPOINT=BASE+'/functions/v1/ingest-review';
 const PENDING='move-by-move/community-pending/v2';
 const SENT='move-by-move/community-sent/v2';
 const CLIENT='move-by-move/community-client/v1';
-const CAPACITY='move-by-move/community-capacity/v2';
+const LEGACY_CAPACITY='move-by-move/community-capacity/v2';
+const CAPACITY_RETRY_MS=6*60*60*1000;
 const CONSENT='move-by-move/community-consent/v3';
 const RETRY='move-by-move/community-retry/v1';
 const PREFERENCES='livro-de-lances/preferencias/v1';
@@ -20,6 +21,8 @@ const hex=b=>Array.from(new Uint8Array(b),x=>x.toString(16).padStart(2,'0')).joi
 const CLASS_ID={brilliant:1,great:2,excellent:3,best:4,theory:5,good:6,inaccuracy:7,mistake:8,'chance-lost':9,blunder:10};
 function read(k,d){try{return JSON.parse(localStorage.getItem(k)||'null')??d;}catch{return d;}}
 function write(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true;}catch{return false;}}
+function clearLegacyCapacityMarker(){try{localStorage.removeItem(LEGACY_CAPACITY);}catch{}}
+clearLegacyCapacityMarker();
 function hasConsent(){
  try{
   if(localStorage.getItem(CONSENT)!=='accepted')return false;
@@ -130,7 +133,7 @@ function queue(){
  return Array.isArray(items)?items.filter(s=>s&&/^[a-f0-9]{64}$/.test(s.game_hash||'')&&Number.isInteger(s.ply_count)&&s.ply_count>=8&&s.ply_count<=MAX_PLIES):[];
 }
 function schedule(ms=8000){
- if(!hasConsent()||read(CAPACITY,false)||timer!==null)return;
+ if(!hasConsent()||timer!==null)return;
  timer=setTimeout(()=>{timer=null;void flushCommunityQueue();},ms);
 }
 let timer=null,inflight=null;
@@ -161,13 +164,15 @@ function rateLimitDelay(res){
  const now=new Date();
  return Math.max(1000,Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate()+1)-Date.now()+1000);
 }
+function deferCapacityRetry(status){return deferRetry(CAPACITY_RETRY_MS,'capacity-reached',status);}
 export function clearCommunityQueue(){
  if(timer!==null)clearTimeout(timer);timer=null;
+ clearLegacyCapacityMarker();
  try{localStorage.removeItem(PENDING);localStorage.removeItem(RETRY);}catch{}
 }
 export async function enqueueCommunityReview(path,headers,engine,depth,isImported=true){
+ clearLegacyCapacityMarker();
  if(!hasConsent())return {queued:false,reason:'consent-required'};
- if(read(CAPACITY,false))return {queued:false,reason:'capacity-reached'};
  const sample=await createCommunityReviewSample(path,headers,engine,depth,isImported);
  if(!hasConsent())return {queued:false,reason:'consent-required'};
  if(!sample)return {queued:false,reason:'not-eligible'};
@@ -180,8 +185,8 @@ export async function enqueueCommunityReview(path,headers,engine,depth,isImporte
  return {queued:true,plies:sample.ply_count};
 }
 export async function flushCommunityQueue(fetcher=globalThis.fetch){
+ clearLegacyCapacityMarker();
  if(!hasConsent()){clearCommunityQueue();return {sent:0,reason:'consent-required'};}
- if(read(CAPACITY,false))return {sent:0,reason:'capacity-reached'};
  if(inflight)return inflight;
  const retry=retryState();
  if(retry&&retry.retry_at>Date.now()){
@@ -203,8 +208,8 @@ export async function flushCommunityQueue(fetcher=globalThis.fetch){
    const accepted=data?.accepted,duplicates=data?.duplicates;
    const fullyAccounted=Number.isSafeInteger(accepted)&&accepted>=0&&Number.isSafeInteger(duplicates)&&duplicates>=0&&accepted+duplicates===batch.length;
    if(data?.capacity_reached&&!fullyAccounted){
-    write(CAPACITY,true);
-    return {sent:0,status:res.status,reason:'capacity-reached',pending:batch.length};
+    const retryAt=deferCapacityRetry(res.status);
+    return {sent:0,status:res.status,reason:'capacity-reached',pending:batch.length,retryAt};
    }
    if(res.ok&&fullyAccounted){
     const current=queue(),remaining=current.filter(x=>!hashes.has(x.game_hash));
@@ -214,14 +219,16 @@ export async function flushCommunityQueue(fetcher=globalThis.fetch){
     }
     const recent=read(SENT,[]);
     write(SENT,[...new Set([...(Array.isArray(recent)?recent:[]),...hashes])].slice(-RECENT));
-    clearRetry();
-    if(data?.capacity_reached)write(CAPACITY,true);
-    else if(remaining.length)schedule(1000);
+    if(data?.capacity_reached&&remaining.length)deferCapacityRetry(res.status);
+    else {
+     clearRetry();
+     if(remaining.length)schedule(1000);
+    }
     return {sent:batch.length,status:res.status,result:data,reason:data?.capacity_reached?'capacity-reached':undefined};
    }
    if(data?.capacity_reached){
-    write(CAPACITY,true);
-    return {sent:0,status:res.status,reason:'capacity-reached',pending:batch.length};
+    const retryAt=deferCapacityRetry(res.status);
+    return {sent:0,status:res.status,reason:'capacity-reached',pending:batch.length,retryAt};
    }
    const reason=res.ok?'incomplete-ack':'http-error';
    const retryAt=deferRetry(exponentialRetryDelay(),reason,res.status);
