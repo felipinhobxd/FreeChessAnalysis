@@ -39,19 +39,6 @@ async function unlockApp(page) {
   await expect(page.locator('#board .square')).toHaveCount(64);
 }
 
-function summarize(samples) {
-  const sorted = samples.map(sample => sample.elapsedMs).sort((a, b) => a - b);
-  const total = samples.reduce((sum, sample) => sum + sample.elapsedMs, 0);
-  return {
-    searches: samples.length,
-    totalMs: Math.round(total),
-    meanMs: Math.round(total / Math.max(1, samples.length)),
-    medianMs: Math.round(sorted[Math.floor(sorted.length / 2)] || 0),
-    p95Ms: Math.round(sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * 0.95) - 1)] || 0),
-    averageDepth: Number((samples.reduce((sum, sample) => sum + sample.depth, 0) / Math.max(1, samples.length)).toFixed(1)),
-  };
-}
-
 const REPORT = 'artifacts/mobile-review-benchmark.json';
 const ENVIRONMENT = {
   browser: 'Chromium via Playwright',
@@ -76,10 +63,8 @@ test('benchmark Stockfish Lite depth and MultiPV combinations on mobile CPU limi
   await serveBundledLite(page);
 
   const fixture = createDeterministicGame(8);
-  const chess = new Chess();
-  const positions = [chess.fen()];
-  for (const san of chess.loadPgn(fixture.pgn), chess.history()) void san;
   const replay = new Chess();
+  const positions = [replay.fen()];
   replay.loadPgn(fixture.pgn);
   const history = replay.history({ verbose: true });
   const sampleBoard = new Chess();
