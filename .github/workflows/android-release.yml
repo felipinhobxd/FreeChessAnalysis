@@ -83,6 +83,14 @@ jobs:
           test -s "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
 
+      - name: Verify native engine and license are packaged in the APK
+        shell: bash
+        run: |
+          APK="android/app/build/outputs/apk/release/app-release.apk"
+          unzip -l "$APK" | grep -q 'lib/arm64-v8a/libstockfish.so'
+          unzip -l "$APK" | grep -q 'assets/Stockfish-Copying.txt'
+          echo "Native ARM64 Stockfish and GPLv3 license are present in the APK."
+
       - name: Prepare release asset
         shell: bash
         run: |
