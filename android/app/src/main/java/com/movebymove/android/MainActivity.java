@@ -146,6 +146,7 @@ public final class MainActivity extends Activity {
 
             @Override
             public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                stopNativeStockfishProcess();
                 trustedAppPage = isAppUrl(Uri.parse(url));
                 progressBar.setVisibility(View.VISIBLE);
                 progressBar.setProgress(0);
@@ -564,6 +565,11 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onPause() {
+        try {
+            sendNativeStockfishCommand("stop");
+        } catch (IllegalStateException ignored) {
+            // The native process may not have been started yet.
+        }
         if (webView != null) {
             webView.onPause();
         }
