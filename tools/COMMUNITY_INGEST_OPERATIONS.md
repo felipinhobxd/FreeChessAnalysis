@@ -24,6 +24,10 @@ The service-role key must remain exclusively in Supabase Edge Function secrets. 
 
 The public Edge Function currently uses `verify_jwt=false` by design. Its publishable API key and Origin allowlist are browser-request controls, not user authentication: non-browser clients can reproduce those headers. Abuse resistance therefore relies on strict validation, trusted edge IP subnet quotas, per-client quotas, request size limits, and database-side capacity/retention controls. The per-client UUID can be reset by a hostile client and is not an identity credential.
 
+The 128 KiB body limit is enforced while reading the stream, regardless of a missing or understated `Content-Length`; overflow cancels further reads. It limits accumulated body bytes, not the total number or duration of requests.
+
+The database quotas count new game hashes. Moving quota charging ahead of legal replay would charge invalid submissions and duplicate retries, changing that contract. A read-only quota precheck also cannot reject an exhausted bucket safely: its request may consist entirely of duplicates that must still be acknowledged. An isolate-local counter would not provide a shared limit across Edge instances. No such counter or early quota charge is added here. CPU-abuse protection before chess replay needs a separately configured shared request limiter or gateway/WAF rule based on the trusted edge network, with its own request budget and retry window. That requires infrastructure configuration and load testing; the current database quotas remain unchanged.
+
 ## Data trust boundary
 
 The server verifies that each recorded UCI mainline is legal and that packed move metadata, classification counts, hashes, and adjacent position scores are structurally consistent. These checks do not prove Stockfish produced the submitted evaluations. Treat engine scores, classifications, accuracy, estimates, and PGN ratings as unverified client submissions unless a future server-side reanalysis or trusted attestation marks them verified.
@@ -52,7 +56,9 @@ Review who can access project logs and the provider's log-retention settings bef
 
 ## User-facing privacy disclosure
 
-The consent screen uses consent revision v3. Earlier accepted choices are not carried forward because the disclosure now explains that Supabase operational logs may include the request IP address and network/request metadata. Earlier refusals remain refusals.
+The consent screen uses consent revision v3. Earlier accepted choices are not carried forward because the disclosure now explains that Supabase operational logs may include the request IP address and network/request metadata. A refusal in the most recent valid legacy revision remains disabled.
+
+Migration considers the latest valid stored revision (v2 before v1). Its refusal remains disabled; its acceptance requires a fresh v3 choice, even when v1 was declined. Pending samples and stale enabled preferences are cleared before that fresh choice.
 
 The user-facing wording distinguishes two data paths:
 

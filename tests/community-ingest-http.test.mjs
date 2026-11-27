@@ -265,3 +265,77 @@ test('PostgREST abort timeout is enforced and returned as a sanitized 503',async
  assert.equal(response.status,503);
  assert.equal((await response.json()).error,'Database unavailable');
 });
+
+test('duplicate-only RPC acknowledgements return HTTP 200, including at capacity',async()=>{
+ for(const full of [false,true]){
+  const expected={accepted:0,duplicates:5,capacity_reached:full,remaining_capacity:full?0:39999};
+  const sample=await validSample();
+  const response=await makeHandler(async()=>Response.json(expected))(request({
+   body:await payload(Array(5).fill(sample)),headers:{'cf-connecting-ip':'203.0.113.25'}
+  }));
+  assert.equal(response.status,200);
+  assert.deepEqual(await response.json(),expected);
+ }
+});
+
+function streamedRequest(chunks,declared,{fail=false}={}){
+ let reads=0,cancelled=false;
+ const stream=new ReadableStream({
+  pull(controller){
+   reads++;
+   if(chunks.length)controller.enqueue(chunks.shift());
+   else if(fail)controller.error(new Error('sender disconnected'));
+   else controller.close();
+  },
+  cancel(){cancelled=true;return new Promise(()=>{});}
+ },{highWaterMark:0});
+ const headers={origin:ORIGIN,apikey:PUBLIC_KEY,'content-type':'application/json','cf-connecting-ip':'203.0.113.25'};
+ if(declared!==undefined)headers['content-length']=declared;
+ return {request:new Request('https://edge.test/',{method:'POST',headers,body:stream,duplex:'half'}),
+  state:()=>({reads,cancelled})};
+}
+
+test('streaming size cap cancels at first overflowing chunk without draining or trusting Content-Length',async()=>{
+ for(const declared of [undefined,'1','131072']){
+  let calls=0;
+  const source=streamedRequest([new Uint8Array(131072),new Uint8Array(1),new Uint8Array(500000)],declared);
+  const response=await makeHandler(async()=>{calls++;throw new Error('unexpected RPC');})(source.request);
+  assert.equal(response.status,413);
+  assert.deepEqual(source.state(),{reads:2,cancelled:true});
+  assert.equal(calls,0);
+ }
+});
+
+test('exact byte boundary and split UTF-8 are accepted with missing or inaccurate length',async()=>{
+ const body=JSON.stringify(await payload([await validSample()]));
+ // A UTF-8 BOM exercises a split multibyte sequence without changing the payload.
+ const encoded=new TextEncoder().encode('\ufeff'+body);
+ for(const declared of [undefined,'1','131072']){
+  const chunks=[encoded.slice(0,1),encoded.slice(1,2),encoded.slice(2),new Uint8Array(131072-encoded.length).fill(32)];
+  const source=streamedRequest(chunks,declared);
+  assert.equal((await makeHandler()(source.request)).status,200);
+  assert.deepEqual(source.state(),{reads:5,cancelled:false});
+ }
+});
+
+test('stream read failures produce 400 and never reach the database',async()=>{
+ let calls=0;
+ const source=streamedRequest([new Uint8Array([123])],undefined,{fail:true});
+ const response=await makeHandler(async()=>{calls++;throw new Error('unexpected RPC');})(source.request);
+ assert.equal(response.status,400);
+ assert.equal(calls,0);
+});
+
+test('a short valid body does not require an accurate declared size within the cap',async()=>{
+ const bytes=new TextEncoder().encode(JSON.stringify(await payload([await validSample()])));
+ const source=streamedRequest([bytes],'131072');
+ assert.equal((await makeHandler()(source.request)).status,200);
+});
+
+test('single-chunk overflow and multibyte input are limited by bytes',async()=>{
+ for(const bytes of [new Uint8Array(131073),new TextEncoder().encode('é'.repeat(65537))]){
+  const source=streamedRequest([bytes,new Uint8Array(1)]);
+  assert.equal((await makeHandler()(source.request)).status,413);
+  assert.deepEqual(source.state(),{reads:1,cancelled:true});
+ }
+});

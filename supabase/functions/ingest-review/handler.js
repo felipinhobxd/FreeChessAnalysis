@@ -103,12 +103,27 @@ export function createIngestHandler(options={}){
    return reply({error:'Ingest not configured'},503,origin);
 
   let raw;
+  let reader;
   try{
-   raw=await request.text();
-   if(new TextEncoder().encode(raw).byteLength>MAX_BYTES)
-    return reply({error:'Payload too large'},413,origin);
+   reader=request.body?.getReader();
+   const bytes=new Uint8Array(MAX_BYTES);
+   let length=0;
+   if(reader)while(true){
+    const {done,value}=await reader.read();
+    if(done)break;
+    if(value.byteLength>MAX_BYTES-length){
+     // Do not wait for the sender to finish or for cancellation to settle.
+     void reader.cancel().catch(()=>{});
+     return reply({error:'Payload too large'},413,origin);
+    }
+    bytes.set(value,length);
+    length+=value.byteLength;
+   }
+   raw=new TextDecoder().decode(bytes.subarray(0,length));
   }catch{
    return reply({error:'Invalid request body'},400,origin);
+  }finally{
+   reader?.releaseLock();
   }
 
   let payload;

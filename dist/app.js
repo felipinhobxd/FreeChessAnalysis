@@ -44,13 +44,16 @@ function readCommunityConsent() {
   try {
     const saved = localStorage.getItem(communityConsentStorageKey);
     if (saved === 'accepted' || saved === 'declined') return saved;
-    // Preserve an earlier refusal, but require fresh consent after the IP/log disclosure changed.
-    if (previousCommunityConsentStorageKeys.some(key => localStorage.getItem(key) === 'declined')) {
+    // Newer revisions supersede older choices; old acceptances need fresh v3 consent.
+    const previous = previousCommunityConsentStorageKeys
+      .map(key => localStorage.getItem(key))
+      .find(choice => choice === 'accepted' || choice === 'declined');
+    clearCommunityQueue();
+    const preferences = readStoredPreferences();
+    preferences['community-data'] = false;
+    localStorage.setItem(preferencesStorageKey, JSON.stringify(preferences));
+    if (previous === 'declined') {
       localStorage.setItem(communityConsentStorageKey, 'declined');
-      const preferences = readStoredPreferences();
-      preferences['community-data'] = false;
-      localStorage.setItem(preferencesStorageKey, JSON.stringify(preferences));
-      clearCommunityQueue();
       return 'declined';
     }
   } catch { /* Consent remains opt-in when storage is unavailable. */ }

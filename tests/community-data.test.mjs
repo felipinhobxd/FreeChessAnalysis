@@ -1,5 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
+import {createIngestHandler} from '../supabase/functions/ingest-review/handler.js';
+import {Chess} from 'chess.js';
 import {createCommunityReviewSample,enqueueCommunityReview,flushCommunityQueue,clearCommunityQueue} from '../dist/community-data.js';
 
 const data=new Map();
@@ -211,4 +213,87 @@ test('global capacity stops new uploads but does not silently erase the unconfir
  assert.equal(JSON.parse(data.get('move-by-move/community-pending/v2')||'[]').length,2);
  assert.equal(data.get('move-by-move/community-capacity/v2'),'true');
  clearCommunityQueue();
+});
+
+test('a lost HTTP acknowledgement retries as duplicates and clears only confirmed queued games',async()=>{
+ data.clear();clearCommunityQueue();allowConsent();
+ const {path,headers,engine}=fixture(8);
+ const chess=new Chess();
+ for(const node of path.slice(1)){
+  node.classification='good';node.forced=false;
+  node.coach={before:{type:'cp',white:0},after:{type:'cp',white:0},best:node.move.from+node.move.to};
+  chess.move(node.move);
+ }
+ await enqueueCommunityReview(path,headers,engine,14);
+ let stored=false;
+ const handler=createIngestHandler({
+  getEnv:name=>({SUPABASE_ANON_KEY:'test-key',SUPABASE_SERVICE_ROLE_KEY:'test-secret',SUPABASE_URL:'https://db.test'})[name],
+  fetcher:async()=>{
+   const ack={accepted:stored?0:1,duplicates:stored?1:0,capacity_reached:false,remaining_capacity:39999};
+   stored=true;
+   return Response.json(ack);
+  }
+ });
+ let attempts=0;
+ const transport=async(_url,options)=>{
+  attempts++;
+  const response=await handler(new Request('https://edge.test/',{
+   method:'POST',headers:{origin:'https://freechessanalysis.vercel.app',apikey:'test-key','content-type':'application/json','cf-connecting-ip':'203.0.113.1'},
+   body:options.body
+  }));
+  assert.equal(response.status,200);
+  if(attempts===1)throw new Error('response lost after server commit');
+  return response;
+ };
+ assert.equal((await flushCommunityQueue(transport)).reason,'network-error');
+ assert.equal(JSON.parse(data.get('move-by-move/community-pending/v2')).length,1);
+ data.delete('move-by-move/community-retry/v1');
+ assert.equal((await flushCommunityQueue(transport)).sent,1);
+ assert.equal(attempts,2);
+ assert.deepEqual(JSON.parse(data.get('move-by-move/community-pending/v2')),[]);
+ clearCommunityQueue();
+});
+
+test('full queue rejects a new sample explicitly and preserves all 50 unconfirmed games',async()=>{
+ data.clear();clearCommunityQueue();allowConsent();
+ const {path,headers,engine}=fixture(8);
+ const sample=await createCommunityReviewSample(path,headers,engine,14);
+ const pending=Array.from({length:50},(_,i)=>({...sample,game_hash:i.toString(16).padStart(64,'0')}));
+ const key='move-by-move/community-pending/v2';
+ const serialized=JSON.stringify(pending);
+ data.set(key,serialized);
+ const result=await enqueueCommunityReview(path,headers,engine,14);
+ assert.deepEqual(result,{queued:false,reason:'queue-full'});
+ assert.equal(data.get(key),serialized);
+ assert.equal(data.has('move-by-move/community-sent/v2'),false);
+ clearCommunityQueue();
+});
+
+test('the 50th sample fits and enqueue during a failed upload never evicts pending games',async()=>{
+ data.clear();clearCommunityQueue();allowConsent();
+ const {path,headers,engine}=fixture(8);
+ const sample=await createCommunityReviewSample(path,headers,engine,14);
+ const key='move-by-move/community-pending/v2';
+ data.set(key,JSON.stringify(Array.from({length:49},(_,i)=>({...sample,game_hash:i.toString(16).padStart(64,'0')}))));
+ let rejectUpload;
+ const upload=flushCommunityQueue(()=>new Promise((_resolve,reject)=>{rejectUpload=reject;}));
+ assert.equal((await enqueueCommunityReview(path,headers,engine,14)).queued,true);
+ const before=data.get(key);
+ const second=fixture(9);
+ assert.equal((await enqueueCommunityReview(second.path,second.headers,second.engine,14)).reason,'queue-full');
+ rejectUpload(new Error('offline'));
+ assert.equal((await upload).reason,'network-error');
+ assert.equal(data.get(key),before);
+ assert.equal(JSON.parse(before).length,50);
+ clearCommunityQueue();
+});
+
+test('revocation during asynchronous sample creation prevents adding a pending game',async()=>{
+ data.clear();clearCommunityQueue();allowConsent();
+ const {path,headers,engine}=fixture(8);
+ const enqueue=enqueueCommunityReview(path,headers,engine,14);
+ data.set(CONSENT,'declined');
+ clearCommunityQueue();
+ assert.equal((await enqueue).reason,'consent-required');
+ assert.equal(data.has('move-by-move/community-pending/v2'),false);
 });

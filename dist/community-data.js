@@ -169,10 +169,12 @@ export async function enqueueCommunityReview(path,headers,engine,depth,isImporte
  if(!hasConsent())return {queued:false,reason:'consent-required'};
  if(read(CAPACITY,false))return {queued:false,reason:'capacity-reached'};
  const sample=await createCommunityReviewSample(path,headers,engine,depth,isImported);
+ if(!hasConsent())return {queued:false,reason:'consent-required'};
  if(!sample)return {queued:false,reason:'not-eligible'};
  const pending=queue(),sent=read(SENT,[]);
  if(pending.some(x=>x.game_hash===sample.game_hash)||(Array.isArray(sent)&&sent.includes(sample.game_hash)))return {queued:false,reason:'duplicate'};
- pending.push(sample);if(pending.length>MAX_QUEUE)pending.splice(0,pending.length-MAX_QUEUE);
+ if(pending.length>=MAX_QUEUE){schedule();return {queued:false,reason:'queue-full'};}
+ pending.push(sample);
  if(!write(PENDING,pending))return {queued:false,reason:'storage-unavailable'};
  if(pending.length>=BATCH)void flushCommunityQueue();else schedule();
  return {queued:true,plies:sample.ply_count};
