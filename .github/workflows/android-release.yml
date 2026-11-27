@@ -138,6 +138,6 @@ jobs:
 
             **Installation:** Download the APK below, allow your browser or file manager to install apps from this source, and open Move by Move.
 
-            **Signing note:** This first sideload build uses the GitHub runner's debug signing key. It is suitable for testing, but it is not a permanent update-signing identity. Future versions intended to update this installation in place require a private, persistent release keystore configured in GitHub Actions secrets. Do not uninstall this build unless you are prepared to reinstall it from a future APK if its signing key changes.
+            **Signing note:** This sideload build uses the GitHub runner's temporary debug signing key. Because that key is not persistent between workflow runs, future APKs may not install as in-place updates over this build. Configure a private, persistent release keystore in GitHub Actions secrets before relying on seamless app updates.
 
             This is a direct-download APK, not a Google Play release.
