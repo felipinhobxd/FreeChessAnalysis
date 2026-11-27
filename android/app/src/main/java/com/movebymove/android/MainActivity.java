@@ -540,7 +540,7 @@ public final class MainActivity extends Activity {
             if (target != webView || session != nativeEngineSession) {
                 return;
             }
-            String script = "window.__moveByMoveNativeStockfishReceive?("
+            String script = "window.__moveByMoveNativeStockfishReceive?.("
                     + JSONObject.quote(lines) + ")";
             target.evaluateJavascript(script, null);
         });
