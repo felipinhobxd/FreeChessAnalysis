@@ -65,7 +65,7 @@ test('mate changes and forcing tactical moves are refined', () => {
     before: score(0, 'mate'), after: score(-100), move: move(), bestMove: 'd2d4',
   }), true);
   assert.equal(shouldRefineMobileReview({
-    before: score(0), after: score(-12), move: move({ san: 'Bxe5+', captured: 'p' }),
+    before: score(0), after: score(0), move: move({ san: 'Bxe5+', captured: 'p' }),
     bestMove: 'd2d4',
   }), true);
   assert.equal(shouldRefineMobileReview({
