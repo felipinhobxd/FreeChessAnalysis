@@ -103,5 +103,5 @@ test('the app uses a shallow mobile scan and selectively deepens critical positi
   assert.match(app, /engine\.search\([\s\S]{0,180}activeScanDepth/);
   assert.match(app, /engine\.search\([\s\S]{0,180}depth,/);
   assert.match(app, /gradeMove\(path\[index\], before\.lines, before\.best, index, after\.lines\[0\]\)/);
-  assert.match(app, /Review concluída · varredura/);
+  assert.match(app, /Revisão concluída · varredura/);
 });
