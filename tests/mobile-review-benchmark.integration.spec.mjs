@@ -166,7 +166,9 @@ test('benchmark the actual full-game mobile Lite review end to end', async ({ br
       timeout: 270_000,
       intervals: [250, 500, 1000],
     }).toBe(true);
-    await expect(page.locator('#report-status')).toContainText(/Review complete|Revisão concluída/);
+    await expect(page.locator('#report-status')).toContainText(/Revisão concluída/);
+    await expect(page.locator('#report-status')).toContainText('varredura 12');
+    await expect(page.locator('#report-status')).toContainText('até 14');
     const fullReviewMs = await page.evaluate(start => performance.now() - start, reviewStartedAt);
     const report = JSON.parse(await readFile(REPORT, 'utf8'));
     report.fullReview = {
