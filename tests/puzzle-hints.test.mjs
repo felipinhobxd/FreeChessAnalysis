@@ -25,7 +25,7 @@ test('puzzle hint validates the best move and falls back to a legal MultiPV choi
 });
 
 test('puzzle hint supports promotion moves but never returns their destination', () => {
-  const board = new Chess('8/P7/8/8/8/8/7k/7K w - - 0 1');
+  const board = new Chess('7k/P7/8/8/8/8/8/7K w - - 0 1');
   assert.equal(puzzleHintSquare(Chess, board.fen(), { best: 'a7a8q' }), 'a7');
 });
 
