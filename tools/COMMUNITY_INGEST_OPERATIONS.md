@@ -47,7 +47,7 @@ Before deploying the request-limiter version of the Edge Function:
 3. Confirm the production 40,000-row capacity, 180-day retention job, required Supabase secrets, and trusted `cf-connecting-ip` header.
 4. Deploy all files in `supabase/functions/ingest-review/`, not just `index.ts`.
 
-The new Edge Function deliberately fails closed with HTTP 503 when its request-budget RPC is unavailable. Do not deploy the handler before applying the migration. This PR does not apply the migration or deploy the production function.
+The request-limiter rollout for PR #8 has been applied to production: migration `20261127134014_community_request_rate_limit` is recorded in the project, and `ingest-review` is active at version 4. For future Edge Function updates, apply each required database migration before deploying code that depends on it. The function deliberately fails closed with HTTP 503 when its request-budget RPC is unavailable.
 
 A deployment is a separate production action. A green GitHub/Vercel status does not mean the Supabase Edge Function has been deployed.
 
