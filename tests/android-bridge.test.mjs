@@ -59,6 +59,12 @@ test('terminal UCI lines are flushed immediately and remain ordered', () => {
   assert.match(batcher, /if \(terminal \|\| buffer\.length\(\) >= NATIVE_OUTPUT_BATCH_MAX_CHARS\)/);
   assert.match(batcher, /if \(previousBatch != null\) dispatchNativeStockfishOutput\(session, previousBatch\)/);
   assert.match(batcher, /if \(completedBatch != null\) dispatchNativeStockfishOutput\(session, completedBatch\)/);
+  // append() and the scheduled flush enqueue output under the same lock,
+  // preserving the exact order of the native stdout stream.
+  assert.match(batcher, /synchronized \(lock\) \{[\s\S]*dispatchNativeStockfishOutput\(session, completedBatch\)/);
+  const flushStart = batcher.indexOf('private void flush()');
+  assert.ok(flushStart >= 0);
+  assert.match(batcher.slice(flushStart), /synchronized \(lock\) \{[\s\S]*dispatchNativeStockfishOutput\(session, pending\)/);
 });
 
 // Exercise the intended deadline semantics: a partial batch is emitted even
