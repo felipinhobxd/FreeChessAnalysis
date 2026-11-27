@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {normalizeIpNetwork} from '../supabase/functions/ingest-review/ip-network.js';
+import {normalizeIpNetwork,trustedNetworkFromHeaders} from '../supabase/functions/ingest-review/ip-network.js';
 
 test('IPv4 addresses are grouped by their /24 subnet',()=>{
  assert.equal(normalizeIpNetwork('198.51.100.25'),'ipv4:198.51.100.0/24');
@@ -44,4 +44,22 @@ test('malformed, ambiguous, or non-IP values are rejected',()=>{
 test('hostile or oversized header values never become network keys',()=>{
  assert.equal(normalizeIpNetwork('198.51.100.1\nX-Forwarded-For: 1.1.1.1'),null);
  assert.equal(normalizeIpNetwork('a'.repeat(65)),null);
+});
+
+
+test('only the trusted Cloudflare client-IP header supplies the network identity',()=>{
+ const trusted=new Headers({
+  'cf-connecting-ip':'203.0.113.28',
+  'x-real-ip':'192.0.2.44',
+  'x-forwarded-for':'198.51.100.8, 192.0.2.44'
+ });
+ assert.equal(trustedNetworkFromHeaders(trusted),'ipv4:203.0.113.0/24');
+ assert.equal(trustedNetworkFromHeaders(new Headers({
+  'x-real-ip':'203.0.113.28',
+  'x-forwarded-for':'203.0.113.28'
+ })),null);
+ assert.equal(trustedNetworkFromHeaders(new Headers({
+  'cf-connecting-ip':'invalid',
+  'x-real-ip':'203.0.113.28'
+ })),null);
 });
