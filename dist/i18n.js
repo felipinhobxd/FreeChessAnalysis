@@ -1097,6 +1097,25 @@ Object.assign(MESSAGES, {
   ]
 });
 
+Object.assign(MESSAGES, {
+  'Contribution queue full. Pending games are safe; this game was not added.': [
+    'Contribution queue full. Pending games are safe; this game was not added.',
+    'Fila de contribuições cheia. As partidas pendentes estão salvas; esta partida não foi adicionada.',
+    'La cola de contribuciones está llena. Las partidas pendientes están guardadas; esta partida no se añadió.',
+    'La file de contributions est pleine. Les parties en attente sont conservées ; cette partie n’a pas été ajoutée.',
+    'Die Beitragswarteschlange ist voll. Ausstehende Partien bleiben gespeichert; diese Partie wurde nicht hinzugefügt.',
+    'La coda dei contributi è piena. Le partite in attesa sono conservate; questa partita non è stata aggiunta.',
+    'De wachtrij voor bijdragen is vol. Openstaande partijen zijn bewaard; deze partij is niet toegevoegd.',
+    'Очередь отправки заполнена. Ожидающие партии сохранены; эта партия не добавлена.',
+    '贡献队列已满。待发送的棋局已保留；本局未加入队列。',
+    '投稿キューがいっぱいです。保留中の対局は保存されています。この対局は追加されませんでした。',
+    '기여 대기열이 가득 찼습니다. 대기 중인 대국은 보존되며, 이번 대국은 추가되지 않았습니다.',
+    'Katkı kuyruğu dolu. Bekleyen oyunlar korundu; bu oyun kuyruğa eklenmedi.',
+    'قائمة المساهمات ممتلئة. تم الاحتفاظ بالمباريات المعلّقة؛ ولم تُضف هذه المباراة.',
+    'योगदान कतार भर गई है। लंबित खेल सुरक्षित हैं; यह खेल कतार में नहीं जोड़ा गया।'
+  ]
+});
+
 const partialKeys = Object.keys(MESSAGES).filter(key => key.length > 3 && key !== 'Melhor').sort((a, b) => b.length - a.length);
 const englishReviewPatterns = [
   [/Revisão concluída · profundidade (\d+)/g, 'Review complete · depth $1'],
