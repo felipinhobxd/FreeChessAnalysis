@@ -194,3 +194,15 @@ test('evaluation values must remain continuous between one move and the next pos
  sample.move_data_base64=bytes.toString('base64');
  assert.equal(await cleanCommunitySample(sample),null);
 });
+
+
+test('the Ruy Lopez positive fixture itself replays as a legal chess game',()=>{
+ const chess=new Chess();
+ for(const [index,uci] of MOVES.entries()){
+  const legal=chess.moves({verbose:true});
+  const move=legal.find(candidate=>candidate.from===uci.slice(0,2)&&
+   candidate.to===uci.slice(2,4)&&(candidate.promotion||'')===(uci[4]||''));
+  assert.ok(move,'illegal fixture move at ply '+(index+1)+': '+uci);
+  chess.move({from:move.from,to:move.to,...(move.promotion?{promotion:move.promotion}:{})});
+ }
+});
