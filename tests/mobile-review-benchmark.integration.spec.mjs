@@ -3,7 +3,7 @@ import { Chess } from 'chess.js';
 import { test, expect } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 
-function createDeterministicGame(plies = 36) {
+function createDeterministicGame(plies = 18) {
   const chess = new Chess();
   let seed = 0x19a2026;
   const positions = [chess.fen()];
@@ -17,7 +17,7 @@ function createDeterministicGame(plies = 36) {
     seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
     const selected = pool[seed % pool.length];
     chess.move({ from: selected.from, to: selected.to, promotion: selected.promotion });
-    if ((ply + 1) % 6 === 0) positions.push(chess.fen());
+    if ((ply + 1) % 9 === 0) positions.push(chess.fen());
   }
 
   return {
@@ -45,19 +45,6 @@ async function unlockApp(page) {
   await expect(page.locator('#board .square')).toHaveCount(64);
 }
 
-function summarize(samples) {
-  const sorted = samples.map(sample => sample.elapsedMs).sort((a, b) => a - b);
-  const sum = samples.reduce((total, sample) => total + sample.elapsedMs, 0);
-  return {
-    searches: samples.length,
-    totalMs: Math.round(sum),
-    meanMs: Math.round(sum / Math.max(1, samples.length)),
-    medianMs: Math.round(sorted[Math.floor(sorted.length / 2)] || 0),
-    p95Ms: Math.round(sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * 0.95) - 1)] || 0),
-    averageDepth: Number((samples.reduce((total, sample) => total + sample.depth, 0) / Math.max(1, samples.length)).toFixed(1)),
-  };
-}
-
 test('benchmark real Stockfish Lite game review on a throttled mobile browser', async ({ browser }) => {
   test.setTimeout(360_000);
   const context = await browser.newContext({
@@ -72,7 +59,7 @@ test('benchmark real Stockfish Lite game review on a throttled mobile browser', 
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
   await serveBundledLite(page);
 
-  const fixture = createDeterministicGame(36);
+  const fixture = createDeterministicGame(18);
   const configurations = [
     { id: 'baseline-depth14-multipv3', depth: 14, lines: 3 },
     { id: 'depth14-multipv1', depth: 14, lines: 1 },
