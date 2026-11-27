@@ -35,7 +35,7 @@ test('malformed, ambiguous, or non-IP values are rejected',()=>{
   '',null,undefined,{},'unknown','198.51.100.256','198.51.100','198.051.100.25',
   '198.51.100.25:443','198.51.100.25, 203.0.113.1','[2001:db8::1]',
   '2001:db8:::1','2001:db8::1::2','2001:db8:1:2:3:4:5:6:7',
-  '2001:db8:1:2:3:4:5::','2001:db8::g','fe80::1%eth0','::ffff:192.0.2.999'
+  '2001:db8:1:2:3:4:5:6::','2001:db8::g','fe80::1%eth0','::ffff:192.0.2.999'
  ]){
   assert.equal(normalizeIpNetwork(value),null,String(value));
  }
