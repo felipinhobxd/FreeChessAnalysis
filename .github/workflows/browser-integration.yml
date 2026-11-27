@@ -29,6 +29,15 @@ jobs:
         env:
           CI: true
 
+      - name: Upload mobile review benchmark report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-review-benchmark-${{ github.sha }}
+          path: artifacts/mobile-review-benchmark.json
+          if-no-files-found: ignore
+          retention-days: 14
+
   postgres:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -66,12 +75,3 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f tests/community-review.integration.sql
           psql -v ON_ERROR_STOP=1 -f tests/community-game.integration.sql
           psql -v ON_ERROR_STOP=1 -f tests/community-request-rate.integration.sql
-
-      - name: Upload mobile review benchmark report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: mobile-review-benchmark-${{ github.sha }}
-          path: artifacts/mobile-review-benchmark.json
-          if-no-files-found: ignore
-          retention-days: 14
