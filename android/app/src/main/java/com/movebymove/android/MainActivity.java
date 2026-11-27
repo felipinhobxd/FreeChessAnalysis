@@ -6,7 +6,6 @@ import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.net.Uri;
-import android.app.ActivityManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.Gravity;
@@ -324,7 +323,7 @@ public final class MainActivity extends Activity {
                 return false;
             }
             try {
-                sendNativeStockfishCommand(command);
+                MainActivity.this.sendNativeStockfishCommand(command);
                 return true;
             } catch (IllegalStateException error) {
                 return false;
