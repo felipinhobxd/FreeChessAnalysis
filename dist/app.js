@@ -2192,7 +2192,7 @@ async function copyText(text, confirmation) {
 }
 
 const archiveKey = 'livro-de-lances/arquivo/v1';
-const cacheVersion = 1;
+const cacheVersion = 2;
 
 function studyFingerprint() {
   if (!studyId) {
