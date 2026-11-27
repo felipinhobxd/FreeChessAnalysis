@@ -1987,6 +1987,11 @@ async function runReview() {
     completed = true;
     if (setting('community-data')) {
       void enqueueCommunityReview(path, gameHeaders, profile, depth, typeof originalPgn === 'string')
+        .then(result => {
+          if (result?.reason === 'queue-full') {
+            toast(translate('Contribution queue full. Pending games are safe; this game was not added.'));
+          }
+        })
         .catch(() => { /* Optional collection never blocks review. */ });
     }
     studyAnalysis = { version: cacheVersion, depth, positions: path.map(node => ({ lines: node.lines, best: node.best })) };

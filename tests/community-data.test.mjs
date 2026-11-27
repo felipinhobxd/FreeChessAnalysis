@@ -13,6 +13,8 @@ globalThis.localStorage={
 const START_FEN='rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 const CONSENT='move-by-move/community-consent/v3';
 const PREFERENCES='livro-de-lances/preferencias/v1';
+const CAPACITY='move-by-move/community-capacity/v2';
+const RETRY='move-by-move/community-retry/v1';
 
 function allowConsent(){
  data.set(CONSENT,'accepted');
@@ -211,7 +213,10 @@ test('global capacity stops new uploads but does not silently erase the unconfir
  assert.equal(result.sent,0);
  assert.equal(result.reason,'capacity-reached');
  assert.equal(JSON.parse(data.get('move-by-move/community-pending/v2')||'[]').length,2);
- assert.equal(data.get('move-by-move/community-capacity/v2'),'true');
+ assert.equal(data.has(CAPACITY),false);
+ assert.equal(JSON.parse(data.get(RETRY)).reason,'capacity-reached');
+ const deferred=await flushCommunityQueue(async()=>{throw new Error('must wait for capacity retry');});
+ assert.equal(deferred.reason,'retry-deferred');
  clearCommunityQueue();
 });
 
@@ -228,6 +233,7 @@ test('a lost HTTP acknowledgement retries as duplicates and clears only confirme
  let stored=false;
  const handler=createIngestHandler({
   getEnv:name=>({SUPABASE_ANON_KEY:'test-key',SUPABASE_SERVICE_ROLE_KEY:'test-secret',SUPABASE_URL:'https://db.test'})[name],
+  requestQuotaChecker:async()=>({allowed:true,remaining_requests:14,retry_after_seconds:60}),
   fetcher:async()=>{
    const ack={accepted:stored?0:1,duplicates:stored?1:0,capacity_reached:false,remaining_capacity:39999};
    stored=true;
@@ -285,6 +291,46 @@ test('the 50th sample fits and enqueue during a failed upload never evicts pendi
  assert.equal((await upload).reason,'network-error');
  assert.equal(data.get(key),before);
  assert.equal(JSON.parse(before).length,50);
+ clearCommunityQueue();
+});
+
+
+test('a legacy permanent capacity marker no longer blocks new contributions',async()=>{
+ data.clear();clearCommunityQueue();allowConsent();
+ data.set(CAPACITY,'true');
+ const {path,headers,engine}=fixture(8);
+ const result=await enqueueCommunityReview(path,headers,engine,14,true);
+ assert.equal(result.queued,true);
+ assert.equal(data.has(CAPACITY),false);
+ clearCommunityQueue();
+});
+
+test('a full dataset preserves pending games and retries after the persisted delay',async()=>{
+ data.clear();clearCommunityQueue();allowConsent();
+ const {path,headers,engine}=fixture(8);
+ await enqueueCommunityReview(path,headers,engine,14,true);
+ const full=await flushCommunityQueue(async()=>({
+  ok:true,status:202,headers:{get:()=>null},
+  json:async()=>({accepted:0,duplicates:0,capacity_reached:true,remaining_capacity:0})
+ }));
+ assert.equal(full.reason,'capacity-reached');
+ assert.equal(JSON.parse(data.get('move-by-move/community-pending/v2')).length,1);
+ let retry=JSON.parse(data.get(RETRY));
+ assert.equal(retry.reason,'capacity-reached');
+ assert.ok(retry.retry_at>Date.now());
+ let prematureCalls=0;
+ const premature=await flushCommunityQueue(async()=>{prematureCalls++;throw new Error('must be deferred');});
+ assert.equal(premature.reason,'retry-deferred');
+ assert.equal(prematureCalls,0);
+ retry.retry_at=Date.now()-1;
+ data.set(RETRY,JSON.stringify(retry));
+ const recovered=await flushCommunityQueue(async()=>({
+  ok:true,status:200,headers:{get:()=>null},
+  json:async()=>({accepted:0,duplicates:1,capacity_reached:false,remaining_capacity:39999})
+ }));
+ assert.equal(recovered.sent,1);
+ assert.deepEqual(JSON.parse(data.get('move-by-move/community-pending/v2')),[]);
+ assert.equal(data.has(RETRY),false);
  clearCommunityQueue();
 });
 

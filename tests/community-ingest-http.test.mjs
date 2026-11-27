@@ -82,7 +82,8 @@ function makeHandler(fetcher=async()=>new Response(JSON.stringify({
  accepted:1,duplicates:0,capacity_reached:false,remaining_capacity:39999
  }),{status:200})){
  return createIngestHandler({
-  getEnv:env,fetcher,now:()=>new Date(FIXED_NOW)
+  getEnv:env,fetcher,now:()=>new Date(FIXED_NOW),
+  requestQuotaChecker:async()=>({allowed:true,remaining_requests:14,retry_after_seconds:60})
  });
 }
 const payload=async samples=>({client_id:'123e4567-e89b-42d3-a456-426614174000',samples});
@@ -254,6 +255,7 @@ test('PostgREST abort timeout is enforced and returned as a sanitized 503',async
  const handler=createIngestHandler({
   getEnv:env,
   now:()=>new Date(FIXED_NOW),
+  requestQuotaChecker:async()=>({allowed:true,remaining_requests:14,retry_after_seconds:60}),
   dbTimeoutMs:5,
   fetcher:(_url,{signal})=>new Promise((resolve,reject)=>{
    const abort=()=>reject(signal.reason||new Error('aborted'));
@@ -276,6 +278,77 @@ test('duplicate-only RPC acknowledgements return HTTP 200, including at capacity
   assert.equal(response.status,200);
   assert.deepEqual(await response.json(),expected);
  }
+});
+
+
+
+test('default HTTP path calls the shared request-budget RPC before the ingest RPC',async()=>{
+ const calls=[];
+ const handler=createIngestHandler({
+  getEnv:env,
+  now:()=>new Date(FIXED_NOW),
+  fetcher:async(url,options)=>{
+   calls.push({url,options});
+   if(url.endsWith('/rpc/fca_consume_community_request'))
+    return Response.json({allowed:true,remaining_requests:14,retry_after_seconds:60});
+   if(url.endsWith('/rpc/fca_ingest_community_games'))
+    return Response.json({accepted:1,duplicates:0,capacity_reached:false,remaining_capacity:39999});
+   throw new Error('unexpected RPC endpoint');
+  }
+ });
+ const response=await handler(request({
+  body:await payload([await validSample()]),
+  headers:{'cf-connecting-ip':'203.0.113.25'}
+ }));
+ assert.equal(response.status,200);
+ assert.equal(calls.length,2);
+ assert.ok(calls[0].url.endsWith('/rpc/fca_consume_community_request'));
+ assert.ok(calls[1].url.endsWith('/rpc/fca_ingest_community_games'));
+ const quotaBody=JSON.parse(calls[0].options.body);
+ assert.deepEqual(Object.keys(quotaBody),['p_network_hash']);
+ assert.equal(quotaBody.p_network_hash.length,66);
+ assert.ok(quotaBody.p_network_hash.startsWith('\\x'));
+ assert.equal(calls[0].options.headers.apikey,SERVICE_KEY);
+ assert.equal(calls[0].options.headers.Authorization,'Bearer '+SERVICE_KEY);
+});
+
+test('shared subnet request quota runs before chess replay and returns Retry-After',async()=>{
+ let checks=0,rpcCalls=0,hashedNetwork='';
+ const handler=createIngestHandler({
+  getEnv:env,
+  requestQuotaChecker:async networkHash=>{
+   checks++;hashedNetwork=networkHash;
+   return {allowed:false,remaining_requests:0,retry_after_seconds:37};
+  },
+  fetcher:async()=>{rpcCalls++;return Response.json({accepted:0,duplicates:0,capacity_reached:false,remaining_capacity:39999});}
+ });
+ const response=await handler(request({
+  body:await payload([{not:'a valid game sample'}]),
+  headers:{'cf-connecting-ip':'203.0.113.25'}
+ }));
+ assert.equal(response.status,429);
+ assert.equal(response.headers.get('Retry-After'),'37');
+ assert.equal((await response.json()).rate_limited,true);
+ assert.equal(checks,1);
+ assert.equal(typeof hashedNetwork,'string');
+ assert.equal(hashedNetwork.length,66);
+ assert.equal(rpcCalls,0);
+});
+
+test('request quota backend failure fails closed before chess replay',async()=>{
+ let rpcCalls=0;
+ const handler=createIngestHandler({
+  getEnv:env,
+  requestQuotaChecker:async()=>{throw new Error('private backend detail');},
+  fetcher:async()=>{rpcCalls++;return Response.json({accepted:1,duplicates:0,capacity_reached:false,remaining_capacity:39999});}
+ });
+ const response=await handler(request({
+  body:await payload([{not:'a valid game sample'}]),
+  headers:{'cf-connecting-ip':'203.0.113.25'}
+ }));
+ assert.equal(response.status,503);
+ assert.equal((await response.json()).error,'Request quota unavailable');
+ assert.equal(rpcCalls,0);
 });
 
 function streamedRequest(chunks,declared,{fail=false}={}){

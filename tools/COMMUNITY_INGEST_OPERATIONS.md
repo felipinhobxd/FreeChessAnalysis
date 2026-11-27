@@ -11,6 +11,7 @@ The service-role key must remain exclusively in Supabase Edge Function secrets. 
 | Boundary | Value / behavior |
 | --- | --- |
 | Request body | 128 KiB maximum |
+| Pre-validation request budget | 15 requests per minute per IPv4 /24 or IPv6 /64 subnet |
 | Samples per request | 1 to 5 |
 | Game mainline | 8 to 500 plies |
 | Per-client quota | 100 new samples per UTC day |
@@ -26,7 +27,7 @@ The public Edge Function currently uses `verify_jwt=false` by design. Its publis
 
 The 128 KiB body limit is enforced while reading the stream, regardless of a missing or understated `Content-Length`; overflow cancels further reads. It limits accumulated body bytes, not the total number or duration of requests.
 
-The database quotas count new game hashes. Moving quota charging ahead of legal replay would charge invalid submissions and duplicate retries, changing that contract. A read-only quota precheck also cannot reject an exhausted bucket safely: its request may consist entirely of duplicates that must still be acknowledged. An isolate-local counter would not provide a shared limit across Edge instances. No such counter or early quota charge is added here. CPU-abuse protection before chess replay needs a separately configured shared request limiter or gateway/WAF rule based on the trusted edge network, with its own request budget and retry window. That requires infrastructure configuration and load testing; the current database quotas remain unchanged.
+The daily database quotas still count only new game hashes, preserving duplicate acknowledgements and the existing sample quota contract. A separate shared PostgreSQL request budget now runs before chess replay: it allows up to 15 requests per minute for each trusted IPv4 /24 or IPv6 /64 subnet. This budget counts every request, including invalid submissions and duplicate-only retries, and is independent of the daily new-game quotas. Its HMAC key rotates daily and the minute-window rows are cleaned up by the existing retention job. Because the counter is stored in Postgres, it is shared across Edge Function instances rather than relying on per-isolate memory. The precheck itself still reaches Supabase/Postgres, so it reduces repeated expensive chess replays but does not replace an edge-level WAF or gateway limiter. A provider-level rule can reject abusive traffic before it reaches the function and should be considered as an additional layer.
 
 ## Data trust boundary
 
@@ -40,7 +41,13 @@ The repository CI runs:
 - PostgreSQL integration tests for the migrations/RPC
 - `deno check` for the deployed Edge Function entrypoint and its Deno/NPM import map
 
-Before deploying a new function version, verify that the production migrations include the 40,000-row capacity and 180-day retention policy, confirm the required Supabase secrets exist, and verify that `cf-connecting-ip` is present in hosted Edge Function requests. Deploy all files in `supabase/functions/ingest-review/`, not just `index.ts`.
+Before deploying the request-limiter version of the Edge Function:
+1. Apply `supabase/migrations/20261127134014_community_request_rate_limit.sql` first.
+2. Verify that `public.fca_consume_community_request(bytea)` exists and execution is restricted to `service_role`.
+3. Confirm the production 40,000-row capacity, 180-day retention job, required Supabase secrets, and trusted `cf-connecting-ip` header.
+4. Deploy all files in `supabase/functions/ingest-review/`, not just `index.ts`.
+
+The new Edge Function deliberately fails closed with HTTP 503 when its request-budget RPC is unavailable. Do not deploy the handler before applying the migration. This PR does not apply the migration or deploy the production function.
 
 A deployment is a separate production action. A green GitHub/Vercel status does not mean the Supabase Edge Function has been deployed.
 
