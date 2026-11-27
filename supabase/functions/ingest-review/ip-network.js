@@ -85,3 +85,16 @@ export function normalizeIpNetwork(address){
  const prefix=ipv6.slice(0,4).map(group=>group.toString(16).padStart(4,'0')).join(':');
  return 'ipv6:'+prefix+'/64';
 }
+
+/**
+ * Use only Cloudflare's client-address header for hosted ingestion.
+ * Forwarding headers are deliberately not used as an authentication source.
+ *
+ * @param {Headers} headers
+ * @returns {string | null}
+ */
+export function trustedNetworkFromHeaders(headers){
+ let address='';
+ try{address=headers?.get?.('cf-connecting-ip')||'';}catch{return null;}
+ return normalizeIpNetwork(address);
+}
