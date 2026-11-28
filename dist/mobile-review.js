@@ -15,13 +15,26 @@ export function isMobileReviewDevice(environment = globalThis) {
   return narrow && (touch || coarsePointer);
 }
 
-// Two single-thread Lite engines are used only when the phone reports enough
-// CPU and memory to run both workers while keeping resources for the UI.
+// Stockfish Lite is single-threaded. A second instance helps when the device
+// can run it without starving the browser UI. deviceMemory is unavailable in
+// Safari, so use a conservative CPU/platform fallback rather than disabling
+// parallel review on every iPhone and iPad.
 export function mobileReviewWorkerCount(environment = globalThis) {
   if (!isMobileReviewDevice(environment)) return 1;
+
   const navigator = environment?.navigator || {};
+  const userAgent = String(navigator.userAgent || '');
   const cores = Number(navigator.hardwareConcurrency);
-  const memory = Number(navigator.deviceMemory);
-  return Number.isFinite(cores) && cores >= 8 &&
-    Number.isFinite(memory) && memory >= 4 ? 2 : 1;
+  const reportedMemory = Number(navigator.deviceMemory);
+  const hasMemoryEstimate = Number.isFinite(reportedMemory) && reportedMemory > 0;
+  const appleMobile = /iPhone|iPad|iPod/i.test(userAgent);
+
+  if (!Number.isFinite(cores) || cores < 6) return 1;
+  if (hasMemoryEstimate && reportedMemory < 4) return 1;
+
+  // With no memory estimate, require 8 logical cores on Android/other browsers.
+  // Apple mobile browsers commonly omit deviceMemory, so 6+ cores is enough.
+  if (!hasMemoryEstimate && cores < 8 && !appleMobile) return 1;
+
+  return 2;
 }
