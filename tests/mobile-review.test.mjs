@@ -31,6 +31,7 @@ test('mobile detection recognizes Android, iPhone, iPad and narrow touch browser
   assert.equal(isMobileReviewDevice(environment({ userAgent: 'Mozilla/5.0 (Linux; Android 15)' })), true);
   assert.equal(isMobileReviewDevice(environment({ userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0)' })), true);
   assert.equal(isMobileReviewDevice(environment({ userAgent: 'Mozilla/5.0 (iPad; CPU OS 18_0)', width: 1024 })), true);
+  assert.equal(isMobileReviewDevice(environment({ userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15)', width: 1024, touch: 5 })), true);
   assert.equal(isMobileReviewDevice(environment({ width: 800, touch: 5 })), true);
   assert.equal(isMobileReviewDevice(environment({ width: 390, coarse: true })), true);
 });
