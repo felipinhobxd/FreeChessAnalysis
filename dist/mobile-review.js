@@ -12,7 +12,8 @@ export function isMobileReviewDevice(environment = globalThis) {
   } catch {
     // A missing or restricted matchMedia implementation is not fatal.
   }
-  return narrow && (touch || coarsePointer);
+  const desktopModeTablet = touch && /Macintosh/i.test(userAgent);
+  return desktopModeTablet || (narrow && (touch || coarsePointer));
 }
 
 // Stockfish Lite is single-threaded. A second instance helps when the device
