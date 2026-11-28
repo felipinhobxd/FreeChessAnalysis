@@ -99,6 +99,7 @@ test('mobile Lite review uses two workers without changing depth or MultiPV', as
     await installMockEngine(page);
     await page.locator('#language-enter').click();
     await expect(page.locator('#board .square')).toHaveCount(64);
+    await page.locator('#engine-toggle').click();
 
     await page.locator('#game-input').fill(createDeterministicGame(12));
     await page.locator('#submit').click();
