@@ -13,7 +13,7 @@ function createDeterministicGame(plies = 8) {
     const selected = pool[seed % pool.length];
     chess.move({ from: selected.from, to: selected.to, promotion: selected.promotion });
   }
-  return '[Event "Mobile review worker smoke test"]\n[Result "*"]\n\n' + chess.pgn() + ' *';
+  return chess.pgn();
 }
 
 async function installMockEngine(page) {
@@ -103,9 +103,10 @@ test('mobile Lite review uses two workers without changing depth or MultiPV', as
     await page.locator('#engine-toggle').click();
     await page.locator('#tab-import').click();
 
-    await page.locator('#game-input').fill(createDeterministicGame(12));
+    const pgn = createDeterministicGame(12);
+    await page.locator('#game-input').fill(pgn);
     await page.locator('#submit').click();
-    await expect(page.locator('#move-list')).not.toBeEmpty();
+    await expect(page.locator('#move-list button')).toHaveCount(12);
     await page.locator('#tab-report').click();
 
     await page.evaluate(() => {
