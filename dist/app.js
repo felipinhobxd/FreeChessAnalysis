@@ -1993,8 +1993,14 @@ async function runReview() {
     // pull positions from one queue. This balances expensive positions without
     // lowering the requested depth or MultiPV. Other devices keep one worker.
     const workers = [engine];
+    const uncachedPositions = path.reduce((count, node) =>
+      count + (!node.terminal && !reviewLinesFor(node.reviewData, cache, depth, 3) ? 1 : 0), 0);
     const useParallelLite = setting('engine-mode') === 'lite' &&
-      isMobileReviewDevice() && mobileReviewWorkerCount() > 1;
+      isMobileReviewDevice() && mobileReviewWorkerCount() > 1 &&
+      uncachedPositions >= 8;
+    // Fewer expensive DOM rebuilds keep the main thread responsive while both
+    // WebAssembly workers are using CPU time on mobile devices.
+    const renderInterval = useParallelLite ? 240 : 100;
     if (useParallelLite) {
       const candidate = new Engine('lite');
       auxiliaryEngine = candidate;
@@ -2086,7 +2092,7 @@ async function runReview() {
             if (tab === 'report') renderReport();
             renderHistory();
           }
-          nextPaint = performance.now() + 100;
+          nextPaint = performance.now() + renderInterval;
         }
 
         if (completedPositions % 16 === 0) {
