@@ -71,7 +71,7 @@ async function measureFullReview(browser, fixture, logicalProcessors) {
     await unlockApp(page);
     await page.locator('#game-input').fill(fixture.pgn);
     await page.locator('#submit').click();
-    await expect(page.locator('#history')).toBeVisible();
+    await expect(page.locator('#move-list')).not.toBeEmpty();
     await page.locator('#tab-report').click();
 
     await page.evaluate(async () => {
