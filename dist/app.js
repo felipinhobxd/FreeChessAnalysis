@@ -4,6 +4,7 @@ import { syncArchive, newSyncCode, syncCodeKey, validCode, prepareSyncArchive } 
 import { missedOpportunity, shortMateAfter, aspectEvidence, aspectGrade } from './review-evidence.js';
 import { syncSprites, resetSprites, liftSprite, moveLiftedSprite, releaseLiftedSprite } from './board-motion.js';
 import { Engine, analysisLimits } from './engine.js';
+import { isMobileReviewDevice, mobileReviewWorkerCount } from './mobile-review.js';
 import { compactSearchPosition, isIrreversibleTransition } from './engine-position.js';
 import { liveLinesFor, reviewLinesFor, reviewDataFromLive } from './analysis-reuse.js';
 import { enqueueCommunityReview, flushCommunityQueue, clearCommunityQueue } from './community-data.js';
@@ -1972,50 +1973,163 @@ async function runReview() {
   $('report-status').textContent = 'Iniciando Stockfish 19…';
   for (const node of path) { node.classification = null; node.accuracy = null; node.coach = null; node.chanceLost = null; }
   render();
+  let auxiliaryEngine = null;
+  let abortAuxiliary = null;
   let completed = false;
   try {
     const { engine, profile, cache } = await useEngine(text => { if (review === task) $('report-status').textContent = text + '…'; });
     if (review !== task) return;
     readyEngine();
+
     const commands = path.slice(1).map(node => uci(node.move));
+    const searchBaseIndexes = new Array(path.length);
     let searchBaseIndex = 0;
-    let nextPaint = 0;
     for (const [index, node] of path.entries()) {
-      if (index > 0 && index % 16 === 0) {
-        await new Promise(resolve => setTimeout(resolve, 0));
-        if (review !== task) return;
-      }
       if (index > 0 && isIrreversibleTransition(path[index - 1], node)) searchBaseIndex = index;
-      let result = node.terminal ? { lines: [node.terminal], best: null } : null;
-      if (!result && reviewLinesFor(node.reviewData, cache, depth, 3)) result = node.reviewData.result;
-      if (!result) {
-        const raw = await engine.search(path[searchBaseIndex].fen, commands.slice(searchBaseIndex, index), depth, 3, { signal: task.controller.signal });
-        if (!raw.lines.length) throw new Error('O motor não retornou uma avaliação.');
-        result = { ...raw, lines: raw.lines.map(line => normalizeLine(line, node)) };
-        node.reviewData = { depth, cache, multiPV: 3, result };
-      }
-      if (review !== task) return;
-      node.evaluation = result.lines[0];
-      node.lines = result.lines;
-      node.liveKey = null;
-      node.best = result.best;
-      node.depth = result.lines[0].depth;
-      if (index > 0) {
-        const before = path[index - 1];
-        gradeMove(node, before.lines, before.best, index);
-      }
-      progress.value = index + 1;
-      $('report-status').textContent = 'Avaliando ' + (index + 1) + ' de ' + path.length + ' posições…';
-      if (node === cursor || performance.now() >= nextPaint || index === path.length - 1) {
-        if (node === cursor) render();
-        else if (tab === 'puzzles') renderPuzzles();
-        else {
-          if (tab === 'report') renderReport();
-          renderHistory();
-        }
-        nextPaint = performance.now() + 100;
-      }
+      searchBaseIndexes[index] = searchBaseIndex;
     }
+
+    // Lite is single-threaded. On capable phones, two independent Lite workers
+    // pull positions from one queue. This balances expensive positions without
+    // lowering the requested depth or MultiPV. Other devices keep one worker.
+    const uncachedPositions = path.reduce((count, node) =>
+      count + (!node.terminal && !reviewLinesFor(node.reviewData, cache, depth, 3) ? 1 : 0), 0);
+    const useParallelLite = setting('engine-mode') === 'lite' &&
+      isMobileReviewDevice() && mobileReviewWorkerCount() > 1 &&
+      uncachedPositions >= 8;
+    // Fewer expensive DOM rebuilds keep the main thread responsive while both
+    // WebAssembly workers are using CPU time on mobile devices.
+    const renderInterval = useParallelLite ? 240 : 100;
+    let auxiliaryStart = null;
+    let auxiliaryReady = false;
+    if (useParallelLite) {
+      const candidate = new Engine('lite');
+      auxiliaryEngine = candidate;
+      abortAuxiliary = () => candidate.dispose();
+      task.controller.signal.addEventListener('abort', abortAuxiliary, { once: true });
+
+      // Do not make the user wait for a second WASM download/initialization.
+      // The primary engine starts reviewing immediately while this one loads.
+      auxiliaryStart = candidate.start().then(auxiliaryProfile => {
+        if (review !== task || task.controller.signal.aborted) return null;
+        if (auxiliaryProfile.file !== profile.file ||
+            auxiliaryProfile.version !== profile.version ||
+            auxiliaryProfile.hash !== profile.hash) {
+          throw new Error('O segundo motor Lite não corresponde ao motor principal.');
+        }
+        auxiliaryReady = true;
+        return candidate;
+      }).catch(() => {
+        candidate.dispose();
+        if (auxiliaryEngine === candidate) auxiliaryEngine = null;
+        // The second worker is optional. The primary engine keeps reviewing.
+        return null;
+      });
+    }
+
+    const positionResults = new Array(path.length);
+    const gradedMoves = new Set();
+    let completedPositions = 0;
+    let nextPaint = 0;
+
+    const gradeWhenReady = moveIndex => {
+      if (moveIndex <= 0 || moveIndex >= path.length || gradedMoves.has(moveIndex)) return;
+      if (!positionResults[moveIndex - 1] || !positionResults[moveIndex]) return;
+      const before = path[moveIndex - 1];
+      const node = path[moveIndex];
+      gradeMove(node, before.lines, before.best, moveIndex);
+      gradedMoves.add(moveIndex);
+    };
+
+    // Pull-based scheduling avoids leaving one worker with a much slower
+    // half of the game. Each worker still searches sequentially, preserving its
+    // own transposition table between positions.
+    let nextPositionIndex = 0;
+    const reviewRange = async (worker, isPrimary = false) => {
+      while (true) {
+        const index = nextPositionIndex++;
+        if (index >= path.length) {
+          // If the primary worker consumed the whole queue before the optional
+          // engine finished loading, cancel that download instead of waiting.
+          if (isPrimary && auxiliaryEngine && !auxiliaryReady) {
+            auxiliaryEngine.dispose();
+            auxiliaryEngine = null;
+          }
+          return;
+        }
+        if (review !== task) return;
+
+        const node = path[index];
+        let result = node.terminal ? { lines: [node.terminal], best: null } : null;
+        if (!result && reviewLinesFor(node.reviewData, cache, depth, 3)) {
+          result = node.reviewData.result;
+        }
+        if (!result) {
+          const raw = await worker.search(
+            path[searchBaseIndexes[index]].fen,
+            commands.slice(searchBaseIndexes[index], index),
+            depth,
+            3,
+            { signal: task.controller.signal },
+          );
+          if (!raw.lines.length) throw new Error('O motor não retornou uma avaliação.');
+          result = { ...raw, lines: raw.lines.map(line => normalizeLine(line, node)) };
+          node.reviewData = { depth, cache, multiPV: 3, result };
+        }
+        if (review !== task) return;
+
+        positionResults[index] = result;
+        node.evaluation = result.lines[0];
+        node.lines = result.lines;
+        node.liveKey = null;
+        node.best = result.best;
+        node.depth = result.lines[0].depth;
+
+        // Grade only after both adjacent positions have full-depth results.
+        gradeWhenReady(index);
+        gradeWhenReady(index + 1);
+
+        completedPositions++;
+        progress.value = completedPositions;
+        $('report-status').textContent =
+          'Avaliando ' + completedPositions + ' de ' + path.length + ' posições…';
+
+        const cursorReady = node === cursor ||
+          (path[index + 1] === cursor && gradedMoves.has(index + 1));
+        if (cursorReady || performance.now() >= nextPaint || completedPositions === path.length) {
+          if (cursorReady) render();
+          else if (tab === 'puzzles') renderPuzzles();
+          else {
+            if (tab === 'report') renderReport();
+            renderHistory();
+          }
+          nextPaint = performance.now() + renderInterval;
+        }
+
+        if (completedPositions % 16 === 0) {
+          await new Promise(resolve => setTimeout(resolve, 0));
+          if (review !== task) return;
+        }
+      }
+    };
+
+    try {
+      const reviewTasks = [reviewRange(engine, true)];
+      if (auxiliaryStart) {
+        reviewTasks.push(auxiliaryStart.then(worker =>
+          worker ? reviewRange(worker) : undefined
+        ));
+      }
+      await Promise.all(reviewTasks);
+    } catch (error) {
+      task.controller.abort();
+      throw error;
+    }
+    if (review !== task) return;
+
+    // Every move must have a matching full-depth before/after pair.
+    for (let index = 1; index < path.length; index++) gradeWhenReady(index);
+
     completed = true;
     if (setting('community-data')) {
       void enqueueCommunityReview(path, gameHeaders, profile, depth, typeof originalPgn === 'string')
@@ -2035,6 +2149,8 @@ async function runReview() {
   } catch (error) {
     if (review === task) engineFailure(error, 'report-status');
   } finally {
+    if (abortAuxiliary) task.controller.signal.removeEventListener('abort', abortAuxiliary);
+    auxiliaryEngine?.dispose();
     if (review === task) {
       review = null;
       progress.hidden = true;
@@ -2046,7 +2162,6 @@ async function runReview() {
     }
   }
 }
-
 function setSource(value) {
   source = value;
   remoteRequest?.abort();

@@ -1,0 +1,34 @@
+name: Mobile review performance benchmark
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci --include=dev
+      - run: npx playwright install --with-deps chromium
+      - name: Build and run unit tests
+        run: npm run build
+      - name: Compare real Stockfish Lite single-worker and dual-worker review
+        run: npx playwright test tests/mobile-review-benchmark.integration.spec.mjs
+        env:
+          CI: 'true'
+          CI_PERF_BENCHMARK: '1'
+      - name: Upload benchmark report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-review-performance-${{ github.run_id }}
+          path: artifacts/mobile-review-benchmark.json
+          if-no-files-found: warn
+          retention-days: 30
