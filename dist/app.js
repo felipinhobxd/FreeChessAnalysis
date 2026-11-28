@@ -1990,8 +1990,8 @@ async function runReview() {
     }
 
     // Lite is single-threaded. On capable phones, two independent Lite workers
-    // can analyse separate, contiguous parts of the game without lowering depth
-    // or MultiPV. Less capable devices retain the original single-worker path.
+    // pull positions from one queue. This balances expensive positions without
+    // lowering the requested depth or MultiPV. Other devices keep one worker.
     const workers = [engine];
     const useParallelLite = setting('engine-mode') === 'lite' &&
       isMobileReviewDevice() && mobileReviewWorkerCount() > 1;
@@ -2032,11 +2032,16 @@ async function runReview() {
       gradedMoves.add(moveIndex);
     };
 
-    const reviewRange = async (worker, workerIndex) => {
-      const rangeStart = Math.floor(path.length * workerIndex / workers.length);
-      const rangeEnd = Math.floor(path.length * (workerIndex + 1) / workers.length);
-      for (let index = rangeStart; index < rangeEnd; index++) {
+    // Pull-based scheduling avoids leaving one worker with a much slower
+    // half of the game. Each worker still searches sequentially, preserving its
+    // own transposition table between positions.
+    let nextPositionIndex = 0;
+    const reviewRange = async worker => {
+      while (true) {
+        const index = nextPositionIndex++;
+        if (index >= path.length) return;
         if (review !== task) return;
+
         const node = path[index];
         let result = node.terminal ? { lines: [node.terminal], best: null } : null;
         if (!result && reviewLinesFor(node.reviewData, cache, depth, 3)) {
@@ -2063,8 +2068,7 @@ async function runReview() {
         node.best = result.best;
         node.depth = result.lines[0].depth;
 
-        // A move is classified only after both adjacent positions have their
-        // full-depth, three-line results, regardless of which worker finished first.
+        // Grade only after both adjacent positions have full-depth results.
         gradeWhenReady(index);
         gradeWhenReady(index + 1);
 
@@ -2093,7 +2097,7 @@ async function runReview() {
     };
 
     try {
-      await Promise.all(workers.map((worker, workerIndex) => reviewRange(worker, workerIndex)));
+      await Promise.all(workers.map(worker => reviewRange(worker)));
     } catch (error) {
       task.controller.abort();
       throw error;
