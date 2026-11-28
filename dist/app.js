@@ -2001,27 +2001,31 @@ async function runReview() {
     // Fewer expensive DOM rebuilds keep the main thread responsive while both
     // WebAssembly workers are using CPU time on mobile devices.
     const renderInterval = useParallelLite ? 240 : 100;
+    let auxiliaryStart = null;
+    let auxiliaryReady = false;
     if (useParallelLite) {
       const candidate = new Engine('lite');
       auxiliaryEngine = candidate;
       abortAuxiliary = () => candidate.dispose();
       task.controller.signal.addEventListener('abort', abortAuxiliary, { once: true });
-      try {
-        const auxiliaryProfile = await candidate.start();
-        if (review !== task) return;
+
+      // Do not make the user wait for a second WASM download/initialization.
+      // The primary engine starts reviewing immediately while this one loads.
+      auxiliaryStart = candidate.start().then(auxiliaryProfile => {
+        if (review !== task || task.controller.signal.aborted) return null;
         if (auxiliaryProfile.file !== profile.file ||
             auxiliaryProfile.version !== profile.version ||
             auxiliaryProfile.hash !== profile.hash) {
           throw new Error('O segundo motor Lite não corresponde ao motor principal.');
         }
-        workers.push(candidate);
-      } catch {
+        auxiliaryReady = true;
+        return candidate;
+      }).catch(() => {
         candidate.dispose();
         if (auxiliaryEngine === candidate) auxiliaryEngine = null;
-        if (review !== task || task.controller.signal.aborted) return;
-        // A second worker is an optional acceleration. If it cannot start,
-        // complete the exact same review with the already-ready primary engine.
-      }
+        // The second worker is optional. The primary engine keeps reviewing.
+        return null;
+      });
     }
 
     const positionResults = new Array(path.length);
@@ -2042,10 +2046,18 @@ async function runReview() {
     // half of the game. Each worker still searches sequentially, preserving its
     // own transposition table between positions.
     let nextPositionIndex = 0;
-    const reviewRange = async worker => {
+    const reviewRange = async (worker, isPrimary = false) => {
       while (true) {
         const index = nextPositionIndex++;
-        if (index >= path.length) return;
+        if (index >= path.length) {
+          // If the primary worker consumed the whole queue before the optional
+          // engine finished loading, cancel that download instead of waiting.
+          if (isPrimary && auxiliaryEngine && !auxiliaryReady) {
+            auxiliaryEngine.dispose();
+            auxiliaryEngine = null;
+          }
+          return;
+        }
         if (review !== task) return;
 
         const node = path[index];
@@ -2103,7 +2115,13 @@ async function runReview() {
     };
 
     try {
-      await Promise.all(workers.map(worker => reviewRange(worker)));
+      const reviewTasks = [reviewRange(engine, true)];
+      if (auxiliaryStart) {
+        reviewTasks.push(auxiliaryStart.then(worker =>
+          worker ? reviewRange(worker) : undefined
+        ));
+      }
+      await Promise.all(reviewTasks);
     } catch (error) {
       task.controller.abort();
       throw error;
