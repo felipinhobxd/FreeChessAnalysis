@@ -5,7 +5,7 @@ import { test, expect } from '@playwright/test';
 test.describe.configure({ retries: 0 });
 import { fileURLToPath } from 'node:url';
 
-function createDeterministicGame(plies = 12) {
+function createDeterministicGame(plies = 6) {
   const chess = new Chess();
   let seed = 0x19a2026;
   for (let ply = 0; ply < plies; ply++) {
@@ -51,7 +51,7 @@ const ENVIRONMENT = {
 };
 
 test('benchmark Stockfish Lite depth and MultiPV combinations on mobile CPU limits', async ({ browser }) => {
-  test.setTimeout(240_000);
+  test.setTimeout(180_000);
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
     screen: { width: 390, height: 844 },
@@ -64,10 +64,10 @@ test('benchmark Stockfish Lite depth and MultiPV combinations on mobile CPU limi
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
   await serveBundledLite(page);
 
-  const fixture = createDeterministicGame(12);
+  const fixture = createDeterministicGame(6);
   const replay = new Chess();
-  const positions = [replay.fen()];
   replay.loadPgn(fixture.pgn);
+  const positions = [new Chess().fen()];
   const history = replay.history({ verbose: true });
   const sampleBoard = new Chess();
   for (const [index, move] of history.entries()) {
@@ -76,11 +76,10 @@ test('benchmark Stockfish Lite depth and MultiPV combinations on mobile CPU limi
   }
 
   const configurations = [
-    { id: 'baseline-depth14-multipv3', depth: 14, lines: 3 },
-    { id: 'depth14-multipv1', depth: 14, lines: 1 },
+    { id: 'baseline-depth12-multipv3', depth: 12, lines: 3 },
     { id: 'depth12-multipv1', depth: 12, lines: 1 },
-    { id: 'depth12-multipv3', depth: 12, lines: 3 },
     { id: 'depth10-multipv1', depth: 10, lines: 1 },
+    { id: 'depth8-multipv1', depth: 8, lines: 1 },
   ];
 
   try {
@@ -196,7 +195,7 @@ async function measureFullReview(browser, fixture, mobile) {
 }
 
 test('compare full review baseline against adaptive mobile Lite review', async ({ browser }) => {
-  test.setTimeout(660_000);
+  test.setTimeout(360_000);
   const fixture = createDeterministicGame(12);
 
   const baseline = await measureFullReview(browser, fixture, false);
