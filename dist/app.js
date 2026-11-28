@@ -1992,7 +1992,6 @@ async function runReview() {
     // Lite is single-threaded. On capable phones, two independent Lite workers
     // pull positions from one queue. This balances expensive positions without
     // lowering the requested depth or MultiPV. Other devices keep one worker.
-    const workers = [engine];
     const uncachedPositions = path.reduce((count, node) =>
       count + (!node.terminal && !reviewLinesFor(node.reviewData, cache, depth, 3) ? 1 : 0), 0);
     const useParallelLite = setting('engine-mode') === 'lite' &&
