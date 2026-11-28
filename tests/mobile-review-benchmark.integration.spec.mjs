@@ -42,7 +42,9 @@ async function unlockApp(page) {
   await page.locator('#community-consent-decline').click();
   await page.locator('#language-enter').click();
   await expect(page.locator('#board .square')).toHaveCount(64);
+  await page.locator('#tab-lines').click();
   await page.locator('#engine-toggle').click();
+  await page.locator('#tab-import').click();
 }
 
 const REPORT = 'artifacts/mobile-review-benchmark.json';
