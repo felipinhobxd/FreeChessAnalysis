@@ -5,14 +5,15 @@ import {
   mobileReviewWorkerCount,
 } from '../dist/mobile-review.js';
 
-const environment = ({
-  userAgent = 'Desktop browser',
-  width = 390,
-  touch = 0,
-  coarse = false,
-  cores = 8,
-  memory = 4,
-} = {}) => {
+const environment = (options = {}) => {
+  const {
+    userAgent = 'Desktop browser',
+    width = 390,
+    touch = 0,
+    coarse = false,
+    cores = 8,
+  } = options;
+  const memory = Object.hasOwn(options, 'memory') ? options.memory : 4;
   const navigator = {
     userAgent,
     maxTouchPoints: touch,
