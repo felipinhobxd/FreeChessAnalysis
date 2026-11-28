@@ -42,7 +42,7 @@ test('two Lite workers are enabled only on mobile devices with enough CPU and me
   assert.equal(mobileReviewWorkerCount(environment({ userAgent: 'Android', cores: 12, memory: 8 })), 2);
   assert.equal(mobileReviewWorkerCount(environment({ userAgent: 'Android', cores: 8, memory: 2 })), 1);
   assert.equal(mobileReviewWorkerCount(environment({ userAgent: 'Android', cores: 6, memory: 8 })), 1);
-  assert.equal(mobileReviewWorkerCount(environment({ userAgent: 'Android', cores: 8, memory: undefined })), 1);
+  assert.equal(mobileReviewWorkerCount(environment({ userAgent: 'Android', cores: 8, memory: 0 })), 1);
 });
 
 test('the full review keeps the requested depth and MultiPV 3 on every worker', async () => {
