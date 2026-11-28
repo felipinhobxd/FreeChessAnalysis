@@ -77,11 +77,6 @@ async function measureFullReview(browser, fixture, logicalProcessors) {
 
   try {
     await unlockApp(page);
-    await page.locator('#game-input').fill(fixture.pgn);
-    await page.locator('#submit').click();
-    await expect(page.locator('#move-list button')).toHaveCount(fixture.plies);
-    await page.locator('#tab-report').click();
-
     await page.evaluate(async () => {
       const { Engine } = await import('/engine.js');
       const original = Engine.prototype.search;
@@ -103,19 +98,15 @@ async function measureFullReview(browser, fixture, logicalProcessors) {
         });
       };
     });
-
     const reviewStartedAt = await page.evaluate(() => performance.now());
-    await page.evaluate(() => { window.__mobileReviewSearches.length = 0; });
-    await page.locator('#review-btn').click();
-    await expect.poll(async () => page.locator('#review-progress').evaluate(el => !el.hidden), {
-      timeout: 10_000,
-      intervals: [100, 250, 500],
-    }).toBe(true);
-    await expect.poll(async () => page.locator('#review-progress').evaluate(el => el.hidden), {
+    await page.locator('#game-input').fill(fixture.pgn);
+    await page.locator('#submit').click();
+    await expect(page.locator('#move-list button')).toHaveCount(fixture.plies);
+    // Import automatically starts the full review; measuring from submit
+    // includes parsing, saved-review lookup, engine startup and all searches.
+    await expect(page.locator('#report-status')).toContainText('Review complete · depth 14', {
       timeout: 600_000,
-      intervals: [250, 500, 1000],
-    }).toBe(true);
-    await expect(page.locator('#report-status')).toContainText('Revisão concluída · profundidade 14');
+    });
 
     const metrics = await page.evaluate(start => ({
       elapsedMs: Math.round(performance.now() - start),

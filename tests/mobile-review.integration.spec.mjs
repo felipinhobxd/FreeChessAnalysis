@@ -103,20 +103,19 @@ test('mobile Lite review uses two workers without changing depth or MultiPV', as
     await page.locator('#engine-toggle').click();
     await page.locator('#tab-import').click();
 
-    const pgn = createDeterministicGame(12);
-    await page.locator('#game-input').fill(pgn);
-    await page.locator('#submit').click();
-    await expect(page.locator('#move-list button')).toHaveCount(12);
-    await page.locator('#tab-report').click();
-
     await page.evaluate(() => {
       window.__mobileReviewMetrics.searches.length = 0;
       window.__mobileReviewMetrics.firstSearchStartedAt = null;
       window.__mobileReviewMetrics.secondWorkerReadyAt = null;
     });
-    await page.locator('#review-btn').click();
+    const pgn = createDeterministicGame(12);
+    await page.locator('#game-input').fill(pgn);
+    await page.locator('#submit').click();
+    await expect(page.locator('#move-list button')).toHaveCount(12);
+    // Importing a game starts its first full review automatically unless a
+    // saved review exists. Do not click #review-btn, which would stop it.
     await expect(page.locator('#report-status')).toContainText(
-      'Revisão concluída · profundidade 14',
+      'Review complete · depth 14',
       { timeout: 20_000 },
     );
 
