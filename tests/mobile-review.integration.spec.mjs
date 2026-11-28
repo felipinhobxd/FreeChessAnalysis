@@ -91,7 +91,7 @@ test('mobile Lite review uses two workers without changing depth or MultiPV', as
     await page.locator('#language-enter').click();
     await expect(page.locator('#board .square')).toHaveCount(64);
 
-    await page.locator('#game-input').fill(createDeterministicGame());
+    await page.locator('#game-input').fill(createDeterministicGame(12));
     await page.locator('#submit').click();
     await expect(page.locator('#move-list')).not.toBeEmpty();
     await page.locator('#tab-report').click();
