@@ -1,11 +1,9 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { Chess } from 'chess.js';
 import { test, expect } from '@playwright/test';
-
-test.describe.configure({ retries: 0 });
 import { fileURLToPath } from 'node:url';
 
-function createDeterministicGame(plies = 6) {
+function createDeterministicGame(plies = 8) {
   const chess = new Chess();
   let seed = 0x19a2026;
   for (let ply = 0; ply < plies; ply++) {
@@ -18,7 +16,7 @@ function createDeterministicGame(plies = 6) {
     chess.move({ from: selected.from, to: selected.to, promotion: selected.promotion });
   }
   return {
-    pgn: '[Event "Mobile review performance fixture"]\n[Result "*"]\n\n' + chess.pgn() + ' *',
+    pgn: '[Event "Mobile full-depth parallel benchmark"]\n[Result "*"]\n\n' + chess.pgn() + ' *',
     plies: chess.history().length,
   };
 }
@@ -48,10 +46,11 @@ const ENVIRONMENT = {
   touch: true,
   cpuThrottle: '4x',
   engine: 'Stockfish 19 Lite single-thread WASM',
+  depth: 14,
+  multiPV: 3,
 };
 
-test('benchmark Stockfish Lite depth and MultiPV combinations on mobile CPU limits', async ({ browser }) => {
-  test.setTimeout(180_000);
+async function measureFullReview(browser, fixture, logicalProcessors) {
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
     screen: { width: 390, height: 844 },
@@ -60,98 +59,10 @@ test('benchmark Stockfish Lite depth and MultiPV combinations on mobile CPU limi
     hasTouch: true,
   });
   const page = await context.newPage();
-  const cdp = await context.newCDPSession(page);
-  await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
-  await serveBundledLite(page);
-
-  const fixture = createDeterministicGame(6);
-  const replay = new Chess();
-  replay.loadPgn(fixture.pgn);
-  const positions = [new Chess().fen()];
-  const history = replay.history({ verbose: true });
-  const sampleBoard = new Chess();
-  for (const [index, move] of history.entries()) {
-    sampleBoard.move({ from: move.from, to: move.to, promotion: move.promotion });
-    if (index === 5 || index === history.length - 1) positions.push(sampleBoard.fen());
-  }
-
-  const configurations = [
-    { id: 'baseline-depth12-multipv3', depth: 12, lines: 3 },
-    { id: 'depth12-multipv1', depth: 12, lines: 1 },
-    { id: 'depth10-multipv1', depth: 10, lines: 1 },
-    { id: 'depth8-multipv1', depth: 8, lines: 1 },
-  ];
-
-  try {
-    await page.goto('/analysis');
-    const engineRuns = await page.evaluate(async ({ positions, configs }) => {
-      const { Engine } = await import('/engine.js');
-      const engine = new Engine('lite');
-      const reports = [];
-      const initializationStart = performance.now();
-      try {
-        const profile = await engine.start();
-        const initializationMs = Math.round(performance.now() - initializationStart);
-        for (const config of configs) {
-          const samples = [];
-          for (const fen of positions) {
-            const start = performance.now();
-            const result = await engine.search(fen, [], config.depth, config.lines);
-            samples.push({
-              elapsedMs: performance.now() - start,
-              depth: Math.max(0, ...result.lines.map(line => Number(line.depth) || 0)),
-            });
-          }
-          const sorted = samples.map(sample => sample.elapsedMs).sort((a, b) => a - b);
-          const total = samples.reduce((sum, sample) => sum + sample.elapsedMs, 0);
-          reports.push({
-            id: config.id,
-            depth: config.depth,
-            multiPV: config.lines,
-            ...{
-              searches: samples.length,
-              totalMs: Math.round(total),
-              meanMs: Math.round(total / Math.max(1, samples.length)),
-              medianMs: Math.round(sorted[Math.floor(sorted.length / 2)] || 0),
-              p95Ms: Math.round(sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * 0.95) - 1)] || 0),
-              averageDepth: Number((samples.reduce((sum, sample) => sum + sample.depth, 0) / Math.max(1, samples.length)).toFixed(1)),
-            },
-          });
-        }
-        return { engine: profile.identity, threads: profile.threads, initializationMs, configurations: reports };
-      } finally {
-        engine.dispose();
-      }
-    }, { positions, configs: configurations });
-
-    await mkdir('artifacts', { recursive: true });
-    const report = {
-      generatedAt: new Date().toISOString(),
-      environment: { ...ENVIRONMENT, fixturePlies: fixture.plies, sampledPositions: positions.length },
-      engineRuns,
-      fullReview: null,
-    };
-    await writeFile(REPORT, JSON.stringify(report, null, 2));
-    console.log('MOBILE_ENGINE_BENCHMARK ' + JSON.stringify(engineRuns));
-  } finally {
-    await context.close();
-  }
-});
-
-async function measureFullReview(browser, fixture, mobile) {
-  const context = await browser.newContext(mobile ? {
-    viewport: { width: 390, height: 844 },
-    screen: { width: 390, height: 844 },
-    deviceScaleFactor: 2,
-    isMobile: true,
-    hasTouch: true,
-  } : {
-    viewport: { width: 1280, height: 900 },
-    deviceScaleFactor: 1,
-    isMobile: false,
-    hasTouch: false,
-  });
-  const page = await context.newPage();
+  await page.addInitScript(cores => {
+    Object.defineProperty(navigator, 'hardwareConcurrency', { configurable: true, value: cores });
+    Object.defineProperty(navigator, 'deviceMemory', { configurable: true, value: 4 });
+  }, logicalProcessors);
   const cdp = await context.newCDPSession(page);
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
   await serveBundledLite(page);
@@ -160,58 +71,94 @@ async function measureFullReview(browser, fixture, mobile) {
     await unlockApp(page);
     await page.locator('#game-input').fill(fixture.pgn);
     await page.locator('#submit').click();
-    await expect(page.locator('#board .square')).toHaveCount(64);
+    await expect(page.locator('#history')).toBeVisible();
     await page.locator('#tab-report').click();
 
+    await page.evaluate(async () => {
+      const { Engine } = await import('/engine.js');
+      const original = Engine.prototype.search;
+      const engineIds = new WeakMap();
+      let nextEngineId = 0;
+      window.__mobileReviewSearches = [];
+      Engine.prototype.search = function(rootFen, moves, depth, lines, options) {
+        if (!engineIds.has(this)) engineIds.set(this, ++nextEngineId);
+        const workerId = engineIds.get(this);
+        return original.call(this, rootFen, moves, depth, lines, options).then(result => {
+          window.__mobileReviewSearches.push({
+            workerId,
+            requestedDepth: depth,
+            requestedMultiPV: lines,
+            resultDepth: Math.min(...result.lines.map(line => Number(line.depth) || 0)),
+            resultLineCount: result.lines.length,
+          });
+          return result;
+        });
+      };
+    });
+
     const reviewStartedAt = await page.evaluate(() => performance.now());
+    await page.evaluate(() => { window.__mobileReviewSearches.length = 0; });
     await page.locator('#review-btn').click();
-    await expect(page.locator('#review-progress')).toBeVisible();
+    await expect.poll(async () => page.locator('#review-progress').evaluate(el => !el.hidden), {
+      timeout: 10_000,
+      intervals: [100, 250, 500],
+    }).toBe(true);
     await expect.poll(async () => page.locator('#review-progress').evaluate(el => el.hidden), {
       timeout: 300_000,
       intervals: [250, 500, 1000],
     }).toBe(true);
-    await expect(page.locator('#report-status')).toContainText(/Revisão concluída/);
+    await expect(page.locator('#report-status')).toContainText('Revisão concluída · profundidade 14');
 
-    const elapsedMs = Math.round(await page.evaluate(start => performance.now() - start, reviewStartedAt));
-    const status = (await page.locator('#report-status').innerText()).trim();
-    if (mobile) {
-      await expect(page.locator('#report-status')).toContainText('varredura 12');
-      await expect(page.locator('#report-status')).toContainText('até 14');
-    } else {
-      await expect(page.locator('#report-status')).toContainText('profundidade 14');
+    const metrics = await page.evaluate(start => ({
+      elapsedMs: Math.round(performance.now() - start),
+      searches: window.__mobileReviewSearches,
+      completionStatus: document.querySelector('#report-status').innerText.trim(),
+    }), reviewStartedAt);
+
+    expect(metrics.searches.length).toBeGreaterThan(0);
+    for (const search of metrics.searches) {
+      expect(search.requestedDepth).toBe(14);
+      expect(search.requestedMultiPV).toBe(3);
+      expect(search.resultDepth).toBe(14);
+      expect(search.resultLineCount).toBe(3);
     }
+
     return {
-      mode: mobile ? 'mobile-adaptive' : 'desktop-baseline',
-      plies: fixture.plies,
+      logicalProcessors,
+      requestedDepth: 14,
+      multiPV: 3,
       positions: fixture.plies + 1,
-      elapsedMs,
-      seconds: Number((elapsedMs / 1000).toFixed(2)),
-      millisecondsPerPosition: Math.round(elapsedMs / (fixture.plies + 1)),
-      completionStatus: status,
+      elapsedMs: metrics.elapsedMs,
+      seconds: Number((metrics.elapsedMs / 1000).toFixed(2)),
+      enginesUsed: new Set(metrics.searches.map(search => search.workerId)).size,
+      completedSearches: metrics.searches.length,
+      completionStatus: metrics.completionStatus,
     };
   } finally {
     await context.close();
   }
 }
 
-test('compare full review baseline against adaptive mobile Lite review', async ({ browser }) => {
-  test.setTimeout(360_000);
-  const fixture = createDeterministicGame(12);
+test('benchmark full-depth mobile review with one versus two Lite workers', async ({ browser }) => {
+  test.setTimeout(420_000);
+  const fixture = createDeterministicGame(8);
+  const singleWorker = await measureFullReview(browser, fixture, 4);
+  const dualWorker = await measureFullReview(browser, fixture, 8);
 
-  const baseline = await measureFullReview(browser, fixture, false);
-  const mobileAdaptive = await measureFullReview(browser, fixture, true);
-  const speedup = Number((baseline.elapsedMs / mobileAdaptive.elapsedMs).toFixed(2));
-  const timeSavedPercent = Number((100 * (1 - mobileAdaptive.elapsedMs / baseline.elapsedMs)).toFixed(1));
+  expect(singleWorker.enginesUsed).toBe(1);
+  expect(dualWorker.enginesUsed).toBe(2);
+  expect(dualWorker.completedSearches).toBe(singleWorker.completedSearches);
+  expect(dualWorker.elapsedMs).toBeLessThan(singleWorker.elapsedMs);
 
-  const report = JSON.parse(await readFile(REPORT, 'utf8'));
-  report.fullReview = {
-    baseline,
-    mobileAdaptive,
-    speedup,
-    timeSavedPercent,
+  const report = {
+    generatedAt: new Date().toISOString(),
+    environment: { ...ENVIRONMENT, fixturePlies: fixture.plies },
+    singleWorker,
+    dualWorker,
+    speedup: Number((singleWorker.elapsedMs / dualWorker.elapsedMs).toFixed(2)),
+    timeSavedPercent: Number((100 * (1 - dualWorker.elapsedMs / singleWorker.elapsedMs)).toFixed(1)),
   };
-  report.generatedAt = new Date().toISOString();
+  await mkdir('artifacts', { recursive: true });
   await writeFile(REPORT, JSON.stringify(report, null, 2));
-  console.log('MOBILE_REVIEW_AB_BENCHMARK ' + JSON.stringify(report));
-  expect(mobileAdaptive.elapsedMs).toBeLessThan(baseline.elapsedMs);
+  console.log('MOBILE_FULL_DEPTH_REVIEW_BENCHMARK ' + JSON.stringify(report));
 });

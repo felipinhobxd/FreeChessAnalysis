@@ -4,6 +4,7 @@ import { syncArchive, newSyncCode, syncCodeKey, validCode, prepareSyncArchive } 
 import { missedOpportunity, shortMateAfter, aspectEvidence, aspectGrade } from './review-evidence.js';
 import { syncSprites, resetSprites, liftSprite, moveLiftedSprite, releaseLiftedSprite } from './board-motion.js';
 import { Engine, analysisLimits } from './engine.js';
+import { isMobileReviewDevice, mobileReviewWorkerCount } from './mobile-review.js';
 import { compactSearchPosition, isIrreversibleTransition } from './engine-position.js';
 import { liveLinesFor, reviewLinesFor, reviewDataFromLive } from './analysis-reuse.js';
 import { enqueueCommunityReview, flushCommunityQueue, clearCommunityQueue } from './community-data.js';
@@ -17,7 +18,6 @@ import { recordedRating } from './game-rating.js';
 import { classifyReviewMove, winPercent } from './review-classification.js';
 import { REVIEW_CHART_MARKERS, chartMarkerPoints, chartSelectionFor } from './review-chart.js';
 import { aggregateGameAccuracy, estimatePerformance, moveAccuracyBetween, phaseForPosition } from './review-metrics.js';
-import { isMobileReviewDevice, mobileReviewScanDepth, shouldRefineMobileReview } from './mobile-review.js';
 
 const $ = id => document.getElementById(id);
 const languageState = initLanguage();
@@ -1081,14 +1081,14 @@ async function reviewExploration(node, engine, cache, depth, task) {
   gradeMove(node, before.lines, before.best, pathTo(node).length);
 }
 
-function gradeMove(node, choices, best, index, after = node.evaluation) {
+function gradeMove(node, choices, best, index) {
   const before = choices[0];
-  node.coach = {before,after,best,choices};
+  node.coach = {before,after:node.evaluation,best,choices};
   node.forced = new Chess(node.parent.fen).moves().length <= 1;
-  node.accuracy = moveAccuracyBetween(before,after,node.move.color);
+  node.accuracy = moveAccuracyBetween(before,node.evaluation,node.move.color);
   node.aspects = null;
   node.chanceLost = missedOpportunity(Chess,node.parent,node);
-  node.classification = reviewClass(node,before,after,best,choices,index);
+  node.classification = reviewClass(node,before,node.evaluation,best,choices,index);
 }
 
 function moveSan(ChessClass,fen,command){try{return new ChessClass(fen).move(moveFromUci(command)).san}catch{return command||''}}
@@ -1965,9 +1965,6 @@ async function runReview() {
   const task = { controller: new AbortController() };
   review = task;
   const { depth } = analysisLimits(setting('engine-mode'), 'review', setting('review-depth'), 3);
-  const mobileAdaptive = setting('engine-mode') === 'lite' &&
-    isMobileReviewDevice() && mobileReviewScanDepth(depth) < depth;
-  const scanDepth = mobileAdaptive ? mobileReviewScanDepth(depth) : depth;
   const progress = $('review-progress');
   progress.hidden = false;
   progress.max = path.length;
@@ -1976,127 +1973,139 @@ async function runReview() {
   $('report-status').textContent = 'Iniciando Stockfish 19…';
   for (const node of path) { node.classification = null; node.accuracy = null; node.coach = null; node.chanceLost = null; }
   render();
+  let auxiliaryEngine = null;
+  let abortAuxiliary = null;
   let completed = false;
   try {
     const { engine, profile, cache } = await useEngine(text => { if (review === task) $('report-status').textContent = text + '…'; });
     if (review !== task) return;
     readyEngine();
-    const hasCompleteDeepCache = path.every(node =>
-      node.terminal || reviewLinesFor(node.reviewData, cache, depth, 3)
-    );
-    const adaptiveReview = mobileAdaptive && !hasCompleteDeepCache;
-    const activeScanDepth = adaptiveReview ? scanDepth : depth;
+
     const commands = path.slice(1).map(node => uci(node.move));
     const searchBaseIndexes = new Array(path.length);
-    const refinementPositions = new Set();
-    const deepResults = new Map();
     let searchBaseIndex = 0;
-    let nextPaint = 0;
-
     for (const [index, node] of path.entries()) {
-      if (index > 0 && index % 16 === 0) {
-        await new Promise(resolve => setTimeout(resolve, 0));
-        if (review !== task) return;
-      }
       if (index > 0 && isIrreversibleTransition(path[index - 1], node)) searchBaseIndex = index;
       searchBaseIndexes[index] = searchBaseIndex;
+    }
 
-      let result = node.terminal ? { lines: [node.terminal], best: null } : null;
-      if (!result && reviewLinesFor(node.reviewData, cache, activeScanDepth, 3)) {
-        result = node.reviewData.result;
-      }
-      if (!result) {
-        const raw = await engine.search(
-          path[searchBaseIndex].fen,
-          commands.slice(searchBaseIndex, index),
-          activeScanDepth,
-          3,
-          { signal: task.controller.signal },
-        );
-        if (!raw.lines.length) throw new Error('O motor não retornou uma avaliação.');
-        result = { ...raw, lines: raw.lines.map(line => normalizeLine(line, node)) };
-        node.reviewData = { depth: activeScanDepth, cache, multiPV: 3, result };
-      }
-      if (review !== task) return;
-
-      node.evaluation = result.lines[0];
-      node.lines = result.lines;
-      node.liveKey = null;
-      node.best = result.best;
-      node.depth = result.lines[0].depth;
-
-      if (index > 0) {
-        const before = path[index - 1];
-        gradeMove(node, before.lines, before.best, index);
-        if (adaptiveReview && shouldRefineMobileReview({
-          before: node.coach.before,
-          after: node.coach.after,
-          move: node.move,
-          bestMove: node.coach.best,
-          classification: node.classification,
-          forced: node.forced,
-          chanceLost: node.chanceLost,
-        })) {
-          refinementPositions.add(index - 1);
-          refinementPositions.add(index);
+    // Lite is single-threaded. On capable phones, two independent Lite workers
+    // can analyse separate, contiguous parts of the game without lowering depth
+    // or MultiPV. Less capable devices retain the original single-worker path.
+    const workers = [engine];
+    const useParallelLite = setting('engine-mode') === 'lite' &&
+      isMobileReviewDevice() && mobileReviewWorkerCount() > 1;
+    if (useParallelLite) {
+      const candidate = new Engine('lite');
+      auxiliaryEngine = candidate;
+      abortAuxiliary = () => candidate.dispose();
+      task.controller.signal.addEventListener('abort', abortAuxiliary, { once: true });
+      try {
+        const auxiliaryProfile = await candidate.start();
+        if (review !== task) return;
+        if (auxiliaryProfile.file !== profile.file ||
+            auxiliaryProfile.version !== profile.version ||
+            auxiliaryProfile.hash !== profile.hash) {
+          throw new Error('O segundo motor Lite não corresponde ao motor principal.');
         }
-      }
-
-      progress.value = index + 1;
-      $('report-status').textContent = 'Avaliando ' + (index + 1) + ' de ' + path.length + ' posições…';
-      if (node === cursor || performance.now() >= nextPaint || index === path.length - 1) {
-        if (node === cursor) render();
-        else if (tab === 'puzzles') renderPuzzles();
-        else {
-          if (tab === 'report') renderReport();
-          renderHistory();
-        }
-        nextPaint = performance.now() + 100;
+        workers.push(candidate);
+      } catch {
+        candidate.dispose();
+        if (auxiliaryEngine === candidate) auxiliaryEngine = null;
+        if (review !== task || task.controller.signal.aborted) return;
+        // A second worker is an optional acceleration. If it cannot start,
+        // complete the exact same review with the already-ready primary engine.
       }
     }
 
-    if (adaptiveReview && refinementPositions.size) {
-      const refinementIndexes = [...refinementPositions].filter(index => !path[index]?.terminal);
-      progress.max = path.length + refinementIndexes.length;
-      progress.value = path.length;
-      for (const [offset, index] of refinementIndexes.entries()) {
+    const positionResults = new Array(path.length);
+    const gradedMoves = new Set();
+    let completedPositions = 0;
+    let nextPaint = 0;
+
+    const gradeWhenReady = moveIndex => {
+      if (moveIndex <= 0 || moveIndex >= path.length || gradedMoves.has(moveIndex)) return;
+      if (!positionResults[moveIndex - 1] || !positionResults[moveIndex]) return;
+      const before = path[moveIndex - 1];
+      const node = path[moveIndex];
+      gradeMove(node, before.lines, before.best, moveIndex);
+      gradedMoves.add(moveIndex);
+    };
+
+    const reviewRange = async (worker, workerIndex) => {
+      const rangeStart = Math.floor(path.length * workerIndex / workers.length);
+      const rangeEnd = Math.floor(path.length * (workerIndex + 1) / workers.length);
+      for (let index = rangeStart; index < rangeEnd; index++) {
         if (review !== task) return;
         const node = path[index];
-        const baseIndex = searchBaseIndexes[index] ?? 0;
-        const raw = await engine.search(
-          path[baseIndex].fen,
-          commands.slice(baseIndex, index),
-          depth,
-          3,
-          { signal: task.controller.signal },
-        );
-        if (!raw.lines.length) throw new Error('O motor não retornou uma avaliação refinada.');
-        const result = { ...raw, lines: raw.lines.map(line => normalizeLine(line, node)) };
-        deepResults.set(index, result);
-        node.reviewData = { depth, cache, multiPV: 3, result };
-        progress.value = path.length + offset + 1;
+        let result = node.terminal ? { lines: [node.terminal], best: null } : null;
+        if (!result && reviewLinesFor(node.reviewData, cache, depth, 3)) {
+          result = node.reviewData.result;
+        }
+        if (!result) {
+          const raw = await worker.search(
+            path[searchBaseIndexes[index]].fen,
+            commands.slice(searchBaseIndexes[index], index),
+            depth,
+            3,
+            { signal: task.controller.signal },
+          );
+          if (!raw.lines.length) throw new Error('O motor não retornou uma avaliação.');
+          result = { ...raw, lines: raw.lines.map(line => normalizeLine(line, node)) };
+          node.reviewData = { depth, cache, multiPV: 3, result };
+        }
+        if (review !== task) return;
+
+        positionResults[index] = result;
+        node.evaluation = result.lines[0];
+        node.lines = result.lines;
+        node.liveKey = null;
+        node.best = result.best;
+        node.depth = result.lines[0].depth;
+
+        // A move is classified only after both adjacent positions have their
+        // full-depth, three-line results, regardless of which worker finished first.
+        gradeWhenReady(index);
+        gradeWhenReady(index + 1);
+
+        completedPositions++;
+        progress.value = completedPositions;
         $('report-status').textContent =
-          'Refinando posições decisivas: ' + (offset + 1) + ' de ' + refinementIndexes.length + '…';
-        if (offset % 4 === 3) {
+          'Avaliando ' + completedPositions + ' de ' + path.length + ' posições…';
+
+        const cursorReady = node === cursor ||
+          (path[index + 1] === cursor && gradedMoves.has(index + 1));
+        if (cursorReady || performance.now() >= nextPaint || completedPositions === path.length) {
+          if (cursorReady) render();
+          else if (tab === 'puzzles') renderPuzzles();
+          else {
+            if (tab === 'report') renderReport();
+            renderHistory();
+          }
+          nextPaint = performance.now() + 100;
+        }
+
+        if (completedPositions % 16 === 0) {
           await new Promise(resolve => setTimeout(resolve, 0));
           if (review !== task) return;
         }
       }
+    };
 
-      // Keep the uniform scan evaluation on the position itself. Refined
-      // evaluations live in reviewData and are applied only to the move whose
-      // before/after pair was searched at the same requested depth.
-      for (let index = 1; index < path.length; index++) {
-        const before = deepResults.get(index - 1);
-        const after = deepResults.get(index);
-        if (before && after) gradeMove(path[index], before.lines, before.best, index, after.lines[0]);
-      }
+    try {
+      await Promise.all(workers.map((worker, workerIndex) => reviewRange(worker, workerIndex)));
+    } catch (error) {
+      task.controller.abort();
+      throw error;
     }
+    if (review !== task) return;
+
+    // Every move must have a matching full-depth before/after pair.
+    for (let index = 1; index < path.length; index++) gradeWhenReady(index);
 
     completed = true;
     if (setting('community-data')) {
-      const publishedDepth = adaptiveReview ? activeScanDepth : depth;
-      void enqueueCommunityReview(path, gameHeaders, profile, publishedDepth, typeof originalPgn === 'string')
+      void enqueueCommunityReview(path, gameHeaders, profile, depth, typeof originalPgn === 'string')
         .then(result => {
           if (result?.reason === 'queue-full') {
             toast(translate('Contribution queue full. Pending games are safe; this game was not added.'));
@@ -2106,19 +2115,15 @@ async function runReview() {
         })
         .catch(() => { /* Optional collection never blocks review. */ });
     }
-    studyAnalysis = {
-      version: cacheVersion,
-      depth: adaptiveReview ? activeScanDepth : depth,
-      positions: path.map(node => ({ lines: node.lines, best: node.best })),
-    };
+    studyAnalysis = { version: cacheVersion, depth, positions: path.map(node => ({ lines: node.lines, best: node.best })) };
     scheduleStudy();
-    $('report-status').textContent = adaptiveReview
-      ? 'Revisão concluída · varredura ' + activeScanDepth + ' · até ' + depth
-      : 'Revisão concluída · profundidade ' + depth;
+    $('report-status').textContent = 'Revisão concluída · profundidade ' + depth;
     readyEngine();
   } catch (error) {
     if (review === task) engineFailure(error, 'report-status');
   } finally {
+    if (abortAuxiliary) task.controller.signal.removeEventListener('abort', abortAuxiliary);
+    auxiliaryEngine?.dispose();
     if (review === task) {
       review = null;
       progress.hidden = true;
@@ -2130,7 +2135,6 @@ async function runReview() {
     }
   }
 }
-
 function setSource(value) {
   source = value;
   remoteRequest?.abort();
